@@ -53,10 +53,48 @@ jobs:
             cp "target/${{ matrix.target }}/release/constructcad" "target/${{ matrix.target }}/release/ccad" "dist/$name/"
             tar -C dist -czf "dist/$name.tar.gz" "$name"
           fi
+      - name: Build AppImage
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: "1"
+          ARCH: x86_64
+        run: |
+          export VERSION="${GITHUB_REF_NAME#v}"
+          curl -L -o linuxdeploy.AppImage \
+            "https://github.com/linuxdeploy/linuxdeploy/releases/latest/download/linuxdeploy-x86_64.AppImage"
+          chmod +x linuxdeploy.AppImage
+          appdir=AppDir
+          mkdir -p "$appdir/usr/bin" "$appdir/usr/share/icons/hicolor/256x256/apps"
+          cp "target/${{ matrix.target }}/release/constructcad" "$appdir/usr/bin/"
+          cp "target/${{ matrix.target }}/release/ccad" "$appdir/usr/bin/"
+          cp assets/icons/app-icon-256.png \
+            "$appdir/usr/share/icons/hicolor/256x256/apps/constructcad.png"
+          printf '%s\n' \
+            '[Desktop Entry]' \
+            'Type=Application' \
+            'Name=ConstructCAD' \
+            'Comment=Free and open source Building Information Modeling (BIM) software.' \
+            'Exec=constructcad %f' \
+            'Icon=constructcad' \
+            'Categories=Graphics;Engineering;' \
+            'Keywords=BIM;CAD;architecture;engineering;' \
+            'Terminal=false' \
+            'StartupWMClass=ConstructCAD' \
+            > "$appdir/constructcad.desktop"
+          ./linuxdeploy.AppImage \
+            --appdir "$appdir" \
+            --executable "$appdir/usr/bin/constructcad" \
+            --executable "$appdir/usr/bin/ccad" \
+            --desktop-file "$appdir/constructcad.desktop" \
+            --output appimage
+          mv "ConstructCAD-${VERSION}-x86_64.AppImage" \
+            "dist/constructcad-${GITHUB_REF_NAME}-x86_64.AppImage"
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
-          path: dist/*.${{ matrix.archive }}
+          path: |
+            dist/*.${{ matrix.archive }}
+            dist/*.AppImage
 
   release:
     name: Publish release
