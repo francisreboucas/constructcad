@@ -1,4 +1,5 @@
 * text=auto eol=lf
 *.png binary
+*.skp binary
 *.jpg binary
 *.ico binary

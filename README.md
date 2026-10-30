@@ -184,6 +184,7 @@ crates/
   cc_views   2D drawing generation (plan, ceiling, elevation, section, axonometric, legend), schedules, sheet composition and PDF/SVG export
   cc_render  offscreen wgpu 3D renderer
   cc_ifc     IFC4 export and IFC2X3/IFC4 import: STEP writer and parser, model mapping
+  cc_skp     SketchUp (.skp) reader and writer (MIT-licensed, see its LICENSE)
   cc_engine  every operation as a named command with a JSON Schema, on a session without GUI
   cc_cli     `ccad`: command line, scripts and MCP server over the engine
   cc_app     eframe/egui application: ribbon, browser, properties, tools, sheets
@@ -228,4 +229,4 @@ Copyright © Francis Rebouças <francisreboucas@gmail.com>.
 
 ConstructCAD is licensed under the [GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later).
 
-The application icon is by [Magnific – Flaticon](https://www.flaticon.com/) (see `assets/icons/FLATICON.txt`). The bundled [Inter](https://rsms.me/inter/) typeface is © The Inter Project Authors and licensed under the [SIL Open Font License 1.1](assets/fonts/OFL-Inter.txt).
+The application icon is by [Magnific – Flaticon](https://www.flaticon.com/) (see `assets/icons/FLATICON.txt`). The bundled [Inter](https://rsms.me/inter/) typeface is © The Inter Project Authors and licensed under the [SIL Open Font License 1.1](assets/fonts/OFL-Inter.txt). The `cc_skp` crate is derived from OpenSKP, © 2024-2026 Ahsan Mehmood, and keeps its [MIT License](crates/cc_skp/LICENSE).

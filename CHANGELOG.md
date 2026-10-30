@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- `cc_skp` crate: SketchUp (.skp) reader and writer without external dependencies, derived from the MIT-licensed OpenSKP toolkit (current and legacy file formats, flattened and per-definition instanced scenes, a builder that writes `.skp` files and reopens existing ones for editing). It is not wired to import yet.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added

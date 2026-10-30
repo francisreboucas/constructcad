@@ -786,6 +786,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "cc_skp"
+version = "0.8.0"
+
+[[package]]
 name = "cc_views"
 version = "0.8.0"
 dependencies = [

@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/cc_core", "crates/cc_geom", "crates/cc_views", "crates/cc_render", "crates/cc_ifc", "crates/cc_cad", "crates/cc_engine", "crates/cc_cli", "crates/cc_app"]
+members = ["crates/cc_core", "crates/cc_geom", "crates/cc_views", "crates/cc_render", "crates/cc_ifc", "crates/cc_cad", "crates/cc_skp", "crates/cc_engine", "crates/cc_cli", "crates/cc_app"]
 
 [workspace.package]
 version = "0.8.0"
@@ -16,6 +16,7 @@ cc_views = { path = "crates/cc_views" }
 cc_render = { path = "crates/cc_render" }
 cc_ifc = { path = "crates/cc_ifc" }
 cc_cad = { path = "crates/cc_cad" }
+cc_skp = { path = "crates/cc_skp" }
 cc_engine = { path = "crates/cc_engine" }
 
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence", "accesskit", "links", "x11", "wayland"] }
