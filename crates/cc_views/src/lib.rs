@@ -71,7 +71,7 @@ pub fn generate_temporary(
                 }
                 _ => (false, false, None),
             };
-            let mut d = plan_of(project, geom, *level, *cut_height, ceiling, structural, view.scale);
+            let mut d = plan_of(project, geom, *level, *cut_height, (ceiling, structural), view.scale, view.detail);
             joins::merge(project, &mut d);
             if let Some(discipline) = services {
                 // The architecture stays in the background of a services plan.
@@ -84,15 +84,15 @@ pub fn generate_temporary(
             }
             d
         }
-        ViewKind::Elevation { direction } => elevation(project, geom, *direction),
+        ViewKind::Elevation { direction } => elevation(project, geom, *direction, view.detail),
         ViewKind::Section { start, end, depth } => {
-            let mut d = section(project, geom, *start, *end, *depth, view.scale);
+            let mut d = section(project, geom, (*start, *end), *depth, view.scale, view.detail);
             joins::merge(project, &mut d);
             d
         }
         ViewKind::ThreeD { camera, analytical: true, .. } => projected::analytical(project, geom, camera),
         ViewKind::ThreeD { camera, rebar: true, .. } => projected::rebar(geom, camera),
-        ViewKind::ThreeD { camera, .. } => axonometric(project, geom, camera),
+        ViewKind::ThreeD { camera, .. } => axonometric(project, geom, camera, view.detail),
         ViewKind::Legend { types } => legend(project, types, view.scale),
         ViewKind::Diagram { panel } => diagram::panel_diagram(project, geom, *panel, view.scale, label),
         ViewKind::Schedule { .. } | ViewKind::Sheet { .. } => return None,

@@ -1,5 +1,5 @@
 use crate::{Drawing2D, LineStyle};
-use cc_core::{ElementKind, LevelId, Project, TypeData, ViewKind};
+use cc_core::{DetailLevel, ElementKind, LevelId, Project, TypeData, ViewKind};
 use cc_geom::{Column, ModelGeometry, WallGeom, polygon};
 use glam::DVec2;
 use std::f64::consts::{PI, TAU};
@@ -41,7 +41,7 @@ pub fn plan(
     ceiling: bool,
     scale: u32,
 ) -> Drawing2D {
-    plan_of(project, geom, level, cut_height, ceiling, false, scale)
+    plan_of(project, geom, level, cut_height, (ceiling, false), scale, DetailLevel::Medium)
 }
 
 /// Whether a structural plan shows the element: slabs, the load-bearing
@@ -55,16 +55,16 @@ pub fn is_structural(e: &cc_core::Element) -> bool {
     }
 }
 
-/// A plan as [`plan`] draws it; a `structural` plan shows only the
-/// structure, with the beams above the cut drawn as seen from below.
+/// A plan as [`plan`] draws it, at `detail`; a `structural` plan shows only
+/// the structure, with the beams above the cut drawn as seen from below.
 pub fn plan_of(
     project: &Project,
     geom: &ModelGeometry,
     level: LevelId,
     cut_height: f64,
-    ceiling: bool,
-    structural: bool,
+    (ceiling, structural): (bool, bool),
     scale: u32,
+    detail: DetailLevel,
 ) -> Drawing2D {
     let shown = |e: &cc_core::Element| !structural || is_structural(e);
     let spacing = crate::cut::spacing(scale);
@@ -110,7 +110,7 @@ pub fn plan_of(
         draw_structure(&mut d, project, geom, level, cut_z, spacing, structural);
     }
     if !structural {
-        draw_components(&mut d, project, geom, level, cut_z, ceiling);
+        draw_components(&mut d, project, geom, level, cut_z, ceiling, detail);
     }
     if !structural && !ceiling {
         draw_masses(&mut d, project, geom, level, cut_z);
@@ -118,9 +118,9 @@ pub fn plan_of(
 
     for (e, _) in project.walls().filter(|(e, _)| e.level == level && shown(e)) {
         if let Some(g) = geom.walls.get(&e.id) {
-            draw_wall(&mut d, project, g, cut_z, spacing);
+            draw_wall(&mut d, project, g, cut_z, spacing, detail);
             if !structural {
-                draw_openings(&mut d, project, geom, g, ceiling);
+                draw_openings(&mut d, project, geom, g, ceiling, detail);
             }
         }
     }
@@ -187,6 +187,7 @@ fn draw_components(
     level: LevelId,
     cut_z: f64,
     ceiling: bool,
+    detail: DetailLevel,
 ) {
     for e in project.elements.values().filter(|e| e.level == level) {
         if !matches!(e.kind, ElementKind::Component(_)) {
@@ -196,7 +197,7 @@ fn draw_components(
         if !ceiling && matches!(project.mep_data(e), Some(cc_core::MepData::Device { .. })) {
             continue;
         }
-        for part in geom.components.get(&e.id).into_iter().flatten().filter(|p| p.in_plan) {
+        for part in geom.components.get(&e.id).into_iter().flatten().filter(|p| p.in_plan && p.detail.shows(detail)) {
             if !part.faces.is_empty() {
                 draw_mesh(d, &part.faces, cut_z, ceiling, e.id);
                 continue;
@@ -492,7 +493,9 @@ fn draw_ramp(d: &mut Drawing2D, g: &cc_geom::RampGeom, cut_z: f64, element: cc_c
     }
 }
 
-fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spacing: f64) {
+/// A wall in plan: cut, its layers with their materials' patterns (at the
+/// coarse level one plain region), or seen below or above the cut.
+fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spacing: f64, detail: DetailLevel) {
     let id = Some(g.element);
     let h = g.half;
     let states: Vec<ColumnCut> = g.columns.iter().map(|c| column_state(c, cut_z)).collect();
@@ -500,11 +503,12 @@ fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spa
         let poly = g.column_polygon(c);
         let state = states[i];
         if state == ColumnCut::Cut {
-            // Each layer with its material's cut pattern.
-            if g.layers.is_empty() {
+            // Each layer with its material's cut pattern; coarse, one plain region.
+            let layers: &[_] = if detail.shows_layers() { &g.layers } else { &[] };
+            if layers.is_empty() {
                 d.cut_fill(poly.to_vec(), POCHE, id);
             }
-            for (v0, v1, material) in &g.layers {
+            for (v0, v1, material) in layers {
                 let at = |v: f64| {
                     let s = (v + h) / (2.0 * h);
                     (c.right.0 + (c.left.0 - c.right.0) * s, c.right.1 + (c.left.1 - c.right.1) * s)
@@ -515,7 +519,7 @@ fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spa
                 crate::cut::cut_fill(d, project, material, strip, spacing, id);
             }
             // Interior layer boundaries; the outer faces are drawn below.
-            for &(_, v, _) in g.layers.iter().take(g.layers.len().saturating_sub(1)) {
+            for &(_, v, _) in layers.iter().take(layers.len().saturating_sub(1)) {
                 let s = (v + h) / (2.0 * h);
                 let u0 = c.right.0 + (c.left.0 - c.right.0) * s;
                 let u1 = c.right.1 + (c.left.1 - c.right.1) * s;
@@ -551,7 +555,14 @@ fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spa
     }
 }
 
-fn draw_openings(d: &mut Drawing2D, project: &Project, geom: &ModelGeometry, g: &WallGeom, ceiling: bool) {
+fn draw_openings(
+    d: &mut Drawing2D,
+    project: &Project,
+    geom: &ModelGeometry,
+    g: &WallGeom,
+    ceiling: bool,
+    detail: DetailLevel,
+) {
     for o in &g.openings {
         let Some(e) = project.element(o.element) else { continue };
         let Some(host) = e.as_hosted() else { continue };
@@ -563,7 +574,8 @@ fn draw_openings(d: &mut Drawing2D, project: &Project, geom: &ModelGeometry, g: 
         };
         if own_symbol {
             if !ceiling {
-                for p in geom.opening_fills.get(&e.id).into_iter().flatten().filter(|p| p.in_plan && !p.void) {
+                let shown = |p: &&cc_core::component::ComponentPart| p.in_plan && !p.void && p.detail.shows(detail);
+                for p in geom.opening_fills.get(&e.id).into_iter().flatten().filter(shown) {
                     d.polyline(&p.footprint, true, LineStyle::Projection, id);
                 }
             }
@@ -782,6 +794,7 @@ mod tests {
             in_plan: true,
             void: false,
             plan_only: false,
+            detail: Default::default(),
         };
         let id = doc.edit("t", |e| {
             let type_id = ElementTypeId(e.alloc_id());

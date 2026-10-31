@@ -6,7 +6,7 @@
 //! overlap; sorting by centroid depth alone fails for large faces such as roofs.
 
 use crate::{Drawing2D, LineStyle, cut::POCHE, format};
-use cc_core::{CameraState, Direction, ElementId, Project, TypeData};
+use cc_core::{CameraState, DetailLevel, Direction, ElementId, Project, TypeData};
 use cc_geom::polygon::signed_area;
 use cc_geom::{ModelGeometry, clip_polygon, face_plane_segments};
 use glam::{DVec2, DVec3};
@@ -97,11 +97,14 @@ pub struct CutStyle<'a> {
     pub spacing: f64,
 }
 
-/// Render all solids through `frame`; section cuts use `cut` (else the neutral poche).
-pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>) -> Drawing2D {
+/// Render the solids a view at `detail` shows through `frame`; section cuts
+/// use `cut` (else, and at the coarse level, the neutral poche).
+pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>, detail: DetailLevel) -> Drawing2D {
     let planes = frame.planes();
     let mut faces = Vec::new();
-    for solid in &geom.solids {
+    let shown = |s: &&cc_geom::Solid| s.detail.shows(detail);
+    let cut = cut.filter(|_| detail.shows_layers());
+    for solid in geom.solids.iter().filter(shown) {
         let edges = solid.feature_edges();
         let seams = solid.smooth_edges();
         for ((face, mut face_edges), seams) in solid.faces.iter().zip(edges).zip(seams) {
@@ -153,7 +156,7 @@ pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>) -> Dra
     // Section cut: poche where loops close, heavy outline always.
     if let Some(near) = frame.near {
         let point = frame.origin + frame.forward * near;
-        for solid in &geom.solids {
+        for solid in geom.solids.iter().filter(shown) {
             let segs: Vec<(DVec2, DVec2)> = solid
                 .faces
                 .iter()
@@ -353,15 +356,22 @@ fn level_lines(d: &mut Drawing2D, project: &Project, frame: &Frame) {
     }
 }
 
-pub fn elevation(project: &Project, geom: &ModelGeometry, direction: Direction) -> Drawing2D {
+pub fn elevation(project: &Project, geom: &ModelGeometry, direction: Direction, detail: DetailLevel) -> Drawing2D {
     let look = direction.look();
     let frame = Frame::looking(DVec3::ZERO, DVec3::new(look.x, look.y, 0.0));
-    let mut d = render(geom, &frame, None);
+    let mut d = render(geom, &frame, None, detail);
     level_lines(&mut d, project, &frame);
     d
 }
 
-pub fn section(project: &Project, geom: &ModelGeometry, start: DVec2, end: DVec2, depth: f64, scale: u32) -> Drawing2D {
+pub fn section(
+    project: &Project,
+    geom: &ModelGeometry,
+    (start, end): (DVec2, DVec2),
+    depth: f64,
+    scale: u32,
+    detail: DetailLevel,
+) -> Drawing2D {
     let dir = (end - start).normalize_or_zero();
     let look = -dir.perp();
     let mut frame = Frame::looking(DVec3::new(start.x, start.y, 0.0), DVec3::new(look.x, look.y, 0.0));
@@ -370,13 +380,13 @@ pub fn section(project: &Project, geom: &ModelGeometry, start: DVec2, end: DVec2
     frame.far = Some(depth.max(0.01));
     frame.crop_x = Some((xe.min(0.0), xe.max(0.0)));
     let cut = CutStyle { project, spacing: crate::cut::spacing(scale) };
-    let mut d = render(geom, &frame, Some(cut));
+    let mut d = render(geom, &frame, Some(cut), detail);
     level_lines(&mut d, project, &frame);
     d
 }
 
-pub fn axonometric(_project: &Project, geom: &ModelGeometry, camera: &CameraState) -> Drawing2D {
-    render(geom, &Frame::looking(DVec3::ZERO, camera.forward()), None)
+pub fn axonometric(_project: &Project, geom: &ModelGeometry, camera: &CameraState, detail: DetailLevel) -> Drawing2D {
+    render(geom, &Frame::looking(DVec3::ZERO, camera.forward()), None, detail)
 }
 
 /// The analytical model seen along the camera: member lines (columns and
@@ -458,7 +468,7 @@ mod tests {
     fn empty_elevation_shows_the_levels() {
         let project = Project::from_template();
         let geom = ModelGeometry::build(&project);
-        let d = elevation(&project, &geom, Direction::South);
+        let d = elevation(&project, &geom, Direction::South, DetailLevel::Medium);
         for level in &project.levels {
             assert!(
                 d.prims.iter().any(|p| matches!(p, Prim::Text { text, .. } if *text == level.name)),
@@ -471,7 +481,7 @@ mod tests {
     fn south_elevation_shows_wall_face() {
         let (doc, id) = one_wall();
         let geom = ModelGeometry::build(&doc.project);
-        let d = elevation(&doc.project, &geom, Direction::South);
+        let d = elevation(&doc.project, &geom, Direction::South, DetailLevel::Medium);
         assert_eq!(d.hit_test(DVec2::new(2.0, 1.5), 0.0), Some(id));
         assert_eq!(d.hit_test(DVec2::new(2.0, 3.5), 0.0), None);
     }
@@ -490,7 +500,7 @@ mod tests {
         wall.add_box(DVec2::ZERO, DVec2::X, DVec2::Y, 4.0, 4.2, 0.0, 10.0, 0.0, 3.0);
         let geom = ModelGeometry { solids: vec![roof, wall], ..Default::default() };
         let frame = Frame::looking(DVec3::ZERO, DVec3::new(1.0, 1.0, -1.0));
-        let d = render(&geom, &frame, None);
+        let d = render(&geom, &frame, None, DetailLevel::Medium);
         let fills: Vec<(usize, ElementId, f64)> = d
             .prims
             .iter()
@@ -557,7 +567,8 @@ mod tests {
         let (doc, id) = one_wall();
         let geom = ModelGeometry::build(&doc.project);
         // Section line along X at x = 2, looking -Y... crossing the wall north to south.
-        let d = section(&doc.project, &geom, DVec2::new(2.0, 2.0), DVec2::new(2.0, -2.0), 5.0, 50);
+        let d =
+            section(&doc.project, &geom, (DVec2::new(2.0, 2.0), DVec2::new(2.0, -2.0)), 5.0, 50, DetailLevel::Medium);
         let cut = d.prims.iter().filter(|p| matches!(p, Prim::Line { style: LineStyle::Cut, .. })).count();
         assert_eq!(cut, 4);
         // The cut is filled with the core material's pattern (the template's masonry hatch).

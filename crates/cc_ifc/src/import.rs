@@ -1982,7 +1982,15 @@ impl<'a> Importer<'a> {
                     mesh
                 }
             };
-            items.push(ComponentItem { name, shape, material, in_plan: true, void: false, plan_only: false });
+            items.push(ComponentItem {
+                name,
+                shape,
+                material,
+                in_plan: true,
+                void: false,
+                plan_only: false,
+                detail: Default::default(),
+            });
         }
         let ifc = Some(self.ifc_class(id, e));
         let properties = self.property_sets(id);

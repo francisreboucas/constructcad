@@ -1089,6 +1089,19 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
         }
         ui.end_row();
 
+        changed |= ui.checkbox(&mut include.detail, "").changed();
+        ui.label(t!("prop-detail-level"));
+        let mut detail = t.detail;
+        egui::ComboBox::from_id_salt(("tpl-detail", id)).selected_text(tr(detail.key())).show_ui(ui, |ui| {
+            for level in cc_core::DetailLevel::ALL {
+                ui.selectable_value(&mut detail, level, tr(level.key()));
+            }
+        });
+        if detail != t.detail {
+            set.detail = Some(detail.name().to_string());
+        }
+        ui.end_row();
+
         changed |= ui.checkbox(&mut include.categories, "").changed();
         ui.label(t!("vg-categories-graphics"));
         if ui.button(t!("vg-edit")).clicked() {
@@ -1164,6 +1177,7 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
         set.include = serde_json::to_value(include).ok();
     }
     let any = set.scale.is_some()
+        || set.detail.is_some()
         || set.cut_height.is_some()
         || set.discipline.is_some()
         || set.structural.is_some()
@@ -1237,14 +1251,15 @@ pub fn view_rows(ui: &mut Ui, state: &mut AppState, view: ViewId) {
     }
 }
 
-/// Whether the view's template controls `what` (`scale`, `cut_height`,
-/// `discipline`, `structural`), for read-only rows.
+/// Whether the view's template controls `what` (`scale`, `detail`,
+/// `cut_height`, `discipline`, `structural`), for read-only rows.
 pub fn controlled(state: &AppState, view: ViewId, what: &str) -> bool {
     let Some(t) = state.project().view(view).and_then(|v| v.template).and_then(|t| state.project().template(t)) else {
         return false;
     };
     match what {
         "scale" => t.include.scale,
+        "detail" => t.include.detail,
         "cut_height" => t.include.cut_height,
         "discipline" => t.include.discipline,
         "structural" => t.include.structural,

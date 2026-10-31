@@ -251,3 +251,13 @@ where
 {
     Option::<T>::deserialize(d).map(Some)
 }
+
+/// A detail level by name: `coarse`, `medium` or `fine`.
+pub fn detail_level(name: &str) -> Result<cc_core::DetailLevel> {
+    match name.trim().to_ascii_lowercase().as_str() {
+        "coarse" => Ok(cc_core::DetailLevel::Coarse),
+        "medium" => Ok(cc_core::DetailLevel::Medium),
+        "fine" => Ok(cc_core::DetailLevel::Fine),
+        other => Err(EngineError::invalid(format!("unknown detail level '{other}': use coarse, medium or fine"))),
+    }
+}

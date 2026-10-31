@@ -229,6 +229,7 @@ impl Command for ComponentPieceAdd {
                 in_plan: true,
                 void: self.void,
                 plan_only: false,
+                detail: Default::default(),
             });
             Ok(def.items.len() - 1)
         })?;
@@ -259,6 +260,10 @@ pub struct ComponentPieceSet {
     /// Drawn in plans.
     #[serde(default)]
     pub in_plan: Option<bool>,
+    /// The detail levels of the views that show the piece: any of
+    /// `coarse`, `medium` and `fine` (all three by default).
+    #[serde(default)]
+    pub detail: Option<Vec<String>>,
     /// New outline (a sweep's section, a blend's bottom).
     #[serde(default)]
     pub points: Option<Vec<SketchPointArg>>,
@@ -299,10 +304,23 @@ impl Command for ComponentPieceSet {
         if top.is_some() && !matches!(self.kind_hint(s), Some("blend")) {
             return wrong("top outline");
         }
+        let detail = match &self.detail {
+            Some(names) => {
+                let mut levels = cc_core::component::DetailLevels { coarse: false, medium: false, fine: false };
+                for name in names {
+                    levels.set(refs::detail_level(name)?, true);
+                }
+                Some(levels)
+            }
+            None => None,
+        };
         edit_def(s, &self.type_ref, &[], |def| {
             let Some(item) = def.items.get_mut(self.index) else {
                 return Err(EngineError::not_found(format!("no piece {}", self.index)));
             };
+            if let Some(d) = detail {
+                item.detail = d;
+            }
             if let Some(n) = self.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
                 item.name = n.to_string();
             }

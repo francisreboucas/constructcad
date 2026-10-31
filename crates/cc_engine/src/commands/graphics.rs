@@ -810,6 +810,7 @@ pub(crate) fn template_json(p: &Project, t: &ViewTemplate) -> Value {
         "structural": t.structural,
         "structure_tags": t.structure_tags,
         "phase_filter": t.phase_filter.and_then(|f| p.phase_filter(f)).map(|f| json!({"id": f.id.0, "name": f.name})),
+        "detail": t.detail.name(),
         "graphics": graphics_json(p, &t.graphics),
         "views": p.views.values().filter(|v| v.template == Some(t.id)).map(|v| v.id.0).collect::<Vec<_>>(),
     })
@@ -924,9 +925,12 @@ pub struct TemplateSet {
     /// Phase filter (id or name), or `null` for none.
     #[serde(default, deserialize_with = "refs::nullable", skip_serializing_if = "Option::is_none")]
     pub phase_filter: Option<Option<Ref>>,
+    /// Detail level: `coarse`, `medium` or `fine`.
+    #[serde(default)]
+    pub detail: Option<String>,
     /// Which properties the template controls: `scale`, `categories`,
-    /// `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`
-    /// (true/false).
+    /// `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`,
+    /// `detail` (true/false).
     #[serde(default)]
     pub include: Option<Value>,
 }
@@ -960,6 +964,9 @@ impl Command for TemplateSet {
         }
         if let Some(v) = self.structure_tags {
             t.structure_tags = v;
+        }
+        if let Some(d) = &self.detail {
+            t.detail = refs::detail_level(d)?;
         }
         match &self.phase_filter {
             Some(Some(r)) => t.phase_filter = Some(refs::phase_filter(p, r)?),

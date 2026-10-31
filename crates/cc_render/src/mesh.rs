@@ -33,6 +33,8 @@ struct SolidTess {
     element: ElementId,
     color: [u8; 3],
     transparency: f64,
+    /// The detail levels of the views that show it (a component's piece).
+    detail: cc_core::component::DetailLevels,
     /// Position and normal of each vertex.
     vertices: Vec<([f32; 3], [f32; 3])>,
     /// Triangles, as indices into `vertices`.
@@ -51,6 +53,7 @@ impl Tessellation {
                     element: solid.element,
                     color: solid.color,
                     transparency: solid.transparency,
+                    detail: solid.detail,
                     vertices: Vec::new(),
                     triangles: Vec::new(),
                     edges: Vec::new(),
@@ -114,9 +117,20 @@ impl SceneMesh {
         selected: &BTreeSet<ElementId>,
         style: &mut dyn FnMut(ElementId) -> Option<SolidStyle>,
     ) -> Self {
+        Self::build_at(tess, selected, style, cc_core::DetailLevel::Medium)
+    }
+
+    /// [`SceneMesh::build`] for a view at `detail`: component pieces show at
+    /// the levels they are set for.
+    pub fn build_at(
+        tess: &Tessellation,
+        selected: &BTreeSet<ElementId>,
+        style: &mut dyn FnMut(ElementId) -> Option<SolidStyle>,
+        detail: cc_core::DetailLevel,
+    ) -> Self {
         let mut mesh = Self::default();
         let mut styles: std::collections::HashMap<ElementId, Option<SolidStyle>> = Default::default();
-        for solid in &tess.solids {
+        for solid in tess.solids.iter().filter(|s| s.detail.shows(detail)) {
             let Some(st) = *styles.entry(solid.element).or_insert_with(|| style(solid.element)) else { continue };
             let sel = selected.contains(&solid.element);
             let mut base = st.color.unwrap_or(solid.color);

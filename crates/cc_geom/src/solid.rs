@@ -77,6 +77,8 @@ pub struct Solid {
     /// A part the element carries that is not its body (a roof's framing):
     /// drawn, but left out of its volume, joins and exported body.
     pub secondary: bool,
+    /// The detail levels of the views that draw it (a component's piece).
+    pub detail: cc_core::component::DetailLevels,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -87,7 +89,15 @@ pub struct Ray {
 
 impl Solid {
     pub fn new(element: ElementId, category: Category, color: [u8; 3]) -> Self {
-        Self { element, category, color, transparency: 0.0, faces: Vec::new(), secondary: false }
+        Self {
+            element,
+            category,
+            color,
+            transparency: 0.0,
+            faces: Vec::new(),
+            secondary: false,
+            detail: Default::default(),
+        }
     }
 
     /// An empty solid colored and made transparent like material `name`.
