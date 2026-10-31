@@ -112,24 +112,24 @@ No parameters.
 
 ### `sheet_export`
 
-*file* — Export a sheet as vector PDF or SVG (by `format`, else by the file extension).
+*file* — Export a sheet as vector PDF or SVG, or as DXF in paper millimeters (by `format`, else by the file extension).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `path` | string | required | Path of the file to write (.pdf or .svg). |
+| `path` | string | required | Path of the file to write (.pdf, .svg or .dxf). |
 | `sheet` | id or name | required | Sheet id or name. |
-| `format` | string | optional | `pdf` or `svg`. |
+| `format` | string | optional | `pdf`, `svg` or `dxf`. |
 
 ### `view_export`
 
-*file* — Export any view with a drawing (plan, elevation, section, 3D view as a hidden-line axonometric, legend, drafting view, diagram or sheet) as a PNG image, or as vector SVG or PDF (by `format`, else by the file extension). The view is drawn at its scale as printed, without temporary hiding, on a page that fits it; sheets keep their paper size.
+*file* — Export any view with a drawing (plan, elevation, section, 3D view as a hidden-line axonometric, legend, drafting view, diagram or sheet) as a PNG image, as vector SVG or PDF, or as DXF for other CAD programs (by `format`, else by the file extension). The view is drawn at its scale as printed, without temporary hiding, on a page that fits it; sheets keep their paper size. A DXF holds the view at full size in millimeters (a sheet in paper millimeters), each element on the layer of its category, colors as the nearest color index and line patterns as line types.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `path` | string | required | Path of the file to write (.png, .svg or .pdf). |
+| `path` | string | required | Path of the file to write (.png, .svg, .pdf or .dxf). |
 | `view` | id or name | required | View id or name. |
 | `dpi` | number | optional | Resolution of a PNG, in dots per inch (default 150). |
-| `format` | string | optional | `png`, `svg` or `pdf`. |
+| `format` | string | optional | `png`, `svg`, `pdf` or `dxf`. |
 
 ### `schedule_export_csv`
 
