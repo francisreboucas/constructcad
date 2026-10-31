@@ -234,6 +234,10 @@ pub struct ViewSet {
     /// Phase the view shows (id or name; plans, elevations, sections, 3D views, schedules).
     #[serde(default)]
     pub phase: Option<Ref>,
+    /// Detail level: `coarse` (layered elements cut as one plain region;
+    /// component pieces set for it), `medium` or `fine`.
+    #[serde(default)]
+    pub detail: Option<String>,
     /// Phase filter (id or name), or `null` for none (every status by category).
     #[serde(default, deserialize_with = "refs::nullable", skip_serializing_if = "Option::is_none")]
     pub phase_filter: Option<Option<Ref>>,
@@ -256,6 +260,7 @@ impl Command for ViewSet {
             return Err(EngineError::invalid("the name is empty"));
         }
         let phase = self.phase.as_ref().map(|r| refs::phase(p, r)).transpose()?;
+        let detail = self.detail.as_deref().map(refs::detail_level).transpose()?;
         let phase_filter = match &self.phase_filter {
             Some(Some(r)) => Some(Some(refs::phase_filter(p, r)?)),
             Some(None) => Some(None),
@@ -276,6 +281,9 @@ impl Command for ViewSet {
             if let Some(k) = &kind {
                 new.kind = k.clone();
             }
+            if let Some(d) = detail {
+                new.detail = d;
+            }
             let mut kept = new.clone();
             t.apply(&mut kept);
             if kept != new {
@@ -295,6 +303,9 @@ impl Command for ViewSet {
             }
             if let Some(ph) = phase {
                 v.phase = ph;
+            }
+            if let Some(d) = detail {
+                v.detail = d;
             }
             if let Some(f) = phase_filter {
                 v.phase_filter = f;

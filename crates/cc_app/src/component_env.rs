@@ -917,6 +917,7 @@ pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDe
         end: None,
         axis: None,
         angle: None,
+        detail: None,
     };
     crate::table::row(ui, &t!("prop-name"), |ui| {
         set.name = draft_field(ui, state, &format!("piece-name:{index}"), &item.name, 150.0)
@@ -931,6 +932,22 @@ pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDe
     crate::table::row(ui, &t!("comp-sketch-void"), |ui| ui.checkbox(&mut void, ""));
     if void != item.void {
         set.void = Some(void);
+    }
+    // The detail levels of the views that show the piece.
+    let mut detail = item.detail;
+    crate::table::row(ui, &t!("comp-env-detail"), |ui| {
+        ui.horizontal(|ui| {
+            for level in cc_core::DetailLevel::ALL {
+                let mut on = detail.shows(level);
+                if ui.checkbox(&mut on, crate::i18n::tr(level.key())).changed() {
+                    detail.set(level, on);
+                }
+            }
+        })
+    });
+    if detail != item.detail {
+        let names = cc_core::DetailLevel::ALL.into_iter().filter(|l| detail.shows(*l)).map(|l| l.name().to_string());
+        set.detail = Some(names.collect());
     }
     let mut in_plan = item.in_plan;
     crate::table::row(ui, &t!("comp-env-in-plan"), |ui| ui.checkbox(&mut in_plan, ""));
@@ -1017,6 +1034,7 @@ pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDe
         || set.top.is_some()
         || set.void.is_some()
         || set.in_plan.is_some()
+        || set.detail.is_some()
         || set.material.is_some()
         || set.start.is_some()
         || set.end.is_some()

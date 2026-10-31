@@ -1552,6 +1552,7 @@ No parameters.
 | `type` | id or name | required | A type of the component: id or name. |
 | `angle` | number or string | optional | Revolutions: degrees turned. |
 | `axis` | number or string | optional | Revolutions: the axis, u = `axis` in the sketch plane. |
+| `detail` | [string, …] | optional | The detail levels of the views that show the piece: any of `coarse`, `medium` and `fine` (all three by default). |
 | `end` | number or string | optional | Extrusions: where they end along the normal. |
 | `in_plan` | boolean | optional | Drawn in plans. |
 | `material` | string | optional | Project material name (empty for the default color). |
@@ -1669,6 +1670,7 @@ No parameters.
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `view` | id or name | required | A level, type, view or material: its numeric id or its name. |
+| `detail` | string | optional | Detail level: `coarse` (layered elements cut as one plain region; component pieces set for it), `medium` or `fine`. |
 | `name` | string | optional | New name. |
 | `params` | JSON | optional | Fields of the view's parameters to change, shaped like `params` in `view_get`. |
 | `phase` | id or name | optional | Phase the view shows (id or name; plans, elevations, sections, 3D views, schedules). |
@@ -1872,8 +1874,9 @@ No parameters.
 |---|---|---|---|
 | `template` | id or name | required | Template id or name. |
 | `cut_height` | number | optional | Plans: cut plane height, meters. |
+| `detail` | string | optional | Detail level: `coarse`, `medium` or `fine`. |
 | `discipline` | string | optional | Floor plans: `none`, `plumbing` or `electrical` (services over a faint architecture). |
-| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter` (true/false). |
+| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail` (true/false). |
 | `name` | string | optional | New name. |
 | `phase_filter` | id or name | optional | Phase filter (id or name), or `null` for none. |
 | `scale` | integer | optional | Scale denominator. |

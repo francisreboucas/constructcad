@@ -251,6 +251,49 @@ pub struct ComponentItem {
     /// A plan symbol only (a door's swing): drawn in plans, not a solid.
     #[serde(default, skip_serializing_if = "is_false")]
     pub plan_only: bool,
+    /// The detail levels of the views that show the piece (all by default).
+    #[serde(default, skip_serializing_if = "DetailLevels::is_all")]
+    pub detail: DetailLevels,
+}
+
+/// The detail levels of the views a piece shows in.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DetailLevels {
+    pub coarse: bool,
+    pub medium: bool,
+    pub fine: bool,
+}
+
+impl Default for DetailLevels {
+    fn default() -> Self {
+        Self::ALL
+    }
+}
+
+impl DetailLevels {
+    pub const ALL: Self = Self { coarse: true, medium: true, fine: true };
+
+    pub fn is_all(&self) -> bool {
+        *self == Self::ALL
+    }
+
+    /// Whether a view at `level` shows the piece.
+    pub fn shows(&self, level: crate::DetailLevel) -> bool {
+        match level {
+            crate::DetailLevel::Coarse => self.coarse,
+            crate::DetailLevel::Medium => self.medium,
+            crate::DetailLevel::Fine => self.fine,
+        }
+    }
+
+    pub fn set(&mut self, level: crate::DetailLevel, on: bool) {
+        match level {
+            crate::DetailLevel::Coarse => self.coarse = on,
+            crate::DetailLevel::Medium => self.medium = on,
+            crate::DetailLevel::Fine => self.fine = on,
+        }
+    }
 }
 
 fn yes() -> bool {
@@ -444,6 +487,8 @@ pub struct ComponentPart {
     pub void: bool,
     /// Drawn in plans only (see [`ComponentItem::plan_only`]).
     pub plan_only: bool,
+    /// The detail levels of the views that show it.
+    pub detail: DetailLevels,
     /// Faces of a piece that is not a vertical prism (empty for prisms).
     pub faces: Vec<Vec<DVec3>>,
 }
@@ -574,6 +619,7 @@ impl ComponentDef {
                     in_plan: item.in_plan || item.plan_only,
                     void: item.void && !item.plan_only,
                     plan_only: item.plan_only,
+                    detail: item.detail,
                     faces,
                 }),
                 Err(e) => errors.push((i, e)),
@@ -853,6 +899,7 @@ pub fn library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, ComponentDef)
             in_plan: plan,
             void: false,
             plan_only: false,
+            detail: Default::default(),
         }
     };
     let s = |v: &str| v.to_string();
@@ -1073,6 +1120,7 @@ pub fn library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, ComponentDef)
                 in_plan: true,
                 void: false,
                 plan_only: false,
+                detail: Default::default(),
             },
             bx(
                 &n("tpl-part-tank"),
@@ -1134,6 +1182,7 @@ pub fn library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, ComponentDef)
                 in_plan: false,
                 void: false,
                 plan_only: false,
+                detail: Default::default(),
             },
         ],
         ..Default::default()
@@ -1190,6 +1239,7 @@ pub fn mep_library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, Component
         in_plan: true,
         void: false,
         plan_only: false,
+        detail: Default::default(),
     };
     // A box W x D x H with its back on the X axis, standing out towards -Y.
     let wall_box = |z: &str| ComponentShape::Box {
@@ -1409,6 +1459,7 @@ mod tests {
             in_plan: true,
             void: false,
             plan_only: false,
+            detail: Default::default(),
         };
         let def = ComponentDef { items: vec![item.clone()], ..Default::default() };
         let (parts, errors) = def.resolve(&BTreeMap::new());

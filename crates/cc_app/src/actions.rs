@@ -96,6 +96,7 @@ pub fn rename_view(state: &mut AppState, id: ViewId, name: String) {
             scale: None,
             params: None,
             phase: None,
+            detail: None,
             phase_filter: None,
         },
     );

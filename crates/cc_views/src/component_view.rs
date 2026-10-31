@@ -319,6 +319,7 @@ mod tests {
                 in_plan: true,
                 void: false,
                 plan_only: false,
+                detail: Default::default(),
             }],
             ..Default::default()
         }

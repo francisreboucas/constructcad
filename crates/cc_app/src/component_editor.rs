@@ -82,6 +82,7 @@ impl Editor {
                 in_plan: true,
                 void: false,
                 plan_only: false,
+                detail: Default::default(),
             }],
             ..Default::default()
         };
@@ -488,6 +489,7 @@ fn pieces(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
                     in_plan: true,
                     void: false,
                     plan_only: false,
+                    detail: Default::default(),
                 });
                 ed.selected = ed.def.items.len() - 1;
             }

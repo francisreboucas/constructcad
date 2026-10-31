@@ -218,6 +218,53 @@ pub struct View {
     /// sit by default, by the element they tag.
     #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
     pub tag_offsets: std::collections::BTreeMap<crate::ElementId, glam::DVec2>,
+    /// How much of the elements the view draws (see [`DetailLevel`]).
+    #[serde(default, skip_serializing_if = "DetailLevel::is_medium")]
+    pub detail: DetailLevel,
+}
+
+/// How much a view draws of elements: at `Coarse`, layered walls, floors
+/// and roofs are cut as one region with a plain fill (no layers, no
+/// material patterns); at `Medium` and `Fine` they show their layers and
+/// patterns. Component pieces show at the levels they are set for
+/// ([`crate::component::DetailLevels`]), so a component can draw a simple
+/// shape at `Coarse` and its details at `Fine`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum DetailLevel {
+    Coarse,
+    #[default]
+    Medium,
+    Fine,
+}
+
+impl DetailLevel {
+    pub const ALL: [DetailLevel; 3] = [DetailLevel::Coarse, DetailLevel::Medium, DetailLevel::Fine];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            DetailLevel::Coarse => "detail-coarse",
+            DetailLevel::Medium => "detail-medium",
+            DetailLevel::Fine => "detail-fine",
+        }
+    }
+
+    /// The name commands use: `coarse`, `medium` or `fine`.
+    pub fn name(self) -> &'static str {
+        match self {
+            DetailLevel::Coarse => "coarse",
+            DetailLevel::Medium => "medium",
+            DetailLevel::Fine => "fine",
+        }
+    }
+
+    pub fn is_medium(&self) -> bool {
+        *self == DetailLevel::Medium
+    }
+
+    /// Layered elements show their layers and material patterns.
+    pub fn shows_layers(self) -> bool {
+        self != DetailLevel::Coarse
+    }
 }
 
 impl ViewKind {
@@ -272,6 +319,7 @@ impl View {
             phase: Default::default(),
             phase_filter: None,
             tag_offsets: Default::default(),
+            detail: DetailLevel::Medium,
         }
     }
 

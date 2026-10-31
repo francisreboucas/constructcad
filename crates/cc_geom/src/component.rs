@@ -131,7 +131,15 @@ mod tests {
     use cc_core::{ComponentItem, ComponentShape, ProfilePoint, SketchPlane};
 
     fn item(name: &str, shape: ComponentShape, void: bool) -> ComponentItem {
-        ComponentItem { name: name.into(), shape, material: String::new(), in_plan: true, void, plan_only: false }
+        ComponentItem {
+            name: name.into(),
+            shape,
+            material: String::new(),
+            in_plan: true,
+            void,
+            plan_only: false,
+            detail: Default::default(),
+        }
     }
 
     fn volume(faces: &[Vec<DVec3>]) -> f64 {

@@ -78,6 +78,7 @@ fn piece(name: &str, material: &str, [x, y, z, width, depth, height]: [String; 6
         in_plan: false,
         void: false,
         plan_only: false,
+        detail: Default::default(),
     }
 }
 
