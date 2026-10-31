@@ -92,6 +92,25 @@ impl TileKind {
         }
     }
 
+    /// The name written in files (IFC property sets).
+    pub fn code(self) -> &'static str {
+        match self {
+            TileKind::CeramicColonial => "CeramicColonial",
+            TileKind::CeramicFrench => "CeramicFrench",
+            TileKind::CeramicRoman => "CeramicRoman",
+            TileKind::CeramicPortuguese => "CeramicPortuguese",
+            TileKind::Concrete => "Concrete",
+            TileKind::FiberCement => "FiberCement",
+            TileKind::MetalTrapezoidal => "MetalTrapezoidal",
+            TileKind::Sandwich => "Sandwich",
+        }
+    }
+
+    /// The kind written as `code`.
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|k| k.code() == code.trim())
+    }
+
     /// The catalog's figures for this kind.
     pub fn spec(self) -> TileSpec {
         use FramingSystem::{Steel, Timber};
@@ -141,6 +160,21 @@ pub enum FramingSystem {
 impl FramingSystem {
     pub const ALL: [FramingSystem; 4] =
         [FramingSystem::None, FramingSystem::Timber, FramingSystem::TimberTrusses, FramingSystem::Steel];
+
+    /// The name written in files (IFC property sets).
+    pub fn code(self) -> &'static str {
+        match self {
+            FramingSystem::None => "None",
+            FramingSystem::Timber => "Timber",
+            FramingSystem::TimberTrusses => "TimberTrusses",
+            FramingSystem::Steel => "Steel",
+        }
+    }
+
+    /// The system written as `code`.
+    pub fn from_code(code: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|s| s.code() == code.trim())
+    }
 
     pub fn key(self) -> &'static str {
         match self {
