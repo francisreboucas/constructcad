@@ -49,6 +49,23 @@ pub struct TileSpec {
     pub framing: FramingSystem,
 }
 
+impl TileSpec {
+    /// Whether a roof at `slope` (rise over run) is steep enough.
+    pub fn accepts(&self, slope: f64) -> bool {
+        slope + 1e-9 >= self.min_slope
+    }
+
+    /// Tiles for `area` square meters of roof, rounded up; `None` for sheets.
+    pub fn tiles(&self, area: f64) -> Option<f64> {
+        self.per_m2.map(|n| (n * area).ceil())
+    }
+
+    /// Weight of the covering on `area` square meters of roof, kg.
+    pub fn weight_on(&self, area: f64) -> f64 {
+        self.weight * area
+    }
+}
+
 impl TileKind {
     pub const ALL: [TileKind; 8] = [
         TileKind::CeramicColonial,

@@ -350,17 +350,17 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
         F::BarLength => geom.rebar.get(&e.id).map_or(Value::Missing, |r| Value::Length(r.bar_length())),
         F::Weight => match (geom.rebar.get(&e.id), roof_covering(project, geom, e)) {
             (Some(r), _) => Value::Weight(r.weight()),
-            (None, Some((spec, g))) => Value::Weight(spec.weight * g.sloped_area),
+            (None, Some((spec, g))) => Value::Weight(spec.weight_on(g.sloped_area)),
             _ => Value::Missing,
         },
         F::TileCount => roof_covering(project, geom, e)
-            .and_then(|(spec, g)| spec.per_m2.map(|n| Value::Count((n * g.sloped_area).ceil() as usize)))
+            .and_then(|(spec, g)| spec.tiles(g.sloped_area).map(|n| Value::Count(n as usize)))
             .unwrap_or(Value::Missing),
-        F::FramingLength => {
-            geom.roof_framing.get(&e.id).filter(|g| !g.members.is_empty()).map_or(Value::Missing, |g| {
-                Value::Length(g.members.iter().map(cc_geom::roof_framing::Member::length).sum())
-            })
-        }
+        F::FramingLength => geom
+            .roof_framing
+            .get(&e.id)
+            .filter(|g| !g.members.is_empty())
+            .map_or(Value::Missing, |g| Value::Length(g.total_length())),
         F::FramingVolume => geom
             .roof_framing
             .get(&e.id)

@@ -7,6 +7,7 @@ use crate::t;
 use cc_core::roofing::{FramingSystem, TileKind};
 use cc_core::{ElementId, ElementKind, TypeData};
 use cc_geom::roof_framing::{MemberKind, RoofFramingGeom};
+use cc_views::format;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -29,10 +30,10 @@ pub fn roof_json(covering: Option<TileKind>, system: FramingSystem, g: &RoofFram
     let mut issues = Vec::new();
     if let Some(spec) = spec {
         match g.slopes {
-            Some((lo, _)) if lo + 1e-9 < spec.min_slope => issues.push(t!(
+            Some((lo, _)) if !spec.accepts(lo) => issues.push(t!(
                 "msg-roof-too-flat",
-                "slope" => format!("{:.0}", lo * 100.0),
-                "min" => format!("{:.0}", spec.min_slope * 100.0)
+                "slope" => format::slope(lo),
+                "min" => format::slope(spec.min_slope)
             )),
             None => issues.push(t!("msg-roof-flat-tiles")),
             _ => {}
@@ -43,8 +44,8 @@ pub fn roof_json(covering: Option<TileKind>, system: FramingSystem, g: &RoofFram
         "min_slope": spec.map(|s| s.min_slope),
         "slopes": g.slopes.map(|(lo, hi)| [lo, hi]),
         "sloped_area": g.sloped_area,
-        "tiles": spec.and_then(|s| s.per_m2).map(|n| (n * g.sloped_area).ceil()),
-        "weight": spec.map(|s| s.weight * g.sloped_area),
+        "tiles": spec.and_then(|s| s.tiles(g.sloped_area)),
+        "weight": spec.map(|s| s.weight_on(g.sloped_area)),
         "framing": {
             "system": system,
             "purlins": g.length(MemberKind::Purlin),

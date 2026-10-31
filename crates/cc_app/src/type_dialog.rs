@@ -369,18 +369,11 @@ fn roofing(
         });
     });
     if c != covering {
-        // A new covering brings the framing it usually lies on, if none was chosen.
-        set(state, "covering", &|cov, fr| {
-            *cov = c;
-            if fr.system == FramingSystem::None
-                && let Some(k) = c
-            {
-                fr.system = k.spec().framing;
-            }
-        });
+        // `type_set` brings the framing the covering usually lies on, if none was chosen.
+        set(state, "covering", &|cov, _| *cov = c);
     }
     if let Some(spec) = covering.map(TileKind::spec) {
-        readonly_row(ui, &t!("prop-min-slope"), format!("{:.0} %", spec.min_slope * 100.0));
+        readonly_row(ui, &t!("prop-min-slope"), format::slope(spec.min_slope));
         readonly_row(ui, &t!("prop-covering-weight"), format!("{:.0} kg/m²", spec.weight));
         if let Some(n) = spec.per_m2 {
             readonly_row(ui, &t!("prop-tiles-per-m2"), format!("{n:.1}"));

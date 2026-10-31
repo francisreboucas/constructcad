@@ -2722,8 +2722,11 @@ fn roof_tiles_and_framing() {
     let ty = run(&mut s, "element_get", json!({"id": roof}))["type"]["id"].as_u64().unwrap();
     let volume_bare = run(&mut s, "element_get", json!({"id": roof}))["derived"]["volume"].as_f64().unwrap();
 
-    // Tiles only: the check and the figures, no members yet.
+    // A covering brings the framing it usually lies on when none was chosen.
     run(&mut s, "type_set", json!({"type": ty, "params": {"covering": "CeramicFrench"}}));
+    assert_eq!(run(&mut s, "roof_check", json!({"id": roof}))["framing"]["system"], "Timber");
+    // Tiles only: the check and the figures, no members.
+    run(&mut s, "type_set", json!({"type": ty, "params": {"framing": {"system": "None"}}}));
     let check = run(&mut s, "roof_check", json!({"id": roof}));
     assert_eq!(check["ok"], true, "{check}");
     assert!(near(check["slopes"][0].as_f64().unwrap(), 0.35));
@@ -2744,6 +2747,8 @@ fn roof_tiles_and_framing() {
     assert!(near(e["derived"]["volume"].as_f64().unwrap(), volume_bare), "framing is not the roof's volume");
     assert_eq!(e["derived"]["roofing"]["ok"], true);
     assert!(s.geometry().solids_of(cc_core::ElementId(roof)).any(|x| x.category == cc_core::Category::Beam));
+    // Not the roof's body (joins, IFC export).
+    assert!(s.geometry().body_of(cc_core::ElementId(roof)).all(|x| !x.secondary));
     assert_eq!(check["framing"]["trusses"], 0);
 
     // Timber trusses under the purlins, no farther apart than their spacing along the 10 m ridge.

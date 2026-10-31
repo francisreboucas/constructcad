@@ -637,7 +637,7 @@ impl<'a> Exporter<'a> {
     /// points relative to `z0`.
     fn cut_body(&mut self, id: ElementId, z0: f64) -> Vec<Id> {
         let geom = self.geom;
-        geom.solids_of(id).filter(|s| !s.faces.is_empty()).map(|s| self.faceted_brep(&s.faces, z0)).collect()
+        geom.body_of(id).filter(|s| !s.faces.is_empty()).map(|s| self.faceted_brep(&s.faces, z0)).collect()
     }
 
     /// One faceted B-rep per closed piece of an element.
@@ -1918,7 +1918,7 @@ impl<'a> Exporter<'a> {
         let geom = self.geom;
         let Some(ty) = project.element_type(e.type_id) else { return };
         let level_z = project.level_elevation(e.level);
-        let faces: Vec<cc_geom::Face> = geom.solids_of(e.id).flat_map(|s| s.faces.iter().cloned()).collect();
+        let faces: Vec<cc_geom::Face> = geom.body_of(e.id).flat_map(|s| s.faces.iter().cloned()).collect();
         if faces.is_empty() {
             return;
         }
