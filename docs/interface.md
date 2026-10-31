@@ -90,6 +90,7 @@ The engine's file commands (`project_open`, `project_save`, `ifc_import`, `ifc_e
 | Ctrl+X / Ctrl+C / Ctrl+V | Cut / Copy / Paste |
 | Delete | Delete the selection |
 | Esc | Cancel the operation, leave the tool, clear the selection |
+| Backspace | While drawing a chain of walls, beams, pipes or conduits: take back the last segment and go on from its start (Ctrl+Z too; Ctrl+Y puts it back); a railing's last point |
 | Space | Rotate or flip the selection or the element being placed |
 
 Two-letter keys work while a view has the focus and no text field is being edited. The README lists them all. Each tooltip shows its own shortcut as well.

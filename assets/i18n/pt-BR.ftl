@@ -62,9 +62,9 @@ tool-beam = Viga
 tool-stair = Escada
 tool-railing = Guarda-corpo
 hint-column = Clique para posicionar o pilar · atrai para pontas de parede e cruzamentos de eixos · Espaço gira 90°
-hint-beam = Clique o início e o fim de cada viga (em sequência) · Esc encerra
+hint-beam = Clique o início e o fim de cada viga (em sequência) · Esc encerra · Backspace ou Ctrl+Z desfaz o último segmento
 hint-stair = Clique o pé da escada e depois a direção da subida · os degraus seguem o tipo
-hint-railing = Clique os pontos do guarda-corpo · Enter, clique duplo ou Concluir encerra
+hint-railing = Clique os pontos do guarda-corpo · Enter, clique duplo ou Concluir encerra · Backspace remove o último ponto
 category-column = Pilares
 category-beam = Vigas
 category-stair = Escadas
@@ -322,10 +322,10 @@ view-new-sheet = Folha
 # Dicas
 hint-shortcut = Atalho
 hint-select = Clique para selecionar · arraste para mover (Ctrl copia) · Espaço gira ou inverte · janela: esquerda-direita seleciona contidos, direita-esquerda seleciona cruzados
-hint-wall = Clique o início e os próximos pontos · digite o comprimento + Enter · Shift = ortogonal · Esc encerra
+hint-wall = Clique o início e os próximos pontos · digite o comprimento + Enter · Shift = ortogonal · Esc encerra · Backspace ou Ctrl+Z desfaz o último segmento
 wall-mode-line = Reta
 wall-mode-arc = Arco
-hint-wall-arc = Clique o início e o fim do arco, depois um ponto do arco · Esc encerra
+hint-wall-arc = Clique o início e o fim do arco, depois um ponto do arco · Esc encerra · Backspace ou Ctrl+Z desfaz o último segmento
 hint-wall-arc-point = Clique um ponto do arco ou digite o raio e tecle Enter
 hint-hosted = Passe o cursor sobre uma parede e clique · Espaço inverte a abertura
 hint-sketch = Clique os vértices · clique no primeiro ponto ou Enter para concluir · Backspace remove o último
@@ -1450,8 +1450,8 @@ cmd-desc-systems = Edite os sistemas hidrossanitários e os circuitos elétricos
 cmd-desc-plumbing-plan = Abra a planta hidrossanitária do pavimento: as tubulações com sistema, diâmetro e declividade sobre a arquitetura.
 cmd-desc-electrical-plan = Abra a planta elétrica do pavimento: eletrodutos, tomadas, interruptores, pontos de luz e quadros com seus circuitos.
 cmd-desc-mep-schedules = Crie as tabelas de tubulações e eletrodutos: comprimentos por sistema e diâmetro.
-hint-pipe = Clique no início e no fim de cada trecho; uma nova elevação durante o desenho cria um trecho vertical (clique de novo no último ponto para só ele); Esc encerra a sequência.
-hint-conduit = Clique no início e no fim de cada trecho; uma nova elevação durante o desenho cria um trecho vertical (clique de novo no último ponto para só ele); Esc encerra a sequência.
+hint-pipe = Clique no início e no fim de cada trecho; uma nova elevação durante o desenho cria um trecho vertical (clique de novo no último ponto para só ele); Esc encerra a sequência. · Backspace ou Ctrl+Z desfaz o último segmento
+hint-conduit = Clique no início e no fim de cada trecho; uma nova elevação durante o desenho cria um trecho vertical (clique de novo no último ponto para só ele); Esc encerra a sequência. · Backspace ou Ctrl+Z desfaz o último segmento
 hint-device = Clique para inserir; Espaço gira 90°. Pontos de parede ficam com a frente para o ambiente.
 prop-circuit = Circuito
 prop-device = Ponto

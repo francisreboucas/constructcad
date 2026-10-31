@@ -62,9 +62,9 @@ tool-beam = 梁
 tool-stair = 楼梯
 tool-railing = 栏杆
 hint-column = 单击放置柱 · 捕捉墙端点和轴网交点 · 空格键旋转 90°
-hint-beam = 依次单击每根梁的起点和终点（连续绘制）· Esc 结束
+hint-beam = 依次单击每根梁的起点和终点（连续绘制）· Esc 结束 · Backspace 或 Ctrl+Z 撤销上一段
 hint-stair = 单击楼梯起点，再单击梯段方向 · 踢面按类型设置
-hint-railing = 单击栏杆的各个点 · 按 Enter、双击或单击“完成”结束
+hint-railing = 单击栏杆的各个点 · 按 Enter、双击或单击“完成”结束 · Backspace 删除上一个点
 category-column = 柱
 category-beam = 梁
 category-stair = 楼梯
@@ -322,10 +322,10 @@ view-new-sheet = 图纸
 # Hints
 hint-shortcut = 快捷键
 hint-select = 单击选择 · 拖动移动（Ctrl 复制）· 空格键旋转或翻转 · 窗选：从左到右选择完全包含的对象，从右到左选择相交的对象
-hint-wall = 单击起点和后续各点 · 输入长度后按 Enter · Shift = 正交 · Esc 结束
+hint-wall = 单击起点和后续各点 · 输入长度后按 Enter · Shift = 正交 · Esc 结束 · Backspace 或 Ctrl+Z 撤销上一段
 wall-mode-line = 直线
 wall-mode-arc = 圆弧
-hint-wall-arc = 单击圆弧的起点和终点，再单击圆弧上的一点 · Esc 结束
+hint-wall-arc = 单击圆弧的起点和终点，再单击圆弧上的一点 · Esc 结束 · Backspace 或 Ctrl+Z 撤销上一段
 hint-wall-arc-point = 单击圆弧上的一点，或输入半径后按 Enter
 hint-hosted = 将光标移到墙上并单击 · 空格键翻转洞口
 hint-sketch = 单击各顶点 · 单击第一个点或按 Enter 完成 · Backspace 删除最后一个点
@@ -1450,8 +1450,8 @@ cmd-desc-systems = 编辑给排水系统和电气回路：编号、颜色、配�
 cmd-desc-plumbing-plan = 打开该标高的给排水平面图：在建筑底图上显示管道及其系统、管径和坡度。
 cmd-desc-electrical-plan = 打开该标高的电气平面图：线管、插座、开关、灯具和配电箱及其回路。
 cmd-desc-mep-schedules = 创建管道和线管明细表：按系统和直径统计长度。
-hint-pipe = 单击每段的起点和终点；绘制过程中输入新的高程会添加一段立管（仅需立管时再次单击最后一点）；Esc 结束连续绘制。
-hint-conduit = 单击每段的起点和终点；绘制过程中输入新的高程会添加一段竖向线管（仅需竖向段时再次单击最后一点）；Esc 结束连续绘制。
+hint-pipe = 单击每段的起点和终点；绘制过程中输入新的高程会添加一段立管（仅需立管时再次单击最后一点）；Esc 结束连续绘制。 · Backspace 或 Ctrl+Z 撤销上一段
+hint-conduit = 单击每段的起点和终点；绘制过程中输入新的高程会添加一段竖向线管（仅需竖向段时再次单击最后一点）；Esc 结束连续绘制。 · Backspace 或 Ctrl+Z 撤销上一段
 hint-device = 单击放置；空格键旋转 90°。墙装设备的正面朝外。
 prop-circuit = 回路
 prop-device = 设备

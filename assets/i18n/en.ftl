@@ -62,9 +62,9 @@ tool-beam = Beam
 tool-stair = Stair
 tool-railing = Railing
 hint-column = Click to place a column · snaps to wall ends and grid crossings · Space rotates 90°
-hint-beam = Click the start and the end of each beam (chained) · Esc ends
+hint-beam = Click the start and the end of each beam (chained) · Esc ends · Backspace or Ctrl+Z takes back the last segment
 hint-stair = Click the foot of the stair, then the direction of the run · risers follow the type
-hint-railing = Click the points of the railing · Enter, a double click or Finish ends it
+hint-railing = Click the points of the railing · Enter, a double click or Finish ends it · Backspace removes the last point
 category-column = Columns
 category-beam = Beams
 category-stair = Stairs
@@ -322,10 +322,10 @@ view-new-sheet = Sheet
 # Hints
 hint-shortcut = Shortcut
 hint-select = Click to select · drag to move (Ctrl copies) · Space rotates or flips · window: left-to-right selects enclosed, right-to-left selects crossing
-hint-wall = Click the start and next points · type a length + Enter · Shift = orthogonal · Esc ends
+hint-wall = Click the start and next points · type a length + Enter · Shift = orthogonal · Esc ends · Backspace or Ctrl+Z takes back the last segment
 wall-mode-line = Line
 wall-mode-arc = Arc
-hint-wall-arc = Click the start and end of the arc, then a point on it · Esc ends
+hint-wall-arc = Click the start and end of the arc, then a point on it · Esc ends · Backspace or Ctrl+Z takes back the last segment
 hint-wall-arc-point = Click a point on the arc, or type the radius and press Enter
 hint-hosted = Hover over a wall and click · Space flips the opening
 hint-sketch = Click the vertices · click the first point or press Enter to finish · Backspace removes the last one
@@ -1450,8 +1450,8 @@ cmd-desc-systems = Edit the plumbing systems and electrical circuits: codes, col
 cmd-desc-plumbing-plan = Open the plumbing plan of the level: the pipes with their system, diameter and slope over the architecture.
 cmd-desc-electrical-plan = Open the electrical plan of the level: conduits, outlets, switches, lights and boards with their circuits.
 cmd-desc-mep-schedules = Create the pipe and conduit schedules: lengths by system and diameter.
-hint-pipe = Click the start and the end of each run; a new elevation while drawing adds a vertical run (click the last point again for only that); Esc ends the chain.
-hint-conduit = Click the start and the end of each run; a new elevation while drawing adds a vertical run (click the last point again for only that); Esc ends the chain.
+hint-pipe = Click the start and the end of each run; a new elevation while drawing adds a vertical run (click the last point again for only that); Esc ends the chain. · Backspace or Ctrl+Z takes back the last segment
+hint-conduit = Click the start and the end of each run; a new elevation while drawing adds a vertical run (click the last point again for only that); Esc ends the chain. · Backspace or Ctrl+Z takes back the last segment
 hint-device = Click to place; Space turns it by 90°. Wall devices stand out towards their front.
 prop-circuit = Circuit
 prop-device = Device

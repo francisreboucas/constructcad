@@ -62,9 +62,9 @@ tool-beam = Träger
 tool-stair = Treppe
 tool-railing = Geländer
 hint-column = Klicken, um eine Stütze zu setzen · fängt an Wandenden und Rasterschnittpunkten · Leertaste dreht um 90°
-hint-beam = Anfang und Ende jedes Trägers klicken (verkettet) · Esc beendet
+hint-beam = Anfang und Ende jedes Trägers klicken (verkettet) · Esc beendet · Rücktaste oder Strg+Z nimmt das letzte Segment zurück
 hint-stair = Den Treppenantritt klicken, dann die Laufrichtung · Steigungen folgen dem Typ
-hint-railing = Die Punkte des Geländers klicken · Enter, Doppelklick oder Fertig beendet
+hint-railing = Die Punkte des Geländers klicken · Enter, Doppelklick oder Fertig beendet · Rücktaste entfernt den letzten Punkt
 category-column = Stützen
 category-beam = Träger
 category-stair = Treppen
@@ -322,10 +322,10 @@ view-new-sheet = Plan
 # Hinweise
 hint-shortcut = Tastenkürzel
 hint-select = Klicken zum Auswählen · ziehen zum Verschieben (Strg kopiert) · Leertaste dreht oder spiegelt · Fenster: von links nach rechts wählt Umschlossenes, von rechts nach links Gekreuztes
-hint-wall = Start- und Folgepunkte klicken · Länge eingeben + Enter · Umschalt = orthogonal · Esc beendet
+hint-wall = Start- und Folgepunkte klicken · Länge eingeben + Enter · Umschalt = orthogonal · Esc beendet · Rücktaste oder Strg+Z nimmt das letzte Segment zurück
 wall-mode-line = Linie
 wall-mode-arc = Bogen
-hint-wall-arc = Anfang und Ende des Bogens klicken, dann einen Punkt auf dem Bogen · Esc beendet
+hint-wall-arc = Anfang und Ende des Bogens klicken, dann einen Punkt auf dem Bogen · Esc beendet · Rücktaste oder Strg+Z nimmt das letzte Segment zurück
 hint-wall-arc-point = Einen Punkt auf dem Bogen klicken oder den Radius eingeben und Enter drücken
 hint-hosted = Über eine Wand fahren und klicken · Leertaste spiegelt die Öffnung
 hint-sketch = Die Eckpunkte klicken · zum Abschließen den ersten Punkt klicken oder Enter drücken · Rücktaste entfernt den letzten
@@ -1418,9 +1418,9 @@ group-analysis = Analyse
 group-electrical = Elektro
 group-plumbing = Sanitär
 group-systems = Systeme
-hint-conduit = Anfang und Ende jedes Abschnitts klicken; eine neue Höhe beim Zeichnen fügt einen vertikalen Abschnitt hinzu (den letzten Punkt erneut klicken, um nur diesen zu setzen); Esc beendet die Kette.
+hint-conduit = Anfang und Ende jedes Abschnitts klicken; eine neue Höhe beim Zeichnen fügt einen vertikalen Abschnitt hinzu (den letzten Punkt erneut klicken, um nur diesen zu setzen); Esc beendet die Kette. · Rücktaste oder Strg+Z nimmt das letzte Segment zurück
 hint-device = Klicken zum Setzen; Leertaste dreht um 90°. Wandgeräte stehen mit ihrer Vorderseite nach außen.
-hint-pipe = Anfang und Ende jedes Abschnitts klicken; eine neue Höhe beim Zeichnen fügt einen vertikalen Abschnitt hinzu (den letzten Punkt erneut klicken, um nur diesen zu setzen); Esc beendet die Kette.
+hint-pipe = Anfang und Ende jedes Abschnitts klicken; eine neue Höhe beim Zeichnen fügt einen vertikalen Abschnitt hinzu (den letzten Punkt erneut klicken, um nur diesen zu setzen); Esc beendet die Kette. · Rücktaste oder Strg+Z nimmt das letzte Segment zurück
 msg-choose-panel = Geben Sie den Verteiler an (`panel`): Das Projekt hat keinen oder mehrere.
 msg-mep-connected = { $count } Abschnitte erstellt ({ $skipped } ohne Netz in der Nähe).
 msg-not-a-panel = Das Bauteil { $id } ist kein Verteiler.

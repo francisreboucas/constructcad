@@ -381,6 +381,136 @@ pub struct Interaction {
     pub dim_chain: Option<DimChain>,
     /// Push/pull: the mass face picked (the mass, the face, a point on it and its outward normal).
     pub push: Option<(ElementId, cc_core::mass::MassFace, glam::DVec3, glam::DVec3)>,
+    /// The segments a chain tool placed, latest last (see [`chain_back`]).
+    pub chain: Vec<ChainStep>,
+    /// Segments taken back, latest last, for redo.
+    pub chain_redo: Vec<ChainStep>,
+}
+
+/// Where a chain stands: its anchor, the direction angles are measured
+/// from, and the elevation a pipe or conduit run goes on at.
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct ChainAt {
+    anchor: Option<DVec2>,
+    prev_dir: Option<DVec2>,
+    mep: Option<f64>,
+}
+
+/// A segment a chain tool placed: the chain before and after it, its undo
+/// steps (a pipe's rise and run are two), and the document revision it left
+/// (or, taken back, the revision the undo left), so a step is only taken
+/// back or redone when nothing else changed the model meanwhile.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ChainStep {
+    before: ChainAt,
+    after: ChainAt,
+    steps: usize,
+    revision: u64,
+}
+
+/// Most segments of a chain remembered.
+const MAX_CHAIN: usize = 500;
+
+fn chain_at(state: &AppState) -> ChainAt {
+    ChainAt { anchor: state.interaction.anchor, prev_dir: state.interaction.prev_dir, mep: state.mep.chain }
+}
+
+fn set_chain_at(state: &mut AppState, at: ChainAt) {
+    state.interaction.anchor = at.anchor;
+    state.interaction.prev_dir = at.prev_dir;
+    state.mep.chain = at.mep;
+    state.mep.rise = None;
+    state.typed.clear();
+}
+
+/// Remember the segment a chain tool just placed, from where the chain
+/// stood (`before`) and the undo depth then.
+fn chain_placed(state: &mut AppState, before: ChainAt, depth: usize) {
+    let steps = state.session.doc.undo_depth().saturating_sub(depth);
+    if steps == 0 {
+        return;
+    }
+    let step = ChainStep { before, after: chain_at(state), steps, revision: state.session.doc.revision() };
+    let chain = &mut state.interaction.chain;
+    chain.push(step);
+    if chain.len() > MAX_CHAIN {
+        chain.remove(0);
+    }
+    state.interaction.chain_redo.clear();
+}
+
+/// The tools that place chains of segments.
+fn chains(tool: &Tool) -> bool {
+    matches!(
+        tool,
+        Tool::Wall { .. } | Tool::Beam { .. } | Tool::Pipe { .. } | Tool::Conduit { .. } | Tool::Railing { .. }
+    )
+}
+
+/// Backspace or Ctrl+Z while a chain tool is drawing: take back the last
+/// segment (undoing it) and go on from where it started, without leaving
+/// the tool; with no segment left, drop the start point. A railing's last
+/// point and an arc wall's picked end go first. Returns whether it did
+/// anything.
+pub fn chain_back(state: &mut AppState) -> bool {
+    if !chains(&state.tool) {
+        return false;
+    }
+    // Points not placed yet: a railing's path, an arc wall's end.
+    if state.interaction.points.pop().is_some() {
+        return true;
+    }
+    if let Some(step) = state.interaction.chain.last().copied() {
+        if state.session.doc.revision() == step.revision {
+            for _ in 0..step.steps {
+                crate::actions::run_command(state, cc_engine::commands::project::Undo {});
+            }
+            state.interaction.chain.pop();
+            state.interaction.chain_redo.push(step);
+            chain_synced(state);
+            set_chain_at(state, step.before);
+            state.selection.clear();
+            return true;
+        }
+        // The model changed some other way: the chain's history no longer applies.
+        state.interaction.chain.clear();
+        state.interaction.chain_redo.clear();
+    }
+    if state.interaction.anchor.is_some() {
+        set_chain_at(state, ChainAt::default());
+        return true;
+    }
+    false
+}
+
+/// After stepping a chain back or forth (which changes the revision), the
+/// next step either way is taken from the model as it now is.
+fn chain_synced(state: &mut AppState) {
+    let revision = state.session.doc.revision();
+    let i = &mut state.interaction;
+    for step in [i.chain.last_mut(), i.chain_redo.last_mut()].into_iter().flatten() {
+        step.revision = revision;
+    }
+}
+
+/// Ctrl+Y after [`chain_back`]: place the segment again and go on from its end.
+pub fn chain_forward(state: &mut AppState) -> bool {
+    if !chains(&state.tool) {
+        return false;
+    }
+    let Some(step) = state.interaction.chain_redo.last().copied() else { return false };
+    if state.session.doc.revision() != step.revision {
+        state.interaction.chain_redo.clear();
+        return false;
+    }
+    for _ in 0..step.steps {
+        crate::actions::run_command(state, cc_engine::commands::project::Redo {});
+    }
+    state.interaction.chain_redo.pop();
+    state.interaction.chain.push(step);
+    chain_synced(state);
+    set_chain_at(state, step.after);
+    true
 }
 
 impl Interaction {
@@ -1201,6 +1331,7 @@ fn segment_tool(
             crate::actions::run_command(state, command)
         }
     };
+    let (before, depth) = (chain_at(state), state.session.doc.undo_depth());
     let select = |state: &mut AppState, out: &serde_json::Value| {
         if let Some(id) = out["id"].as_u64() {
             state.selection = BTreeSet::from([ElementId(id)]);
@@ -1222,6 +1353,7 @@ fn segment_tool(
         state.mep.chain = out["params"]["end_offset"].as_f64();
         state.interaction.anchor = Some(s.point);
     }
+    chain_placed(state, before, depth);
 }
 
 /// Truss tool options, kept between uses.
@@ -1468,8 +1600,10 @@ fn beam_tool(
                     type_ref: Some(Ref::Id(type_id.0)),
                     ..Default::default()
                 };
+                let (before, depth) = (chain_at(state), state.session.doc.undo_depth());
                 run_create(state, command);
                 state.interaction.anchor = Some(s.point);
+                chain_placed(state, before, depth);
             }
             _ => {}
         }
@@ -2261,6 +2395,7 @@ fn wall_tool(
         if resp.clicked() || enter {
             match bulge {
                 Some(bulge) => {
+                    let (before, depth) = (chain_at(state), state.session.doc.undo_depth());
                     create_wall(state, level, type_id, a, b, bulge);
                     state.interaction.anchor = Some(b);
                     state.interaction.points.clear();
@@ -2269,6 +2404,7 @@ fn wall_tool(
                     if let Some(arc) = cc_core::arc::Arc::from_bulge(a, b, bulge) {
                         state.interaction.prev_dir = Some(-arc.tangent(arc.length()));
                     }
+                    chain_placed(state, before, depth);
                 }
                 None if radius.is_some() => state.message = t!("msg-arc-radius-short"),
                 None => state.message = t!("msg-arc-collinear"),
@@ -2299,11 +2435,13 @@ fn wall_tool(
                 state.typed.clear();
             }
             Some(a) if a.distance(p) > 0.01 => {
+                let (before, depth) = (chain_at(state), state.session.doc.undo_depth());
                 create_wall(state, level, type_id, a, p, 0.0);
                 state.interaction.anchor = Some(p);
                 // The next wall's angle is measured from this one (as an interior angle).
                 state.interaction.prev_dir = Some(a - p);
                 state.typed.clear();
+                chain_placed(state, before, depth);
             }
             _ => {}
         }
@@ -3181,6 +3319,63 @@ mod tests {
         );
         assert_eq!(s.kind, SnapKind::Alignment);
         assert!(s.point.distance(target) < 1e-9, "{} vs {target}", s.point);
+    }
+
+    /// Issue #125: Backspace or Ctrl+Z takes back the last wall of a chain
+    /// and the tool goes on from where it started; Ctrl+Y puts it back.
+    #[test]
+    fn chains_step_back_one_segment_without_leaving_the_tool() {
+        use crate::commands::{UiCommand, run};
+        let mut state = AppState::new(cc_core::Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        let level = state.project().levels[0].id;
+        let type_id = Tool::for_category(state.project(), cc_core::Category::Wall).and_then(|t| match t {
+            Tool::Wall { type_id } => Some(type_id),
+            _ => None,
+        });
+        let type_id = type_id.unwrap();
+        state.set_tool(Tool::Wall { type_id });
+        let walls = |state: &AppState| {
+            state.project().elements.values().filter(|e| e.category() == cc_core::Category::Wall).count()
+        };
+        let before = walls(&state);
+        // Three walls, placed the way the tool places them.
+        let pts = [DVec2::new(30.0, 30.0), DVec2::new(34.0, 30.0), DVec2::new(34.0, 33.0), DVec2::new(30.0, 33.0)];
+        state.interaction.anchor = Some(pts[0]);
+        for w in pts.windows(2) {
+            let (at, depth) = (chain_at(&state), state.session.doc.undo_depth());
+            create_wall(&mut state, level, type_id, w[0], w[1], 0.0);
+            state.interaction.anchor = Some(w[1]);
+            state.interaction.prev_dir = Some(w[0] - w[1]);
+            chain_placed(&mut state, at, depth);
+        }
+        assert_eq!(walls(&state), before + 3);
+        let ctx = egui::Context::default();
+        // Ctrl+Z: the last wall goes, the chain goes on from its start, the tool stays.
+        run(&mut state, &ctx, UiCommand::Undo);
+        assert_eq!(walls(&state), before + 2);
+        assert_eq!(state.interaction.anchor, Some(pts[2]));
+        assert_eq!(state.interaction.prev_dir, Some(pts[1] - pts[2]));
+        assert!(matches!(state.tool, Tool::Wall { .. }));
+        // Ctrl+Y puts it back and the chain goes on from its end.
+        run(&mut state, &ctx, UiCommand::Redo);
+        assert_eq!((walls(&state), state.interaction.anchor), (before + 3, Some(pts[3])));
+        // Backspace walks back the whole chain, then drops the start point.
+        for (left, anchor) in [(2, pts[2]), (1, pts[1]), (0, pts[0])] {
+            assert!(chain_back(&mut state));
+            assert_eq!((walls(&state), state.interaction.anchor), (before + left, Some(anchor)));
+        }
+        assert!(chain_back(&mut state));
+        assert_eq!(state.interaction.anchor, None);
+        assert!(!chain_back(&mut state), "nothing left to take back");
+        // A change made some other way is not undone by stepping back.
+        state.interaction.anchor = Some(pts[0]);
+        let (at, depth) = (chain_at(&state), state.session.doc.undo_depth());
+        create_wall(&mut state, level, type_id, pts[0], pts[1], 0.0);
+        state.interaction.anchor = Some(pts[1]);
+        chain_placed(&mut state, at, depth);
+        create_wall(&mut state, level, type_id, pts[2], pts[3], 0.0);
+        assert!(chain_back(&mut state), "the anchor is dropped");
+        assert_eq!(walls(&state), before + 2, "both walls stay");
     }
 
     #[test]
