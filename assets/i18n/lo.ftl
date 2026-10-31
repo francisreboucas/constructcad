@@ -2031,6 +2031,11 @@ comp-env-points = ຈຸດ
 # Sketch mode
 sketch-title-new = ສ້າງຂອບເຂດ: { $category }
 sketch-title-edit = ແກ້ໄຂຂອບເຂດ: { $category }
+sketch-title-piece = ແບບຮ່າງ: { $kind }
+comp-sketch-hint-view = ແຕ້ມໃນມຸມເບິ່ງແຜນ, ດ້ານໜ້າ ຫຼື ດ້ານຂ້າງ; ຈຸດເທິງລະນາບອ້າງອີງຈະຖືກຍຶດກັບມັນ · ສຳເລັດຈະສ້າງຊິ້ນສ່ວນ
+sketch-piece-unreadable = ຈຸດຂອງຊິ້ນສ່ວນຄິດໄລ່ບໍ່ໄດ້, ຈຶ່ງເປີດແບບຮ່າງບໍ່ໄດ້.
+comp-edit-sketch = ແກ້ໄຂແບບຮ່າງ
+comp-edit-sketch-tip = ເປີດຂອບ (ຫຼື ເສັ້ນທາງ) ຂອງຊິ້ນສ່ວນດ້ວຍເຄື່ອງມືແບບຮ່າງ
 group-draw = ແຕ້ມ
 group-sketch-tools = ເຄື່ອງມື
 group-mode = ໂໝດ

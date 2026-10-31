@@ -2029,6 +2029,11 @@ comp-env-points = 点
 # Sketch mode
 sketch-title-new = 创建边界：{ $category }
 sketch-title-edit = 编辑边界：{ $category }
+sketch-title-piece = 草图：{ $kind }
+comp-sketch-hint-view = 在平面、前视或侧视图中绘制；在参照平面上的点会锁定到该平面 · 完成即创建构件
+sketch-piece-unreadable = 构件的点无法求值，因此无法打开其草图。
+comp-edit-sketch = 编辑草图
+comp-edit-sketch-tip = 用草图工具打开构件的轮廓（或路径）
 group-draw = 绘制
 group-sketch-tools = 工具
 group-mode = 模式

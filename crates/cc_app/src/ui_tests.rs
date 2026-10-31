@@ -1258,6 +1258,53 @@ fn sketch_mode_creates_and_edits_outlines() {
     assert_eq!(state.session.doc.revision(), revision, "cancel changes nothing");
 }
 
+/// A piece of the component environment is sketched in the same sketch as
+/// outlines in plans: its ribbon, options, picked curve and Finish.
+#[test]
+fn component_pieces_are_sketched_with_the_sketch_tools() {
+    use crate::commands::UiCommand;
+    let mut state = sample_state();
+    let table = state
+        .project()
+        .types_of(cc_core::Category::Component)
+        .find(|t| matches!(&t.data, cc_core::TypeData::Component { component, .. } if component == "Mesa"))
+        .map(|t| t.id)
+        .unwrap();
+    crate::component_env::open(&mut state, table);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::CompExtrusion);
+    assert!(UiCommand::CompExtrusion.selected(&state) && UiCommand::SketchEllipse.unavailable(&state).is_none());
+    assert!(UiCommand::SketchPickWalls.unavailable(&state).is_some(), "walls are picked in plans only");
+    let s = state.sketch.as_mut().unwrap();
+    s.curves = vec![
+        cc_core::sketch::SketchCurve::ellipse(glam::DVec2::new(0.0, 0.0), glam::DVec2::new(0.5, 0.3), 15.0),
+        cc_core::sketch::SketchCurve::Circle { center: glam::DVec2::new(0.6, 0.0), radius: 0.1 },
+    ];
+    s.selected.insert(0);
+    s.piece.as_mut().unwrap().view = Some(cc_views::ComponentViewKind::Plan);
+    let mut harness = themed_harness(state, egui::vec2(1280.0, 820.0), egui::Theme::Light, |ui, state| {
+        egui::Panel::top("ribbon").show(ui, |ui| crate::sketch_mode::ribbon(ui, state));
+        egui::Panel::top("options").show(ui, |ui| ui.horizontal(|ui| crate::sketch_mode::options(ui, state)));
+        egui::Panel::left("left").default_size(290.0).show(ui, |ui| crate::component_env::panel(ui, state));
+        egui::CentralPanel::default().show(ui, |ui| crate::component_env::central(ui, state));
+    });
+    for _ in 0..3 {
+        harness.run();
+    }
+    if let Some(path) = std::env::var_os("CC_RENDER_PIECE_SKETCH") {
+        harness.render().unwrap().save(path).unwrap();
+    }
+    let title = t!("sketch-title-piece", "kind" => t!("comp-env-extrusion"));
+    assert!(harness.query_by_label(&title).is_some(), "{title}");
+    // The ribbon's Ellipse tool, and the picked ellipse's section in the panel.
+    assert_eq!(harness.query_all_by_label(&t!("sketch-ellipse")).count(), 2);
+    assert!(!UiCommand::Select.selected(harness.state()), "the sketch's tool, not the environment's");
+    assert!(harness.query_by_label(&t!("comp-sketch-void")).is_some(), "the piece's options");
+    // Two loops apart make no profile: the sketch stays open with the reason.
+    crate::commands::run(harness.state_mut(), &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(harness.state().sketch.is_some());
+    assert_eq!(harness.state().message, t!("sketch-apart"));
+}
+
 /// The component environment's side panel keeps its fields and buttons
 /// clear of the panel's left border (they were drawn against it, cut).
 #[test]

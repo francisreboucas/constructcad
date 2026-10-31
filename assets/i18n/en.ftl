@@ -2029,6 +2029,11 @@ comp-env-points = Points
 # Sketch mode
 sketch-title-new = Create Boundary: { $category }
 sketch-title-edit = Edit Boundary: { $category }
+sketch-title-piece = Sketch: { $kind }
+comp-sketch-hint-view = Draw in the plan, front or side view; on a reference plane a point is locked to it · Finish makes the piece
+sketch-piece-unreadable = The piece's points do not evaluate, so its sketch cannot be opened.
+comp-edit-sketch = Edit Sketch
+comp-edit-sketch-tip = Open the piece's outline (or path) with the sketch tools
 group-draw = Draw
 group-sketch-tools = Tools
 group-mode = Mode

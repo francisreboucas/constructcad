@@ -2029,6 +2029,11 @@ comp-env-points = Punkte
 # Sketch mode
 sketch-title-new = Umriss erstellen: { $category }
 sketch-title-edit = Umriss bearbeiten: { $category }
+sketch-title-piece = Skizze: { $kind }
+comp-sketch-hint-view = Zeichnen Sie in der Draufsicht, Vorder- oder Seitenansicht; auf einer Referenzebene wird der Punkt daran gebunden · Fertig erstellt das Teil
+sketch-piece-unreadable = Die Punkte des Teils lassen sich nicht auswerten, daher kann seine Skizze nicht geöffnet werden.
+comp-edit-sketch = Skizze bearbeiten
+comp-edit-sketch-tip = Öffnet den Umriss (oder Pfad) des Teils mit den Skizzenwerkzeugen
 group-draw = Zeichnen
 group-sketch-tools = Werkzeuge
 group-mode = Modus

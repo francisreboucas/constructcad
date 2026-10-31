@@ -15,7 +15,7 @@ use crate::paint::{HIGHLIGHT, PREVIEW, Xf};
 use crate::state::AppState;
 use crate::t;
 use crate::theme::{self, PALETTE};
-use crate::tools::{Tool, draw_snap, snap_at, temp_dimension};
+use crate::tools::{Snap, Tool, draw_snap, snap_at, temp_dimension};
 use cc_core::arc::Arc;
 use cc_core::sketch::{JOIN_TOL, Sketch, SketchCurve, SketchError};
 use cc_core::sketch_edit;
@@ -40,6 +40,8 @@ pub enum Target {
     New { category: Category, type_id: ElementTypeId },
     /// A new outline for an element (*Edit Boundary*).
     Edit { id: ElementId },
+    /// A piece of the component environment (see [`Session::piece`]).
+    Piece,
 }
 
 /// How clicks draw.
@@ -128,6 +130,8 @@ pub struct Session {
     redo: Vec<Vec<SketchCurve>>,
     /// The grip being dragged, and where the curves were when it started.
     drag: Option<(Grip, Vec<SketchCurve>)>,
+    /// What a sketch of the component environment makes.
+    pub piece: Option<crate::component_sketch::PieceSketch>,
 }
 
 impl Session {
@@ -145,7 +149,13 @@ impl Session {
             undo: Vec::new(),
             redo: Vec::new(),
             drag: None,
+            piece: None,
         }
+    }
+
+    /// The sketch is a sweep's path, open by design.
+    pub fn open_path(&self) -> bool {
+        self.piece.as_ref().is_some_and(|p| p.kind == crate::component_sketch::PieceKind::Sweep)
     }
 
     /// Keep the curves as they are for undo, before a change.
@@ -255,7 +265,7 @@ impl Session {
     }
 
     /// Ends, centers and middles to snap to.
-    fn snap_points(&self) -> Vec<DVec2> {
+    pub fn snap_points(&self) -> Vec<DVec2> {
         let mut out = Vec::new();
         for c in &self.curves {
             if let Some((a, b)) = c.ends() {
@@ -406,8 +416,11 @@ pub fn edit_boundary(state: &mut AppState) {
 
 /// Leave the sketch without changing the model.
 pub fn cancel(state: &mut AppState) {
+    let piece = state.sketch.as_ref().is_some_and(|s| s.piece.is_some());
     state.sketch = None;
-    state.set_tool(Tool::Select);
+    if !piece {
+        state.set_tool(Tool::Select);
+    }
 }
 
 /// Make the element (or its new outline) from the sketch; a sketch that
@@ -419,6 +432,10 @@ pub fn finish(state: &mut AppState) {
         Target::New { category, .. } => matches!(category, Category::Floor | Category::Roof),
         Target::Edit { id } => {
             matches!(state.project().element(id).map(|e| e.category()), Some(Category::Floor | Category::Roof))
+        }
+        Target::Piece => {
+            crate::component_sketch::finish(state);
+            return;
         }
     };
     let checked = if allows_openings { sketch.profile().map(|_| ()) } else { sketch.outline().map(|_| ()) };
@@ -444,6 +461,7 @@ pub fn finish(state: &mut AppState) {
             };
             create(state, category, type_id, level, curves)
         }
+        Target::Piece => None,
     };
     if let Some(id) = out {
         state.sketch = None;
@@ -495,6 +513,11 @@ pub fn error_text(e: &SketchError) -> String {
 /// Escape: drop the curve being drawn, then leave the drawing tool, then the selection.
 pub fn escape(state: &mut AppState) {
     let Some(s) = state.sketch.as_mut() else { return };
+    // A revolution waiting for its axis goes back to its outline.
+    if let Some(p) = s.piece.as_mut().filter(|p| p.axis) {
+        p.axis = false;
+        return;
+    }
     if !s.picks.is_empty() || s.picked.is_some() {
         s.picks.clear();
         s.picked = None;
@@ -527,7 +550,7 @@ pub fn pick_walls(state: &mut AppState) {
     let category = match state.sketch.as_ref().map(|s| s.target) {
         Some(Target::New { category, .. }) => category,
         Some(Target::Edit { id }) => state.project().element(id).map_or(Category::Floor, |e| e.category()),
-        None => return,
+        Some(Target::Piece) | None => return,
     };
     let outward = if category == Category::Ceiling { -1.0 } else { 1.0 };
     match crate::tools::walls_loop(state.project(), level, outward) {
@@ -544,41 +567,57 @@ pub fn pick_walls(state: &mut AppState) {
 /// The sketch in a plan: its curves, the tool's preview, snapping, picks and grips.
 pub fn canvas(ui: &Ui, resp: &Response, painter: &Painter, state: &mut AppState, level: LevelId, xf: &Xf) {
     let Some(mut s) = state.sketch.take() else { return };
-    let tol = PICK_PX / xf.scale;
-    // The curves; the selected ones highlighted; where the sketch does not close.
-    for (i, c) in s.curves.iter().enumerate() {
-        let color = if s.selected.contains(&i) { HIGHLIGHT } else { SKETCH };
-        let pts: Vec<egui::Pos2> = c.points().iter().map(|p| xf.to_screen(*p)).collect();
-        painter.add(egui::Shape::line(pts, Stroke::new(1.8, color)));
-    }
-    if let Err(e) = (Sketch { curves: s.curves.clone() }).loops()
-        && let Some(p) = e.point()
-        && s.picks.is_empty()
-    {
-        painter.circle_stroke(xf.to_screen(p), 6.0, Stroke::new(1.5, PALETTE.danger));
-    }
     let raw = resp.hover_pos().map(|p| xf.to_world(p));
     let shift = ui.input(|i| i.modifiers.shift);
     let extra = s.snap_points();
     let anchor = s.picks.last().copied();
     let snapped = raw.map(|r| snap_at(state, Some(level), r, anchor, &extra, xf.scale, shift));
-    if s.draw == Draw::Select {
-        select(ui, resp, painter, &mut s, raw, snapped.map(|x| x.point), xf, tol);
-    } else if s.draw.modifies() {
-        if let (Some(raw), Some(sn)) = (raw, snapped) {
-            draw_snap(painter, xf, sn);
-            if let Some(message) = modify(resp, painter, &mut s, &state.modify, raw, sn.point, xf, tol) {
-                state.message = message;
-            }
-        }
-    } else if let Some(sn) = snapped {
-        draw_snap(painter, xf, sn);
-        draw(resp, painter, &mut s, sn.point, xf, tol);
-        if let Some(message) = arc_tangent_hint(&s, sn.point, tol) {
-            state.message = message;
-        }
+    if let Some(message) = interact(ui, resp, painter, &mut s, &state.modify, raw, snapped, xf) {
+        state.message = message;
     }
     state.sketch = Some(s);
+}
+
+/// The sketch in a canvas (a plan, or a view of the component environment):
+/// its curves, where it does not close, and the active tool at the cursor
+/// (`raw`, and `snapped` where it snaps). Returns a message for the status bar.
+#[allow(clippy::too_many_arguments)]
+pub fn interact(
+    ui: &Ui,
+    resp: &Response,
+    painter: &Painter,
+    s: &mut Session,
+    opts: &crate::modify::ModifyOptions,
+    raw: Option<DVec2>,
+    snapped: Option<Snap>,
+    xf: &Xf,
+) -> Option<String> {
+    let tol = PICK_PX / xf.scale;
+    // The curves; the selected ones highlighted; where the sketch does not close.
+    for (i, c) in s.curves.iter().enumerate() {
+        let color = if s.selected.contains(&i) { HIGHLIGHT } else { SKETCH };
+        paint_curve(painter, xf, c, 1.8, color);
+    }
+    if let Err(e) = (Sketch { curves: s.curves.clone() }).loops()
+        && let Some(p) = e.point()
+        && s.picks.is_empty()
+        && !s.open_path()
+    {
+        painter.circle_stroke(xf.to_screen(p), 6.0, Stroke::new(1.5, PALETTE.danger));
+    }
+    if s.draw == Draw::Select {
+        select(ui, resp, painter, s, raw, snapped.map(|x| x.point), xf, tol);
+        None
+    } else if s.draw.modifies() {
+        let (Some(raw), Some(sn)) = (raw, snapped) else { return None };
+        draw_snap(painter, xf, sn);
+        modify(resp, painter, s, opts, raw, sn.point, xf, tol)
+    } else {
+        let sn = snapped?;
+        draw_snap(painter, xf, sn);
+        draw(resp, painter, s, sn.point, xf, tol);
+        arc_tangent_hint(s, sn.point, tol)
+    }
 }
 
 /// The tangent arc needs a free end to start from.
@@ -1039,8 +1078,18 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     use crate::commands::UiCommand::*;
     // The tool's name says what the sketch makes (the edited element's category opens it).
     let what = crate::i18n::tr(state.tool.key());
-    let title = match state.sketch.as_ref().map(|s| s.target) {
-        Some(Target::Edit { .. }) => t!("sketch-title-edit", "category" => what),
+    let piece = crate::component_sketch::piece(state).map(|p| p.kind);
+    let title = match (state.sketch.as_ref().map(|s| s.target), piece) {
+        (_, Some(kind)) => {
+            let what = match kind {
+                crate::component_sketch::PieceKind::Extrusion => CompExtrusion,
+                crate::component_sketch::PieceKind::Revolution => CompRevolution,
+                crate::component_sketch::PieceKind::Sweep => CompSweep,
+                crate::component_sketch::PieceKind::Blend => CompBlend,
+            };
+            t!("sketch-title-piece", "kind" => what.label(state))
+        }
+        (Some(Target::Edit { .. }), _) => t!("sketch-title-edit", "category" => what),
         _ => t!("sketch-title-new", "category" => what),
     };
     ui.horizontal(|ui| {
@@ -1066,13 +1115,16 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             t!("group-modify"),
             &[&[Move, CopyElements, Rotate], &[MirrorPick, MirrorDraw, Offset], &[TrimCorner, TrimExtend, Split]],
         );
-        crate::ribbon::env_group(ui, state, t!("group-sketch-tools"), &[SketchPickWalls, Delete]);
+        // Walls are picked in plans only.
+        let tools: &[_] = if piece.is_some() { &[Delete] } else { &[SketchPickWalls, Delete] };
+        crate::ribbon::env_group(ui, state, t!("group-sketch-tools"), tools);
         crate::ribbon::env_group(ui, state, t!("group-mode"), &[SketchFinish, SketchCancel]);
     });
 }
 
 /// The options bar: chaining, polygon sides, the modify tools' options and the hint.
 pub fn options(ui: &mut Ui, state: &mut AppState) {
+    crate::component_sketch::options(ui, state);
     let opts = &mut state.modify;
     let Some(s) = state.sketch.as_mut() else { return };
     match s.draw {

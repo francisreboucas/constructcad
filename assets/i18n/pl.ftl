@@ -2029,6 +2029,11 @@ comp-env-points = Punkty
 # Sketch mode
 sketch-title-new = Utwórz obrys: { $category }
 sketch-title-edit = Edytuj obrys: { $category }
+sketch-title-piece = Szkic: { $kind }
+comp-sketch-hint-view = Rysuj w widoku z góry, z przodu lub z boku; na płaszczyźnie odniesienia punkt jest do niej przypięty · Zakończ tworzy element
+sketch-piece-unreadable = Punktów elementu nie da się obliczyć, więc jego szkicu nie można otworzyć.
+comp-edit-sketch = Edytuj szkic
+comp-edit-sketch-tip = Otwiera obrys (lub ścieżkę) elementu narzędziami szkicu
 group-draw = Rysuj
 group-sketch-tools = Narzędzia
 group-mode = Tryb
