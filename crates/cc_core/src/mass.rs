@@ -26,6 +26,10 @@ pub struct Mass {
     /// Levels where mass floors are taken (those the mass spans).
     #[serde(default)]
     pub floors: Vec<LevelId>,
+    /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
+    /// when the outline is edited without them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<crate::sketch::Sketch>,
 }
 
 impl Mass {
@@ -155,7 +159,14 @@ mod tests {
 
     #[test]
     fn sections_of_extrusions_and_lofts() {
-        let mut m = Mass { outline: rect(10.0, 6.0), base_offset: 0.0, height: 9.0, top: None, floors: Vec::new() };
+        let mut m = Mass {
+            outline: rect(10.0, 6.0),
+            base_offset: 0.0,
+            height: 9.0,
+            top: None,
+            floors: Vec::new(),
+            sketch: None,
+        };
         assert!(m.is_valid());
         assert!((area(&m.section(0.5)) - 60.0).abs() < 1e-9);
         // A loft from 10 x 6 to 4 x 6: halfway the section is 7 x 6.
@@ -176,7 +187,14 @@ mod tests {
 
     #[test]
     fn faces_push_and_pull() {
-        let m = Mass { outline: rect(10.0, 6.0), base_offset: 0.0, height: 9.0, top: None, floors: Vec::new() };
+        let m = Mass {
+            outline: rect(10.0, 6.0),
+            base_offset: 0.0,
+            height: 9.0,
+            top: None,
+            floors: Vec::new(),
+            sketch: None,
+        };
         assert_eq!(m.pushed(MassFace::Top, 3.0).map(|m| m.height), Some(12.0));
         let b = m.pushed(MassFace::Bottom, 1.0).unwrap();
         assert_eq!((b.base_offset, b.height), (-1.0, 10.0));

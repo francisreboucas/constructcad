@@ -146,6 +146,15 @@ Um script é uma lista de passos: um array JSON de objetos `{"command": …, "ar
 ccad --save-as casa.ccad script examples/small_house.ccmacro
 ```
 
+### Contornos desenhados com curvas
+
+Pisos, forros, telhados, radiers e massas recebem o contorno como `curves` em vez de pontos: linhas, arcos (por `bulge` ou por um ponto `through` por onde passam), círculos, elipses (inteiras ou parte delas), retângulos e polígonos regulares (estes dois viram linhas). Laços dentro do contorno são aberturas de pisos e telhados. O elemento guarda as curvas: `sketch_get` as devolve (ou linhas ao longo do contorno de um elemento desenhado por pontos) e `sketch_set` desenha o contorno de novo; mover, girar e espelhar o elemento leva as curvas junto, e editar diretamente os pontos do contorno as descarta.
+
+```text
+{"command": "mass_create", "args": {"curves": [{"kind": "circle", "center": [0, 0], "radius": 5}], "height": 9}}
+{"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
+```
+
 Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, chame `ccad run` a partir de um script de shell ou use um agente via MCP.
 
 ## Macros no aplicativo

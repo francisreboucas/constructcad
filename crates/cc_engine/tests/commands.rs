@@ -2792,3 +2792,87 @@ fn roof_tiles_and_framing() {
     assert_eq!((check["framing"]["rafters"].as_f64(), check["framing"]["battens"].as_f64()), (Some(0.0), Some(0.0)));
     assert_eq!(fails(&mut s, "roof_check", json!({"id": ty})), ErrorCode::NotFound);
 }
+
+/// Outlines drawn with curves: a mass on a circle and a floor from a
+/// rectangle with a round opening keep their curves, which follow moves and
+/// rotations; `sketch_set` draws a roof's outline again; an outline edited
+/// without its curves drops them; open and crossing sketches are refused.
+#[test]
+fn sketched_outlines_keep_their_curves() {
+    let mut s = Session::default();
+    let area = |s: &mut Session, id: u64| run(s, "element_get", json!({"id": id}))["derived"]["volume"].as_f64();
+    // A mass on a circle of radius 5: its outline is the circle's chords.
+    let mass = id(&run(
+        &mut s,
+        "mass_create",
+        json!({"curves": [{"kind": "circle", "center": [0, 0], "radius": 5}], "height": 3}),
+    ));
+    let volume = area(&mut s, mass).unwrap();
+    assert!((volume - std::f64::consts::PI * 25.0 * 3.0).abs() < 0.2, "{volume}");
+    let got = run(&mut s, "sketch_get", json!({"id": mass}));
+    assert_eq!((got["drawn"].clone(), got["curves"][0]["kind"].clone()), (json!(true), json!("circle")));
+
+    // A floor from a rectangle with a round opening (a loop inside it).
+    let floor = id(&run(
+        &mut s,
+        "floor_create",
+        json!({"curves": [
+            {"kind": "rectangle", "corner": [20, 0], "opposite": [30, 8]},
+            {"kind": "circle", "center": [25, 4], "radius": 1},
+        ]}),
+    ));
+    let params = &run(&mut s, "element_get", json!({"id": floor}))["params"];
+    assert_eq!(params["openings"].as_array().unwrap().len(), 1);
+    assert_eq!(run(&mut s, "sketch_get", json!({"id": floor}))["curves"].as_array().unwrap().len(), 5);
+
+    // Moved and turned, the curves go along.
+    run(&mut s, "elements_move", json!({"ids": [floor], "delta": [0, 10]}));
+    run(&mut s, "elements_rotate", json!({"ids": [floor], "angle": 90, "center": [20, 10]}));
+    let curves = run(&mut s, "sketch_get", json!({"id": floor}))["curves"].clone();
+    assert_eq!(curves.as_array().unwrap().len(), 5, "still drawn: {curves}");
+    let circle = curves.as_array().unwrap().iter().find(|c| c["kind"] == "circle").unwrap();
+    let c = (circle["center"][0].as_f64().unwrap(), circle["center"][1].as_f64().unwrap());
+    assert!((c.0 - 16.0).abs() < 1e-9 && (c.1 - 15.0).abs() < 1e-9, "{c:?}");
+    assert_eq!(run(&mut s, "sketch_get", json!({"id": floor}))["drawn"], true);
+
+    // Edit the boundary of a roof: an ellipse, with an arc-ended courtyard.
+    let roof =
+        id(&run(&mut s, "roof_create", json!({"boundary": [[40, 0], [50, 0], [50, 10], [40, 10]], "overhang": 0})));
+    assert_eq!(run(&mut s, "sketch_get", json!({"id": roof}))["drawn"], false, "lines along its outline");
+    run(
+        &mut s,
+        "sketch_set",
+        json!({"id": roof, "curves": [
+            {"kind": "ellipse", "center": [45, 5], "radii": [6, 4]},
+            {"kind": "line", "start": [44, 4], "end": [46, 4]},
+            {"kind": "arc", "start": [46, 4], "end": [46, 6], "bulge": 1},
+            {"kind": "line", "start": [46, 6], "end": [44, 6]},
+            {"kind": "arc", "start": [44, 6], "end": [44, 4], "bulge": 1},
+        ]}),
+    );
+    let params = &run(&mut s, "element_get", json!({"id": roof}))["params"];
+    assert!(params["footprint"].as_array().unwrap().len() > 60, "the ellipse's chords");
+    assert_eq!(params["holes"].as_array().unwrap().len(), 1);
+    run(&mut s, "undo", json!({}));
+    assert_eq!(run(&mut s, "element_get", json!({"id": roof}))["params"]["footprint"].as_array().unwrap().len(), 4);
+    run(&mut s, "redo", json!({}));
+
+    // The outline edited on its own leaves the curves behind.
+    run(&mut s, "element_set", json!({"id": mass, "params": {"outline": [[0, 0], [4, 0], [4, 4], [0, 4]]}}));
+    assert_eq!(run(&mut s, "sketch_get", json!({"id": mass}))["drawn"], false);
+
+    // Refused: an open sketch, crossing loops, openings in a ceiling or a mass, two inputs.
+    let open =
+        json!([{"kind": "line", "start": [0, 0], "end": [4, 0]}, {"kind": "line", "start": [4, 0], "end": [4, 4]}]);
+    assert_eq!(fails(&mut s, "floor_create", json!({"curves": open})), ErrorCode::InvalidArguments);
+    let crossing =
+        json!([{"kind": "circle", "center": [0, 0], "radius": 2}, {"kind": "circle", "center": [1, 0], "radius": 2}]);
+    assert_eq!(fails(&mut s, "sketch_set", json!({"id": floor, "curves": crossing})), ErrorCode::InvalidArguments);
+    let holed =
+        json!([{"kind": "circle", "center": [0, 0], "radius": 3}, {"kind": "circle", "center": [0, 0], "radius": 1}]);
+    assert_eq!(fails(&mut s, "ceiling_create", json!({"curves": holed})), ErrorCode::InvalidArguments);
+    assert_eq!(fails(&mut s, "sketch_set", json!({"id": mass, "curves": holed})), ErrorCode::InvalidArguments);
+    let both =
+        json!({"boundary": [[0, 0], [1, 0], [1, 1]], "curves": [{"kind": "circle", "center": [0, 0], "radius": 1}]});
+    assert_eq!(fails(&mut s, "floor_create", both), ErrorCode::InvalidArguments);
+}

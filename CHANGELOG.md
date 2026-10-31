@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- Outlines drawn with curves. Floors, ceilings, roofs, foundation slabs and masses take `curves` instead of points: lines, arcs, circles, ellipses (whole or partial), rectangles and regular polygons; loops inside the outline become openings of floors and roofs, and errors say where the sketch is open, branches or crosses. The element keeps its curves, which follow moves, rotations and mirrors; the new commands `sketch_get` and `sketch_set` read them and draw the outline again.
+
 ## [0.8.0] - 2026-10-30
 
 ### Added

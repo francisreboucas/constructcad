@@ -137,6 +137,54 @@ impl Element {
         }
     }
 
+    /// The sketch an outline was drawn with (floors, ceilings, roofs and
+    /// masses), to read or set.
+    pub fn drawn_sketch_mut(&mut self) -> Option<&mut Option<crate::sketch::Sketch>> {
+        match &mut self.kind {
+            ElementKind::Floor(f) => Some(&mut f.sketch),
+            ElementKind::Ceiling(c) => Some(&mut c.sketch),
+            ElementKind::Roof(r) => Some(&mut r.sketch),
+            ElementKind::Mass(m) => Some(&mut m.sketch),
+            _ => None,
+        }
+    }
+
+    /// The sketch an outline was drawn with, if it has one.
+    pub fn drawn_sketch(&self) -> Option<&crate::sketch::Sketch> {
+        match &self.kind {
+            ElementKind::Floor(f) => f.sketch.as_ref(),
+            ElementKind::Ceiling(c) => c.sketch.as_ref(),
+            ElementKind::Roof(r) => r.sketch.as_ref(),
+            ElementKind::Mass(m) => m.sketch.as_ref(),
+            _ => None,
+        }
+    }
+
+    /// The outline and openings a sketch makes for this element: floors and
+    /// roofs have openings, ceilings and masses an outline only.
+    pub fn sketched_profile(&self) -> Option<(&[DVec2], &[Vec<DVec2>])> {
+        match &self.kind {
+            ElementKind::Floor(f) => Some((&f.boundary, &f.openings)),
+            ElementKind::Ceiling(c) => Some((&c.boundary, &[])),
+            ElementKind::Roof(r) => Some((&r.footprint, &r.holes)),
+            ElementKind::Mass(m) => Some((&m.outline, &[])),
+            _ => None,
+        }
+    }
+
+    /// Drop a sketch that no longer makes the outline (edited without it), or
+    /// is invalid; returns whether it did.
+    pub fn drop_stale_sketch(&mut self) -> bool {
+        let stale = match (self.drawn_sketch(), self.sketched_profile()) {
+            (Some(s), Some((outline, openings))) => !s.is_valid() || !s.makes(outline, openings),
+            _ => false,
+        };
+        if stale && let Some(s) = self.drawn_sketch_mut() {
+            *s = None;
+        }
+        stale
+    }
+
     /// Sketch boundary for floors, ceilings and roofs.
     pub fn sketch(&self) -> Option<&[DVec2]> {
         match &self.kind {
@@ -149,6 +197,10 @@ impl Element {
 
     /// Translate the element in plan. Hosted elements move with their host.
     pub fn translate(&mut self, delta: DVec2) {
+        let t = crate::transform::PlanTransform::translate(delta);
+        if let Some(Some(sketch)) = self.drawn_sketch_mut() {
+            sketch.transform(&t);
+        }
         match &mut self.kind {
             ElementKind::Wall(w) => {
                 w.start += delta;
@@ -393,12 +445,16 @@ pub struct Floor {
     /// inside the boundary, apart from each other.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub openings: Vec<Vec<DVec2>>,
+    /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
+    /// when the outline is edited without them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<crate::sketch::Sketch>,
 }
 
 impl Floor {
     /// A floor over `boundary` with no openings.
     pub fn new(boundary: Vec<DVec2>, height_offset: f64) -> Self {
-        Self { boundary, height_offset, openings: Vec::new() }
+        Self { boundary, height_offset, openings: Vec::new(), sketch: None }
     }
 
     /// Plan area: the boundary less its openings.
@@ -418,6 +474,10 @@ pub struct Ceiling {
     pub boundary: Vec<DVec2>,
     /// Height of the ceiling's underside above the level.
     pub height_offset: f64,
+    /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
+    /// when the outline is edited without them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<crate::sketch::Sketch>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -457,12 +517,16 @@ pub struct Roof {
     /// `None` entries follow the shape.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edge_slopes: Vec<Option<f64>>,
+    /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
+    /// when the outline is edited without them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub sketch: Option<crate::sketch::Sketch>,
 }
 
 impl Roof {
     /// A roof over `footprint` with no openings.
     pub fn new(footprint: Vec<DVec2>, base_offset: f64, overhang: f64, shape: RoofShape) -> Self {
-        Self { footprint, base_offset, overhang, shape, holes: Vec::new(), edge_slopes: Vec::new() }
+        Self { footprint, base_offset, overhang, shape, holes: Vec::new(), edge_slopes: Vec::new(), sketch: None }
     }
 
     /// The slope set on footprint edge `i`, if any.
