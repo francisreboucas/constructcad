@@ -589,53 +589,60 @@ pub fn panel(ui: &mut Ui, state: &mut AppState) {
         return;
     };
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        ui.add_space(6.0);
-        ui.label(theme::title(name.clone()));
-        types_row(ui, state);
-        ui.add_space(6.0);
-        crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, &def));
-        let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
-        match pick {
-            Some(Pick::Plane(plane)) => {
-                crate::table::section(ui, "comp-env-plane", t!("comp-env-plane"), |ui| {
-                    plane_props(ui, state, &def, &plane)
-                });
-            }
-            Some(Pick::Dimension(index)) => {
-                crate::table::section(ui, "comp-env-dimension", t!("comp-env-dimension"), |ui| {
-                    dimension_props(ui, state, &def, index);
-                });
-            }
-            Some(Pick::Equal(index)) => {
-                crate::table::section(ui, "comp-env-equal", t!("comp-env-equal"), |ui| {
-                    if let Some(q) = def.equals.get(index) {
-                        crate::table::readonly_row(
-                            ui,
-                            &t!("comp-env-between"),
-                            format!("{} — {} — {}", q.a, q.middle, q.b),
-                        );
-                        crate::table::readonly_row(ui, &t!("comp-env-at"), q.expression());
-                    }
-                    if ui.button(t!("action-delete")).clicked() {
-                        delete_pick(state);
-                    }
-                });
-            }
-            Some(Pick::Piece(index)) => {
-                crate::table::section(ui, "comp-env-piece", t!("comp-env-piece"), |ui| {
-                    crate::component_env::piece_props(ui, state, &def, index);
-                });
-            }
-            None => {}
-        }
-        let problems = def.ref_problems();
-        if !problems.is_empty() {
-            ui.add_space(6.0);
-            for p in problems {
-                ui.label(egui::RichText::new(p).color(PALETTE.danger).size(12.0));
-            }
-        }
+        // Inset from the panel's edges, so fields and buttons are not cut by its border.
+        egui::Frame::new().inner_margin(egui::Margin { left: 8, right: 8, top: 0, bottom: 8 }).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            panel_content(ui, state, &name, &def);
+        });
     });
+}
+
+/// The panel's title, type, parameters and the picked object's values.
+fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::ComponentDef) {
+    ui.add_space(6.0);
+    ui.label(theme::title(name.to_string()));
+    types_row(ui, state);
+    ui.add_space(6.0);
+    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def));
+    let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
+    match pick {
+        Some(Pick::Plane(plane)) => {
+            crate::table::section(ui, "comp-env-plane", t!("comp-env-plane"), |ui| plane_props(ui, state, def, &plane));
+        }
+        Some(Pick::Dimension(index)) => {
+            crate::table::section(ui, "comp-env-dimension", t!("comp-env-dimension"), |ui| {
+                dimension_props(ui, state, def, index);
+            });
+        }
+        Some(Pick::Equal(index)) => {
+            crate::table::section(ui, "comp-env-equal", t!("comp-env-equal"), |ui| {
+                if let Some(q) = def.equals.get(index) {
+                    crate::table::readonly_row(
+                        ui,
+                        &t!("comp-env-between"),
+                        format!("{} — {} — {}", q.a, q.middle, q.b),
+                    );
+                    crate::table::readonly_row(ui, &t!("comp-env-at"), q.expression());
+                }
+                if ui.button(t!("action-delete")).clicked() {
+                    delete_pick(state);
+                }
+            });
+        }
+        Some(Pick::Piece(index)) => {
+            crate::table::section(ui, "comp-env-piece", t!("comp-env-piece"), |ui| {
+                crate::component_env::piece_props(ui, state, def, index);
+            });
+        }
+        None => {}
+    }
+    let problems = def.ref_problems();
+    if !problems.is_empty() {
+        ui.add_space(6.0);
+        for p in problems {
+            ui.label(egui::RichText::new(p).color(PALETTE.danger).size(12.0));
+        }
+    }
 }
 
 /// The type whose values the views show.

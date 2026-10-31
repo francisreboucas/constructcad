@@ -123,6 +123,15 @@ With the Select tool, a click picks the element under the pointer (Ctrl adds or 
 - With elements selected, **Override Graphics** changes their graphics in the active view only and **Hide in View** (EH) hides them there (shown again from Visibility/Graphics).
 - **Hide/Isolate** (temporary): HH hides the selection, HI isolates it, HC and IC hide or isolate its categories, HR resets. While active, the view has a colored border and a chip with *Reset* and *Make Permanent*. Temporary hiding is not saved, not undone and not printed.
 
+## Sketching outlines
+
+Floors, ceilings, roofs, foundation slabs and masses are sketched in a plan. Their tool opens a sketch: the ribbon shows *Create Boundary* with the drawing tools until *Finish* or *Cancel*.
+
+- **Draw**: lines (chained until the loop closes; *Chain* in the options bar), rectangles, inscribed and circumscribed polygons (*Sides* in the options bar), circles, ellipses, arcs by three points, by their center, and tangent arcs that continue the free end of a line or arc. Points snap to the model and to the sketch's own ends, middles and centers. *Pick walls* adds lines along the walls of the level.
+- **Select**: a click picks a curve (Ctrl adds or removes); its grips stretch it (an end drags the ends joined to it, so loops stay closed; an arc's middle grip changes its bulge, a circle's and an ellipse's grips their radii). The properties palette shows the picked curve's start, end, center, radius, semi-axes and rotation, to type them. Delete removes the picked curves; Ctrl+Z and Ctrl+Y undo and redo the sketch's own changes.
+- **Finish** makes the element. Loops inside the outline become openings of floors and roofs. A sketch that is open, branches or crosses itself stays open, with the place marked and the reason in the status bar.
+- **Edit Boundary** (*Modify → Sketch*) opens the sketch of the selected floor, ceiling, roof or mass: its curves as drawn, or lines along its outline. Moving, rotating and mirroring the element keeps its curves; editing its points directly drops them.
+
 ## Roof coverings and framing
 
 A roof type sets its **covering** and its **framing**, in the type dialog's *Covering and Framing* section.
