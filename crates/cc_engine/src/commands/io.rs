@@ -60,17 +60,44 @@ impl Command for IfcExport {
     }
 }
 
-/// Export a sheet as vector PDF or SVG (by `format`, else by the file extension).
+/// Export a sheet as vector PDF or SVG, or as DXF in paper millimeters (by
+/// `format`, else by the file extension).
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SheetExport {
     /// Sheet id or name.
     pub sheet: Ref,
-    /// Path of the file to write (.pdf or .svg).
+    /// Path of the file to write (.pdf, .svg or .dxf).
     pub path: PathBuf,
-    /// `pdf` or `svg`.
+    /// `pdf`, `svg` or `dxf`.
     #[serde(default)]
     pub format: Option<String>,
+}
+
+/// A view's drawing as DXF: a sheet in paper millimeters, any other view at
+/// full size in millimeters (texts at their printed size times the scale),
+/// without temporary hiding; each element on the layer of its category.
+fn view_dxf(s: &mut Session, id: cc_core::ViewId) -> Result<Vec<u8>> {
+    use cc_views::dxf::{DxfScale, default_layer, to_dxf};
+    let kind = s.project().view(id).map(|v| (matches!(v.kind, ViewKind::Sheet { .. }), v.scale));
+    let (drawing, scale) = match kind {
+        Some((true, _)) => {
+            let sheet = s.sheet(id).ok_or_else(|| EngineError::invalid("the sheet cannot be composed"))?;
+            (sheet.drawing.clone(), DxfScale::PAPER)
+        }
+        Some((false, scale)) => {
+            let drawing =
+                s.printed_drawing(id).ok_or_else(|| EngineError::invalid("the view has no drawing to export"))?;
+            ((*drawing).clone(), DxfScale::model(scale))
+        }
+        None => return Err(EngineError::not_found("view")),
+    };
+    let project = s.project();
+    let layer = |prim: &cc_views::Prim| match prim.element().and_then(|e| project.element(e)) {
+        Some(e) => format!("{:?}", e.category()),
+        None => default_layer(prim).to_string(),
+    };
+    guard(|| to_dxf(&drawing, scale, &layer))
 }
 
 impl Command for SheetExport {
@@ -83,11 +110,15 @@ impl Command for SheetExport {
         }
         let ext = self.path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
         let format = self.format.map(|f| f.to_ascii_lowercase()).unwrap_or(ext);
+        if format == "dxf" {
+            write(&self.path, &view_dxf(s, id)?)?;
+            return Ok(json!({ "path": self.path, "format": format }));
+        }
         let sheet = s.sheet(id).ok_or_else(|| EngineError::invalid("the sheet cannot be composed"))?;
         let bytes = match format.as_str() {
             "pdf" => guard(|| cc_views::export::to_pdf(&sheet.drawing, sheet.paper))?,
             "svg" => guard(|| cc_views::export::to_svg(&sheet.drawing, sheet.paper))?.into_bytes(),
-            other => return Err(EngineError::invalid(format!("unknown format '{other}': use pdf or svg"))),
+            other => return Err(EngineError::invalid(format!("unknown format '{other}': use pdf, svg or dxf"))),
         };
         write(&self.path, &bytes)?;
         Ok(json!({ "path": self.path, "format": format }))
@@ -96,17 +127,20 @@ impl Command for SheetExport {
 
 /// Export any view with a drawing (plan, elevation, section, 3D view as a
 /// hidden-line axonometric, legend, drafting view, diagram or sheet) as a
-/// PNG image, or as vector SVG or PDF (by `format`, else by the file
-/// extension). The view is drawn at its scale as printed, without temporary
-/// hiding, on a page that fits it; sheets keep their paper size.
+/// PNG image, as vector SVG or PDF, or as DXF for other CAD programs (by
+/// `format`, else by the file extension). The view is drawn at its scale as
+/// printed, without temporary hiding, on a page that fits it; sheets keep
+/// their paper size. A DXF holds the view at full size in millimeters (a
+/// sheet in paper millimeters), each element on the layer of its category,
+/// colors as the nearest color index and line patterns as line types.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ViewExport {
     /// View id or name.
     pub view: Ref,
-    /// Path of the file to write (.png, .svg or .pdf).
+    /// Path of the file to write (.png, .svg, .pdf or .dxf).
     pub path: PathBuf,
-    /// `png`, `svg` or `pdf`.
+    /// `png`, `svg`, `pdf` or `dxf`.
     #[serde(default)]
     pub format: Option<String>,
     /// Resolution of a PNG, in dots per inch (default 150).
@@ -144,6 +178,11 @@ impl Command for ViewExport {
         let ext = self.path.extension().and_then(|e| e.to_str()).unwrap_or_default().to_ascii_lowercase();
         let format = self.format.map(|f| f.to_ascii_lowercase()).unwrap_or(ext);
         let dpi = refs::finite(self.dpi.unwrap_or(150.0), "dpi")?;
+        if format == "dxf" {
+            let id = refs::view(s.project(), &self.view)?;
+            write(&self.path, &view_dxf(s, id)?)?;
+            return Ok(json!({ "path": self.path, "format": format }));
+        }
         let (drawing, paper) = Self::page(s, self.view)?;
         let mut out = json!({ "path": self.path, "format": format, "paper_mm": [paper.x, paper.y] });
         let bytes = match format.as_str() {
@@ -158,7 +197,7 @@ impl Command for ViewExport {
             }
             "pdf" => guard(|| cc_views::export::to_pdf(&drawing, paper))?,
             "svg" => guard(|| cc_views::export::to_svg(&drawing, paper))?.into_bytes(),
-            other => return Err(EngineError::invalid(format!("unknown format '{other}': use png, svg or pdf"))),
+            other => return Err(EngineError::invalid(format!("unknown format '{other}': use png, svg, pdf or dxf"))),
         };
         write(&self.path, &bytes)?;
         Ok(out)

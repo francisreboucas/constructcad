@@ -10,6 +10,7 @@ pub mod component_view;
 mod cut;
 mod diagram;
 mod drawing;
+pub mod dxf;
 pub mod export;
 pub mod fonts;
 pub mod format;

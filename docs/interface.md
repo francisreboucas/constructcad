@@ -33,7 +33,7 @@ Icons are drawn in two tones: the strokes in the text color and the soft fills i
 |---|---|---|
 | green **+** | creates something new | new floor or ceiling plan, 3D view, legend, schedule, sheet, new component |
 | blue arrow down | brings data in from a file | Import IFC, Import CAD, Load component |
-| blue arrow up | writes data out to a file | Export PDF, Export SVG, Export Image |
+| blue arrow up | writes data out to a file | Export PDF, Export SVG, Export Image, Export DXF |
 | red **−** | removes something | Delete |
 
 The selected tool is highlighted in the accent color. Unavailable commands are greyed out, badges included.
@@ -157,6 +157,7 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 ## Imported CAD drawings
 
 - **File → Import CAD…** places a DWG or DXF drawing in the active floor plan, ceiling plan, elevation, section or legend (the button is greyed out in other views, and says why). You can also drop `.dwg` and `.dxf` files on the window. The file dialog starts in the *Projects folder*. The drawing keeps its origin at the view's origin, unless that leaves it more than 1 km from the model (a drawing in survey coordinates), then it is centered on what the view shows. The status bar says how many items and layers were read, how many entities were not drawn (3D solids, images, infinite lines…) and which units were assumed when the file has none.
+- **File → Export DXF…** writes the active view (any view but a schedule) as a DXF drawing for other CAD programs, as printed: plans, elevations and sections at full size in millimeters (texts at their printed height times the view's scale), a sheet in paper millimeters. Each element goes to the layer of its category (`WALL`, `DOOR`…; annotations to `ANNOTATION` and `TEXT`), dashed and dash-dot lines get line types, opaque fills become solids, and colors are the nearest color index, so a plot style by color can give the pens their weights. The file is DXF R12, which every CAD program opens; it reads back with *Import CAD*.
 - The drawing is a background to trace over: thin grey lines under the model, with its texts. It shows only in the view it was imported into (not in other plans or in 3D views), prints on sheets and exports, and is left out of IFC export. *Visibility/Graphics* hides or overrides it with the *Imported CAD* category.
 - It starts **pinned**, so it is not moved by accident; *Unpin* it to move or rotate it with the usual tools. Clicking its lines selects it only where no model element is under the pointer.
 - Its properties set the **units** (read from the file, else assumed), an extra **scale**, the **rotation**, the **position** of its origin, the **colors** (*Grey*, *Layer colors* with very light colors darkened for white paper, or *Black*) and **Halftone**. The *Layers* section shows or hides each layer (*All layers* toggles them all); layers that are off or frozen in the file start hidden.

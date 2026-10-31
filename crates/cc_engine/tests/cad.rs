@@ -332,3 +332,34 @@ fn the_properties_panel_patch_with_every_param_applies() {
     run(&mut s, "elements_delete", json!({"ids": [id]}));
     assert!(s.doc.project.element(cc_core::ElementId(id)).is_none());
 }
+
+/// Issue #27: a plan exported as DXF and imported back lies where the view
+/// drew it, at full size, each element on the layer of its category.
+#[test]
+fn views_export_as_dxf_and_read_back() {
+    let mut s = Session::default();
+    let view = plan(&mut s);
+    let wall = run(&mut s, "wall_create", json!({"start": [0, 0], "end": [5, 0]}))["id"].as_u64().unwrap();
+    let wall_lines = lines_of(&mut s, view, wall);
+    assert!(!wall_lines.is_empty());
+    let path = scratch("plan.dxf");
+    let out = run(&mut s, "view_export", json!({"view": view, "path": path}));
+    assert_eq!(out["format"], "dxf");
+    let text = String::from_utf8_lossy(&std::fs::read(&path).unwrap()).to_string();
+    assert!(text.contains("AC1009") && text.trim_end().ends_with("EOF"));
+    // Read back with the importer: millimeters, at the origin.
+    let back = run(&mut s, "cad_import", json!({"path": path, "view": view, "position": [0, 0]}));
+    assert_eq!(back["units"], "mm");
+    let id = back["id"].as_u64().unwrap();
+    let lines = lines_of(&mut s, view, id);
+    for (a, b) in &wall_lines {
+        let near = |p: &DVec2, q: &DVec2| p.distance(*q) < 1e-6;
+        assert!(lines.iter().any(|(p, q)| (near(p, a) && near(q, b)) || (near(p, b) && near(q, a))), "{a} {b}");
+    }
+    let layers = run(&mut s, "cad_layers", json!({"id": id}));
+    assert!(layers.to_string().contains("\"WALL\""), "{layers}");
+    assert_eq!(
+        fails(&mut s, "view_export", json!({"view": view, "path": scratch("plan.xyz")})),
+        ErrorCode::InvalidArguments
+    );
+}

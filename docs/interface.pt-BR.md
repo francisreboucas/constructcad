@@ -33,7 +33,7 @@ Os ícones têm dois tons: os traços na cor do texto e os preenchimentos suaves
 |---|---|---|
 | **+** verde | cria algo novo | nova planta de piso ou de forro, vista 3D, legenda, tabela, folha, novo componente |
 | seta azul para baixo | traz dados de um arquivo | Importar IFC, Importar CAD, Carregar componente |
-| seta azul para cima | grava dados num arquivo | Exportar PDF, Exportar SVG, Exportar imagem |
+| seta azul para cima | grava dados num arquivo | Exportar PDF, Exportar SVG, Exportar imagem, Exportar DXF |
 | **−** vermelho | remove algo | Excluir |
 
 A ferramenta selecionada aparece realçada na cor de destaque. Comandos indisponíveis ficam acinzentados, inclusive o selo.
@@ -157,6 +157,7 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 ## Desenhos CAD importados
 
 - **Arquivo → Importar CAD…** coloca um desenho DWG ou DXF na planta, planta de forro, elevação, corte ou legenda ativa (nas outras vistas o botão fica cinza e diz por quê). Também dá para soltar arquivos `.dwg` e `.dxf` na janela. O diálogo de arquivo começa na *Pasta de projetos*. A origem do desenho fica na origem da vista, a menos que isso o deixe a mais de 1 km do modelo (um desenho em coordenadas de levantamento); então ele é centrado no que a vista mostra. A barra de status informa quantos itens e camadas foram lidos, quantas entidades não foram desenhadas (sólidos 3D, imagens, linhas infinitas…) e que unidades foram supostas quando o arquivo não tem nenhuma.
+- **Arquivo → Exportar DXF…** grava a vista ativa (qualquer vista menos tabela) como desenho DXF para outros programas CAD, como impressa: plantas, fachadas e cortes em tamanho real em milímetros (textos na altura impressa vezes a escala da vista), a folha em milímetros de papel. Cada elemento vai para a camada da sua categoria (`WALL`, `DOOR`…; anotações em `ANNOTATION` e `TEXT`), linhas tracejadas e traço-ponto recebem tipos de linha, preenchimentos opacos viram sólidos e as cores são o índice de cor mais próximo, para que uma tabela de penas por cor dê as espessuras. O arquivo é DXF R12, que todo programa CAD abre; ele volta com *Importar CAD*.
 - O desenho é um fundo para traçar por cima: linhas finas cinzas sob o modelo, com seus textos. Ele aparece só na vista em que foi importado (não em outras plantas nem em vistas 3D), sai nas folhas e exportações e fica fora da exportação IFC. *Visibilidade/gráficos* o oculta ou sobrepõe pela categoria *CAD importado*.
 - Ele começa **fixado**, para não ser movido sem querer; use *Liberar* para movê-lo ou girá-lo com as ferramentas de sempre. Um clique nas linhas dele só o seleciona onde não há elemento do modelo sob o cursor.
 - As propriedades definem as **unidades** (lidas do arquivo, senão supostas), uma **escala** extra, a **rotação**, a **posição** da origem, as **cores** (*Cinza*, *Cores das camadas*, com as cores muito claras escurecidas para o papel branco, ou *Preto*) e o **Meio-tom**. A seção *Camadas* mostra ou oculta cada camada (*Todas as camadas* alterna todas); camadas desligadas ou congeladas no arquivo começam ocultas.

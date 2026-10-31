@@ -289,8 +289,10 @@ action-import-ifc = 导入 IFC…
 action-export-pdf = 导出 PDF…
 action-export-svg = 导出 SVG…
 action-export-image = 导出图像…
+action-export-dxf = 导出 DXF…
 hint-export-sheet = 打开一张图纸以将其导出
 hint-export-image = 打开一个含有图形的视图，以将其导出为图像
+hint-export-dxf = 打开一个含有图形的视图，以将其导出为 DXF
 action-undo = 撤销
 action-redo = 重做
 action-copy = 复制
@@ -613,6 +615,7 @@ file-filter-ifc = IFC 文件
 file-filter-pdf = PDF 文档
 file-filter-svg = SVG 图像
 file-filter-png = PNG 图像
+file-filter-dxf = DXF 图形
 
 # Default names
 default-section-name = 剖面 { $n }
@@ -1101,6 +1104,7 @@ cmd-desc-export-ifc = 将模型导出为 IFC4，供其他 BIM 应用程序使用
 cmd-desc-export-pdf = 将打开的图纸导出为矢量 PDF。
 cmd-desc-export-svg = 将打开的图纸导出为 SVG。
 cmd-desc-export-image = 将打开的视图（平面、剖面、三维、图纸…）导出为 PNG 图像。
+cmd-desc-export-dxf = 将打开的视图（平面、剖面、立面、图纸…）导出为供其他 CAD 程序使用的 DXF 图形：按实际尺寸以毫米为单位，图纸以纸面毫米为单位，每个类别位于各自的图层。
 cmd-desc-about = 版本、许可证和致谢。
 cmd-desc-check-updates = 向 GitHub 查询是否有更新版本的 ConstructCAD（仅通知，不下载任何内容）。
 cmd-desc-undo = 撤销上一次更改。

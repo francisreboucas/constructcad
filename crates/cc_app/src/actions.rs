@@ -436,6 +436,27 @@ pub fn export_image(state: &mut AppState) {
     }
 }
 
+/// Export the active view as DXF, for other CAD programs: at full size in
+/// millimeters (a sheet in paper millimeters), as printed.
+pub fn export_dxf(state: &mut AppState) {
+    let Some(id) = image_view(state) else { return };
+    let Some(view) = state.project().view(id) else { return };
+    let name = match &view.kind {
+        ViewKind::Sheet { number, .. } => format!("{number} - {}.dxf", view.name),
+        _ => format!("{}.dxf", view.name),
+    };
+    let dialog = rfd::FileDialog::new().add_filter(t!("file-filter-dxf"), &["dxf"]).set_file_name(name);
+    let Some(mut path) = dialog.save_file() else { return };
+    if path.extension().is_none() {
+        path.set_extension("dxf");
+    }
+    let command = io::ViewExport { view: Ref::Id(id.0), path: path.clone(), format: Some("dxf".into()), dpi: None };
+    match state.session.run(command) {
+        Ok(_) => state.message = t!("msg-exported", "path" => path.display()),
+        Err(e) => state.dialogs.error = Some(t!("msg-export-failed", "error" => e.message)),
+    }
+}
+
 // --- Macros ---
 
 /// The macro file dialog, starting in the macros folder when one is set.
