@@ -1032,6 +1032,17 @@ impl UiCommand {
                 Some(t!("why-no-sketch"))
             }
             SketchPickWalls if state.active_level().is_none() => Some(t!("msg-open-plan")),
+            // In a sketch the modify tools act on its curves.
+            Move | CopyElements | Rotate | MirrorPick | MirrorDraw | Offset | TrimCorner | TrimExtend | Split
+                if state.sketch.is_some() =>
+            {
+                let needs_selection = sketch_draw(self).is_some_and(|d| d.on_selection());
+                state
+                    .sketch
+                    .as_ref()
+                    .is_some_and(|s| needs_selection && s.selected.is_empty() && !self.selected(state))
+                    .then(|| t!("msg-select-first"))
+            }
             Delete if state.sketch.is_some() => {
                 state.sketch.as_ref().is_some_and(|s| s.selected.is_empty()).then(|| t!("msg-select-first"))
             }
@@ -1151,6 +1162,11 @@ impl UiCommand {
             Select => *tool == Tool::Select,
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
             | SketchArcCenter | SketchArcTangent => {
+                state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
+            }
+            Move | CopyElements | Rotate | MirrorPick | MirrorDraw | Offset | TrimCorner | TrimExtend | Split
+                if state.sketch.is_some() =>
+            {
                 state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
             }
             CompExtrusion | CompRevolution | CompSweep | CompBlend => {
@@ -1314,6 +1330,15 @@ fn sketch_draw(command: UiCommand) -> Option<crate::sketch_mode::Draw> {
         UiCommand::SketchArc3 => Draw::Arc3,
         UiCommand::SketchArcCenter => Draw::ArcCenter,
         UiCommand::SketchArcTangent => Draw::ArcTangent,
+        UiCommand::Move => Draw::Move,
+        UiCommand::CopyElements => Draw::Copy,
+        UiCommand::Rotate => Draw::Rotate,
+        UiCommand::MirrorPick => Draw::MirrorPick,
+        UiCommand::MirrorDraw => Draw::MirrorAxis,
+        UiCommand::Offset => Draw::Offset,
+        UiCommand::TrimCorner => Draw::TrimCorner,
+        UiCommand::TrimExtend => Draw::TrimExtend,
+        UiCommand::Split => Draw::Split,
         _ => return None,
     })
 }
@@ -1410,6 +1435,13 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         Select => state.set_tool(Tool::Select),
         SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
         | SketchArcCenter | SketchArcTangent => {
+            if let Some(draw) = sketch_draw(command) {
+                crate::sketch_mode::set_draw(state, draw);
+            }
+        }
+        Move | CopyElements | Rotate | MirrorPick | MirrorDraw | Offset | TrimCorner | TrimExtend | Split
+            if state.sketch.is_some() =>
+        {
             if let Some(draw) = sketch_draw(command) {
                 crate::sketch_mode::set_draw(state, draw);
             }

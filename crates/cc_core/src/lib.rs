@@ -32,6 +32,7 @@ mod repair;
 pub mod roofing;
 mod schedule;
 pub mod sketch;
+pub mod sketch_edit;
 pub mod stair;
 pub mod sweep;
 pub mod transform;
