@@ -76,7 +76,7 @@ Choosing an engine command opens a form with its description and its arguments i
 
 **Run** (or Ctrl+Enter) executes the command in the open project and shows its result or error message. An edit is one undo step and is recorded while a macro is recording, like any other change. **Back** (or Esc) returns to the search. The arguments are the same as in scripts and in the [command reference](commands.md). Lengths are in meters, angles in degrees, points are `[x, y]`, and levels, types, views and materials can be named by id or by name.
 
-The engine's file commands (`project_open`, `project_save`, `ifc_import`, `ifc_export`, `sheet_export`, `view_export`…) are not offered here. Their interface commands in the *File* tab and the palette handle files through the usual dialogs.
+The engine's file commands (`project_open`, `project_save`, `ifc_import`, `ifc_export`, `sheet_export`, `view_export`…) are not offered here. Their interface commands in the *File* and *Insert* tabs and the palette handle files through the usual dialogs.
 
 ## Keyboard
 
@@ -135,7 +135,7 @@ With the Select tool, a click picks the element under the pointer (Ctrl adds or 
 
 ## Imported CAD drawings
 
-- **File → Import CAD…** places a DWG or DXF drawing in the active floor plan, ceiling plan, elevation, section or legend (the button is greyed out in other views, and says why). You can also drop `.dwg` and `.dxf` files on the window. The file dialog starts in the *Projects folder*. The drawing keeps its origin at the view's origin, unless that leaves it more than 1 km from the model (a drawing in survey coordinates), then it is centered on what the view shows. The status bar says how many items and layers were read, how many entities were not drawn (3D solids, images, infinite lines…) and which units were assumed when the file has none.
+- **Insert → Import CAD…** places a DWG or DXF drawing in the active floor plan, ceiling plan, elevation, section or legend (the button is greyed out in other views, and says why). You can also drop `.dwg` and `.dxf` files on the window. The file dialog starts in the *Projects folder*. The drawing keeps its origin at the view's origin, unless that leaves it more than 1 km from the model (a drawing in survey coordinates), then it is centered on what the view shows. The status bar says how many items and layers were read, how many entities were not drawn (3D solids, images, infinite lines…) and which units were assumed when the file has none.
 - The drawing is a background to trace over: thin grey lines under the model, with its texts. It shows only in the view it was imported into (not in other plans or in 3D views), prints on sheets and exports, and is left out of IFC export. *Visibility/Graphics* hides or overrides it with the *Imported CAD* category.
 - It starts **pinned**, so it is not moved by accident; *Unpin* it to move or rotate it with the usual tools. Clicking its lines selects it only where no model element is under the pointer.
 - Its properties set the **units** (read from the file, else assumed), an extra **scale**, the **rotation**, the **position** of its origin, the **colors** (*Grey*, *Layer colors* with very light colors darkened for white paper, or *Black*) and **Halftone**. The *Layers* section shows or hides each layer (*All layers* toggles them all); layers that are off or frozen in the file start hidden.

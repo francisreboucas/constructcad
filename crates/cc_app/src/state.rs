@@ -17,6 +17,8 @@ pub enum RibbonTab {
     Structure,
     /// Building services: plumbing and electrical.
     Mep,
+    /// Importing and exporting files, loading components.
+    Insert,
     Modify,
     Annotate,
     View,

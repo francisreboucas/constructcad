@@ -76,7 +76,7 @@ Escolher um comando do motor abre um formulário com sua descrição e seus argu
 
 **Executar** (ou Ctrl+Enter) roda o comando no projeto aberto e mostra o resultado ou a mensagem de erro. Uma alteração é um passo de desfazer e é gravada enquanto uma macro está gravando, como qualquer outra. **Voltar** (ou Esc) retorna à busca. Os argumentos são os mesmos dos scripts e da [referência de comandos](commands.md). Comprimentos estão em metros, ângulos em graus, pontos são `[x, y]`, e níveis, tipos, vistas e materiais podem ser indicados pelo id ou pelo nome.
 
-Os comandos de arquivo do motor (`project_open`, `project_save`, `ifc_import`, `ifc_export`, `sheet_export`, `view_export`…) não aparecem aqui. Os comandos da interface correspondentes, na aba *Arquivo* e na paleta, cuidam dos arquivos pelos diálogos de sempre.
+Os comandos de arquivo do motor (`project_open`, `project_save`, `ifc_import`, `ifc_export`, `sheet_export`, `view_export`…) não aparecem aqui. Os comandos da interface correspondentes, nas abas *Arquivo* e *Inserir* e na paleta, cuidam dos arquivos pelos diálogos de sempre.
 
 ## Teclado
 
@@ -135,7 +135,7 @@ Com a ferramenta Selecionar, um clique escolhe o elemento sob o cursor (Ctrl som
 
 ## Desenhos CAD importados
 
-- **Arquivo → Importar CAD…** coloca um desenho DWG ou DXF na planta, planta de forro, elevação, corte ou legenda ativa (nas outras vistas o botão fica cinza e diz por quê). Também dá para soltar arquivos `.dwg` e `.dxf` na janela. O diálogo de arquivo começa na *Pasta de projetos*. A origem do desenho fica na origem da vista, a menos que isso o deixe a mais de 1 km do modelo (um desenho em coordenadas de levantamento); então ele é centrado no que a vista mostra. A barra de status informa quantos itens e camadas foram lidos, quantas entidades não foram desenhadas (sólidos 3D, imagens, linhas infinitas…) e que unidades foram supostas quando o arquivo não tem nenhuma.
+- **Inserir → Importar CAD…** coloca um desenho DWG ou DXF na planta, planta de forro, elevação, corte ou legenda ativa (nas outras vistas o botão fica cinza e diz por quê). Também dá para soltar arquivos `.dwg` e `.dxf` na janela. O diálogo de arquivo começa na *Pasta de projetos*. A origem do desenho fica na origem da vista, a menos que isso o deixe a mais de 1 km do modelo (um desenho em coordenadas de levantamento); então ele é centrado no que a vista mostra. A barra de status informa quantos itens e camadas foram lidos, quantas entidades não foram desenhadas (sólidos 3D, imagens, linhas infinitas…) e que unidades foram supostas quando o arquivo não tem nenhuma.
 - O desenho é um fundo para traçar por cima: linhas finas cinzas sob o modelo, com seus textos. Ele aparece só na vista em que foi importado (não em outras plantas nem em vistas 3D), sai nas folhas e exportações e fica fora da exportação IFC. *Visibilidade/gráficos* o oculta ou sobrepõe pela categoria *CAD importado*.
 - Ele começa **fixado**, para não ser movido sem querer; use *Liberar* para movê-lo ou girá-lo com as ferramentas de sempre. Um clique nas linhas dele só o seleciona onde não há elemento do modelo sob o cursor.
 - As propriedades definem as **unidades** (lidas do arquivo, senão supostas), uma **escala** extra, a **rotação**, a **posição** da origem, as **cores** (*Cinza*, *Cores das camadas*, com as cores muito claras escurecidas para o papel branco, ou *Preto*) e o **Meio-tom**. A seção *Camadas* mostra ou oculta cada camada (*Todas as camadas* alterna todas); camadas desligadas ou congeladas no arquivo começam ocultas.

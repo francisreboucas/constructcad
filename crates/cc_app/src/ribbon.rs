@@ -394,6 +394,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
         (RibbonTab::Architecture, t!("ribbon-architecture")),
         (RibbonTab::Structure, t!("ribbon-structure")),
         (RibbonTab::Mep, t!("ribbon-mep")),
+        (RibbonTab::Insert, t!("ribbon-insert")),
         (RibbonTab::Modify, t!("ribbon-modify")),
         (RibbonTab::Annotate, t!("ribbon-annotate")),
         (RibbonTab::View, t!("ribbon-view")),
@@ -521,6 +522,7 @@ fn tab_row(ui: &mut Ui, state: &mut AppState, available: f32) {
                     RibbonTab::Architecture => architecture_tab(ui, state),
                     RibbonTab::Structure => structure_tab(ui, state),
                     RibbonTab::Mep => mep_tab(ui, state),
+                    RibbonTab::Insert => insert_tab(ui, state),
                     RibbonTab::Modify => modify_tab(ui, state),
                     RibbonTab::Annotate => annotate_tab(ui, state),
                     RibbonTab::View => view_tab(ui, state),
@@ -570,14 +572,19 @@ fn command_buttons(ui: &mut Ui, state: &mut AppState, list: &[UiCommand]) {
 }
 
 fn file_tab(ui: &mut Ui, state: &mut AppState) {
-    use UiCommand::{
-        CloseProject, ExportIfc, ExportImage, ExportPdf, ExportSvg, ImportIfc, ImportSkp, New, Open, Save, SaveAs,
-    };
+    use UiCommand::{CloseProject, ExportIfc, ExportImage, ExportPdf, ExportSvg, New, Open, Save, SaveAs};
     group(ui, t!("group-project"), |ui| command_buttons(ui, state, &[New, Open, Save, SaveAs, CloseProject]));
-    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, UiCommand::ImportCad, ImportSkp]));
     group(ui, t!("group-export"), |ui| command_buttons(ui, state, &[ExportIfc, ExportPdf, ExportSvg, ExportImage]));
     group(ui, t!("group-settings"), |ui| command_button(ui, state, UiCommand::Preferences));
     group(ui, t!("group-help"), |ui| command_buttons(ui, state, &[UiCommand::About, UiCommand::CheckUpdates]));
+}
+
+/// Files brought into the project or written from it, and components to load.
+fn insert_tab(ui: &mut Ui, state: &mut AppState) {
+    use UiCommand::{ComponentLibrary, ExportIfc, ImportCad, ImportIfc, ImportSkp, LoadComponent};
+    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, ImportCad, ImportSkp]));
+    group(ui, t!("group-export"), |ui| command_button(ui, state, ExportIfc));
+    group(ui, t!("group-library"), |ui| command_buttons(ui, state, &[LoadComponent, ComponentLibrary]));
 }
 
 fn place(category: Category) -> UiCommand {
