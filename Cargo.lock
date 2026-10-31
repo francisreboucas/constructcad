@@ -748,6 +748,7 @@ dependencies = [
  "cc_core",
  "cc_geom",
  "cc_ifc",
+ "cc_skp",
  "cc_views",
  "glam",
  "schemars",

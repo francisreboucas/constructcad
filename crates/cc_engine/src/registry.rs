@@ -103,6 +103,8 @@ registry![
         project::UnitsSet,
         project::LanguageSet,
         io::IfcImport,
+        io::SkpImport,
+        io::SkpComponentLoad,
         io::IfcExport,
         io::SheetExport,
         io::ViewExport,

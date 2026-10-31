@@ -8,7 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- `cc_skp` crate: SketchUp (.skp) reader and writer without external dependencies, derived from the MIT-licensed OpenSKP toolkit (current and legacy file formats, flattened and per-definition instanced scenes, a builder that writes `.skp` files and reopens existing ones for editing). It is not wired to import yet.
+- SketchUp import (*File → Import SketchUp…*, `skp_import`): a `.skp` model (SketchUp 3 to the current format) is inserted into the project on the active view's level; each placed component or group becomes a component element whose type holds its faces as fixed mesh pieces, one per material. Copies that differ only by a move or a plan rotation share a type; tilted, scaled or mirrored copies get their own. Faces outside any component make one more element at the file's origin, missing materials are added with their colors, and hidden objects and layers are left out. `skp_import` also takes a position and rotation for the whole model.
+- *Load component* also opens `.skp` files (`skp_component_load`): the whole model becomes one component type, inserted at the file's origin, ready to place with the *Component* tool.
+- `cc_skp` crate: SketchUp (.skp) reader and writer without external dependencies, derived from the MIT-licensed OpenSKP toolkit (current and legacy file formats, flattened and per-definition instanced scenes, a builder that writes `.skp` files and reopens existing ones for editing).
 
 ## [0.8.0] - 2026-10-30
 

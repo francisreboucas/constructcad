@@ -294,14 +294,22 @@ pub fn save_component(state: &mut AppState, name: &str) {
 /// Load a `.ccomp` file: its types (and missing materials) join the project
 /// in one undo step, and the component tool picks the first type.
 pub fn load_component(state: &mut AppState) {
-    let dialog = rfd::FileDialog::new().add_filter(t!("file-filter-component"), &["ccomp"]);
+    let dialog = rfd::FileDialog::new()
+        .add_filter(t!("file-filter-component"), &["ccomp"])
+        .add_filter(t!("file-filter-skp"), &["skp"]);
     let Some(path) = dialog.pick_file() else { return };
     load_component_path(state, path);
 }
 
 /// Load the component file at `path` (see [`load_component`]).
 pub fn load_component_path(state: &mut AppState, path: std::path::PathBuf) {
-    match state.session.run(io::ComponentLoad { path }) {
+    let skp = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("skp"));
+    let result = if skp {
+        state.session.run(io::SkpComponentLoad { path })
+    } else {
+        state.session.run(io::ComponentLoad { path })
+    };
+    match result {
         Ok(out) => {
             if let Some(first) = out["types"].get(0).and_then(serde_json::Value::as_u64) {
                 // Doors and windows are placed in walls.
@@ -317,6 +325,23 @@ pub fn load_component_path(state: &mut AppState, path: std::path::PathBuf) {
             state.message = t!("msg-component-loaded", "name" => name);
         }
         Err(e) => state.dialogs.error = Some(t!("msg-component-load-failed", "error" => e.message)),
+    }
+}
+
+/// Insert a SketchUp model into the project, on the active view's level.
+pub fn import_skp(state: &mut AppState) {
+    let mut dialog = rfd::FileDialog::new().add_filter(t!("file-filter-skp"), &["skp"]);
+    if let Some(dir) = state.prefs.projects_dir() {
+        dialog = dialog.set_directory(dir);
+    }
+    let Some(path) = dialog.pick_file() else { return };
+    let level = state.active_level().map(|l| cc_engine::Ref::Id(l.0));
+    match state.session.run(io::SkpImport { path: path.clone(), level, position: None, rotation: None }) {
+        Ok(out) => {
+            let count = out["elements"].as_array().map_or(0, Vec::len);
+            state.message = t!("msg-skp-imported", "path" => path.display(), "count" => count);
+        }
+        Err(e) => state.dialogs.error = Some(t!("msg-import-failed", "error" => e.message)),
     }
 }
 
