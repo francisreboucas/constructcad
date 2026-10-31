@@ -2030,6 +2030,11 @@ comp-env-points = Точки
 # Sketch mode
 sketch-title-new = Створити контур: { $category }
 sketch-title-edit = Редагувати контур: { $category }
+sketch-title-piece = Ескіз: { $kind }
+comp-sketch-hint-view = Кресліть у плані, на фасаді чи боковому виді; на опорній площині точка до неї прив'язується · Завершити створює деталь
+sketch-piece-unreadable = Точки деталі не обчислюються, тож її ескіз не можна відкрити.
+comp-edit-sketch = Редагувати ескіз
+comp-edit-sketch-tip = Відкриває контур (або шлях) деталі інструментами ескізу
 group-draw = Креслення
 group-sketch-tools = Інструменти
 group-mode = Режим

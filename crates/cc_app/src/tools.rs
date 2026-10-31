@@ -430,6 +430,11 @@ impl Snap {
     fn at(point: DVec2, kind: SnapKind) -> Self {
         Self { point, kind, guides: [None, None] }
     }
+
+    /// A snap to `point`, shown as an end point when `on_point`, else free.
+    pub(crate) fn plain(point: DVec2, on_point: bool) -> Self {
+        Self::at(point, if on_point { SnapKind::Endpoint } else { SnapKind::Free })
+    }
 }
 
 /// Points acquired for alignment, most recent first.

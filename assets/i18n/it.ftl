@@ -2029,6 +2029,11 @@ comp-env-points = Punti
 # Sketch mode
 sketch-title-new = Crea contorno: { $category }
 sketch-title-edit = Modifica contorno: { $category }
+sketch-title-piece = Schizzo: { $kind }
+comp-sketch-hint-view = Disegnare nella vista in pianta, frontale o laterale; su un piano di riferimento il punto vi resta vincolato · Fine crea il pezzo
+sketch-piece-unreadable = I punti del pezzo non si possono valutare, quindi il suo schizzo non si può aprire.
+comp-edit-sketch = Modifica schizzo
+comp-edit-sketch-tip = Apre il contorno (o percorso) del pezzo con gli strumenti di schizzo
 group-draw = Disegna
 group-sketch-tools = Strumenti
 group-mode = Modalità

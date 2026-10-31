@@ -21,21 +21,16 @@ const MAX_MITER: f64 = 4.0;
 /// Most points of a path or outline after arcs are divided.
 const MAX_POINTS: usize = 4096;
 
-/// An open path of lines and arcs (a point's `radius` makes the segment to
-/// the next point an arc, positive bulging to the right of travel).
+/// An open path of lines, arcs and parts of ellipses (a point's `radius`
+/// makes the segment to the next point an arc, positive bulging to the
+/// right of travel; its `ellipse` a part of that ellipse).
 pub fn path(points: &[ProfilePoint], lookup: &dyn Fn(&str) -> Option<f64>) -> Result<Vec<DVec2>, ProfileError> {
-    let ev =
-        |field: &'static str, text: &str| expr::eval(text, lookup).map_err(|error| ProfileError::Expr { field, error });
-    let mut corners = Vec::with_capacity(points.len());
-    for p in points {
-        let radius = if p.radius.trim().is_empty() { None } else { Some(ev("radius", &p.radius)?) };
-        corners.push((DVec2::new(ev("u", &p.u)?, ev("v", &p.v)?), radius));
-    }
+    let corners = crate::profile::vertices(points, lookup)?;
     let mut out = Vec::with_capacity(corners.len());
-    for (i, (a, radius)) in corners.iter().enumerate() {
+    for (i, (a, segment)) in corners.iter().enumerate() {
         out.push(*a);
-        if let (Some(r), Some((b, _))) = (radius, corners.get(i + 1)) {
-            crate::profile::arc_between(*a, *b, *r, &mut out)?;
+        if let Some((b, _)) = corners.get(i + 1) {
+            crate::profile::segment_points(*a, *b, *segment, &mut out)?;
         }
         if out.len() > MAX_POINTS {
             return Err(ProfileError::Degenerate);

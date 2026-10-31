@@ -2029,6 +2029,11 @@ comp-env-points = Points
 # Sketch mode
 sketch-title-new = Créer le contour : { $category }
 sketch-title-edit = Modifier le contour : { $category }
+sketch-title-piece = Esquisse : { $kind }
+comp-sketch-hint-view = Dessinez dans la vue en plan, de face ou de côté ; sur un plan de référence, le point y est verrouillé · Terminer crée la pièce
+sketch-piece-unreadable = Les points de la pièce ne s'évaluent pas : son esquisse ne peut pas être ouverte.
+comp-edit-sketch = Modifier l'esquisse
+comp-edit-sketch-tip = Ouvre le contour (ou la trajectoire) de la pièce avec les outils d'esquisse
 group-draw = Dessiner
 group-sketch-tools = Outils
 group-mode = Mode

@@ -1031,7 +1031,9 @@ impl UiCommand {
             {
                 Some(t!("why-no-sketch"))
             }
-            SketchPickWalls if state.active_level().is_none() => Some(t!("msg-open-plan")),
+            SketchPickWalls if state.active_level().is_none() || crate::component_sketch::piece(state).is_some() => {
+                Some(t!("msg-open-plan"))
+            }
             // In a sketch the modify tools act on its curves.
             Move | CopyElements | Rotate | MirrorPick | MirrorDraw | Offset | TrimCorner | TrimExtend | Split
                 if state.sketch.is_some() =>
@@ -1153,11 +1155,11 @@ impl UiCommand {
             PlaceDevice => matches!(tool, Tool::Component { type_id } if mep_kind(state, *type_id) == Some(true)),
             Truss => matches!(tool, Tool::Truss { .. }),
             StructureTags => crate::actions::active_floor_plan(state).is_some_and(|(_, tags)| tags),
-            Select if state.component_env.is_some() => {
-                state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::Select)
-            }
             Select if state.sketch.is_some() => {
                 state.sketch.as_ref().is_some_and(|s| s.draw == crate::sketch_mode::Draw::Select)
+            }
+            Select if state.component_env.is_some() => {
+                state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::Select)
             }
             Select => *tool == Tool::Select,
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
@@ -1176,10 +1178,7 @@ impl UiCommand {
                     CompSweep => crate::component_sketch::PieceKind::Sweep,
                     _ => crate::component_sketch::PieceKind::Blend,
                 };
-                state
-                    .component_env
-                    .as_ref()
-                    .is_some_and(|e| matches!(&e.tool, crate::component_env::EnvTool::Sketch(s) if s.kind == want))
+                crate::component_sketch::piece(state).is_some_and(|p| p.kind == want)
             }
             CompRefPlane => state
                 .component_env
@@ -1390,30 +1389,10 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
                 crate::component_env::open(state, t);
             }
         }
-        CompExtrusion => crate::component_env::set_tool(
-            state,
-            crate::component_env::EnvTool::Sketch(crate::component_sketch::Sketch::new(
-                crate::component_sketch::PieceKind::Extrusion,
-            )),
-        ),
-        CompRevolution => crate::component_env::set_tool(
-            state,
-            crate::component_env::EnvTool::Sketch(crate::component_sketch::Sketch::new(
-                crate::component_sketch::PieceKind::Revolution,
-            )),
-        ),
-        CompSweep => crate::component_env::set_tool(
-            state,
-            crate::component_env::EnvTool::Sketch(crate::component_sketch::Sketch::new(
-                crate::component_sketch::PieceKind::Sweep,
-            )),
-        ),
-        CompBlend => crate::component_env::set_tool(
-            state,
-            crate::component_env::EnvTool::Sketch(crate::component_sketch::Sketch::new(
-                crate::component_sketch::PieceKind::Blend,
-            )),
-        ),
+        CompExtrusion => crate::component_sketch::start(state, crate::component_sketch::PieceKind::Extrusion),
+        CompRevolution => crate::component_sketch::start(state, crate::component_sketch::PieceKind::Revolution),
+        CompSweep => crate::component_sketch::start(state, crate::component_sketch::PieceKind::Sweep),
+        CompBlend => crate::component_sketch::start(state, crate::component_sketch::PieceKind::Blend),
         CompRefPlane => {
             crate::component_env::set_tool(state, crate::component_env::EnvTool::RefPlane { first: None });
         }
@@ -1428,10 +1407,10 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         CompFinish => crate::component_env::finish(state),
         CompCancel => crate::component_env::cancel(state),
         ComponentLibrary => crate::library::open(state),
+        Select if state.sketch.is_some() => crate::sketch_mode::set_draw(state, crate::sketch_mode::Draw::Select),
         Select if state.component_env.is_some() => {
             crate::component_env::set_tool(state, crate::component_env::EnvTool::Select);
         }
-        Select if state.sketch.is_some() => crate::sketch_mode::set_draw(state, crate::sketch_mode::Draw::Select),
         Select => state.set_tool(Tool::Select),
         SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
         | SketchArcCenter | SketchArcTangent => {

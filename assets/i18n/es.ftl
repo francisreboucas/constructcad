@@ -2029,6 +2029,11 @@ comp-env-points = Puntos
 # Sketch mode
 sketch-title-new = Crear contorno: { $category }
 sketch-title-edit = Editar contorno: { $category }
+sketch-title-piece = Boceto: { $kind }
+comp-sketch-hint-view = Dibuje en la vista de planta, frontal o lateral; sobre un plano de referencia el punto queda fijado a él · Finalizar crea la pieza
+sketch-piece-unreadable = Los puntos de la pieza no se pueden evaluar, así que su boceto no se puede abrir.
+comp-edit-sketch = Editar boceto
+comp-edit-sketch-tip = Abre el contorno (o trayectoria) de la pieza con las herramientas de boceto
 group-draw = Dibujar
 group-sketch-tools = Herramientas
 group-mode = Modo
