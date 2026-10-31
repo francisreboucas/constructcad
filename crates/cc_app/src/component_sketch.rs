@@ -93,14 +93,14 @@ pub fn section_points(w: f64, h: f64, round: bool) -> Vec<SketchPointArg> {
     if round {
         let r = w / 2.0;
         return vec![
-            SketchPointArg { u: n(-r), v: n(0.0), radius: Some(n(r)) },
-            SketchPointArg { u: n(r), v: n(0.0), radius: Some(n(r)) },
+            SketchPointArg { u: n(-r), v: n(0.0), radius: Some(n(r)), ellipse: None },
+            SketchPointArg { u: n(r), v: n(0.0), radius: Some(n(r)), ellipse: None },
         ];
     }
     let (a, b) = (w / 2.0, h / 2.0);
     [(-a, -b), (a, -b), (a, b), (-a, b)]
         .iter()
-        .map(|(u, v)| SketchPointArg { u: n(*u), v: n(*v), radius: None })
+        .map(|(u, v)| SketchPointArg { u: n(*u), v: n(*v), radius: None, ellipse: None })
         .collect()
 }
 
@@ -185,14 +185,7 @@ pub fn circle_points(center: &SketchPt, r: f64) -> Vec<SketchPt> {
 }
 
 fn args(points: &[SketchPt]) -> Vec<SketchPointArg> {
-    points
-        .iter()
-        .map(|p| SketchPointArg {
-            u: ExprArg::Text(p.u.clone()),
-            v: ExprArg::Text(p.v.clone()),
-            radius: (!p.radius.trim().is_empty()).then(|| ExprArg::Text(p.radius.clone())),
-        })
-        .collect()
+    points.iter().map(|p| SketchPointArg::new(p.u.clone(), p.v.clone(), &p.radius)).collect()
 }
 
 fn plane_name(kind: ComponentViewKind) -> &'static str {

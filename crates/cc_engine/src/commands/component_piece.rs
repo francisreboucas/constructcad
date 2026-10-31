@@ -37,7 +37,8 @@ impl ExprArg {
 
 /// A point of a sketch: `u`, `v` in its plane (numbers or expressions; a
 /// plane's name locks the coordinate to it), and `radius` to make the
-/// segment to the next point an arc (positive bulging outwards).
+/// segment to the next point an arc (positive bulging outwards), or
+/// `ellipse` a part of an ellipse.
 #[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SketchPointArg {
@@ -45,6 +46,50 @@ pub struct SketchPointArg {
     pub v: ExprArg,
     #[serde(default)]
     pub radius: Option<ExprArg>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ellipse: Option<EllipseArg>,
+}
+
+impl SketchPointArg {
+    /// A straight or arc point (`radius` empty: straight).
+    pub fn new(u: impl Into<String>, v: impl Into<String>, radius: &str) -> Self {
+        let radius = (!radius.trim().is_empty()).then(|| ExprArg::Text(radius.to_string()));
+        Self { u: ExprArg::Text(u.into()), v: ExprArg::Text(v.into()), radius, ellipse: None }
+    }
+
+    /// The argument that writes `p` back.
+    pub fn of(p: &ProfilePoint) -> Self {
+        let text = |s: &String| ExprArg::Text(s.clone());
+        let ellipse = p.ellipse.as_ref().map(|e| EllipseArg {
+            u: text(&e.u),
+            v: text(&e.v),
+            rx: text(&e.rx),
+            ry: text(&e.ry),
+            rotation: (!e.rotation.trim().is_empty()).then(|| text(&e.rotation)),
+            clockwise: e.clockwise,
+        });
+        Self { ellipse, ..Self::new(p.u.clone(), p.v.clone(), &p.radius) }
+    }
+}
+
+/// The ellipse the segment to the next point runs along.
+#[derive(Debug, Clone, PartialEq, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct EllipseArg {
+    /// Center, along the plane's U.
+    pub u: ExprArg,
+    /// Center, along the plane's V.
+    pub v: ExprArg,
+    /// Semi-axis along the ellipse's own first axis.
+    pub rx: ExprArg,
+    /// Semi-axis along its second axis.
+    pub ry: ExprArg,
+    /// Angle of the first axis from U, degrees (default 0).
+    #[serde(default)]
+    pub rotation: Option<ExprArg>,
+    /// Runs clockwise from the point to the next (default counter-clockwise).
+    #[serde(default)]
+    pub clockwise: bool,
 }
 
 fn profile_points(points: &[SketchPointArg]) -> Result<Vec<ProfilePoint>> {
@@ -55,7 +100,18 @@ fn profile_points(points: &[SketchPointArg]) -> Result<Vec<ProfilePoint>> {
         .iter()
         .map(|p| {
             let radius = p.radius.as_ref().map(ExprArg::text).transpose()?.unwrap_or_default();
-            Ok(ProfilePoint { u: p.u.text()?, v: p.v.text()?, radius })
+            let ellipse = match &p.ellipse {
+                Some(e) => Some(cc_core::profile::ProfileEllipse {
+                    u: e.u.text()?,
+                    v: e.v.text()?,
+                    rx: e.rx.text()?,
+                    ry: e.ry.text()?,
+                    rotation: e.rotation.as_ref().map(ExprArg::text).transpose()?.unwrap_or_default(),
+                    clockwise: e.clockwise,
+                }),
+                None => None,
+            };
+            Ok(ProfilePoint { u: p.u.text()?, v: p.v.text()?, radius, ellipse })
         })
         .collect()
 }

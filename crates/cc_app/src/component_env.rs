@@ -861,11 +861,7 @@ fn points_table(
                 if j == i {
                     if is_u { u = new.clone() } else { v = new.clone() }
                 }
-                SketchPointArg {
-                    u: ExprArg::Text(u),
-                    v: ExprArg::Text(v),
-                    radius: (!p.radius.trim().is_empty()).then(|| ExprArg::Text(p.radius.clone())),
-                }
+                SketchPointArg { u: ExprArg::Text(u), v: ExprArg::Text(v), ..SketchPointArg::of(p) }
             })
             .collect(),
     )
