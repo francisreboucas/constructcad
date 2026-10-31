@@ -87,7 +87,9 @@ pub fn crossings(a: &SketchCurve, b: &SketchCurve) -> Vec<DVec2> {
             for i in 0..SAMPLES {
                 let (mut t0, mut t1) = (TAU * i as f64 / SAMPLES as f64, TAU * (i + 1) as f64 / SAMPLES as f64);
                 let (mut f0, f1) = (f(t0), f(t1));
-                if f0 == 0.0 {
+                // On the other curve, or nearly: the samples at 2π and 0 are a few
+                // 1e-16 apart, and a crossing between them changes no sign.
+                if f0.abs() <= 1e-12 {
                     out.push(at(t0));
                     continue;
                 }
@@ -435,6 +437,11 @@ mod tests {
         let xs = crossings(&e, &circle);
         assert_eq!(xs.len(), 4, "{xs:?}");
         assert!(xs.iter().all(|x| (x.length() - 2.0).abs() < 1e-9));
+        // A crossing where the sampling closes round the circle (between the
+        // points at 2π and 0, a few 1e-16 apart) is found too.
+        let unit = SketchCurve::Circle { center: p(0.0, 0.0), radius: 1.0 };
+        let xs = crossings(&unit, &line(p(-2.0, -1e-16), p(2.0, -1e-16)));
+        assert_eq!(xs.len(), 2, "{xs:?}");
     }
 
     #[test]
