@@ -1543,6 +1543,16 @@
               function: Structure,
             ),
           ],
+          covering: Some(CeramicFrench),
+          framing: (
+            system: TimberTrusses,
+            material: "Wood",
+            purlin: (width: 0.06, height: 0.16),
+            purlin_spacing: 1.5,
+            rafter: (width: 0.05, height: 0.06),
+            rafter_spacing: 0.5,
+            batten: (width: 0.015, height: 0.05),
+          ),
         ),
         info: (
           type_mark: "",

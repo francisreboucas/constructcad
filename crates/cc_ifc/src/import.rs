@@ -319,6 +319,9 @@ struct Importer<'a> {
     walls: HashMap<u32, ElementId>,
     /// Products with parts aggregated into them (e.g. roofs made of slabs).
     has_parts: HashMap<u32, usize>,
+    /// Roofs imported with their framing restored (from [`crate::export::ROOFING_PSET`]):
+    /// the members aggregated in them are derived again, not imported.
+    framed_roofs: std::collections::HashSet<u32>,
     /// Imported elements and their IFC instances (their phases are read at the end).
     products: Vec<(ElementId, u32)>,
 }
@@ -423,6 +426,7 @@ impl<'a> Importer<'a> {
             item_styles: HashMap::new(),
             walls: HashMap::new(),
             has_parts: HashMap::new(),
+            framed_roofs: Default::default(),
             products: Vec::new(),
         };
         im.scale = im.unit("LENGTHUNIT");
@@ -457,6 +461,8 @@ impl<'a> Importer<'a> {
                 "IFCROOF" => self.import_roof(id, e),
                 "IFCCOLUMN" | "IFCCOLUMNSTANDARDCASE" => self.import_column(id, e),
                 "IFCBEAM" | "IFCBEAMSTANDARDCASE" => self.import_beam(id, e),
+                // The framing of a roof whose type now draws it again.
+                "IFCMEMBER" if self.parent.get(&id).is_some_and(|r| self.framed_roofs.contains(r)) => continue,
                 "IFCSPACE" => {
                     if !self.import_space(id, e) {
                         self.skip(e);
@@ -1615,18 +1621,66 @@ impl<'a> Importer<'a> {
         let name = self.type_name(id, e);
         let layers = self.layers(id, e, thickness);
         let uid = self.type_uid(id);
+        let (covering, framing) = self.roofing(id);
+        if !framing.material.is_empty() {
+            self.material(&framing.material, None);
+        }
         let type_id = self.find_or_add_type(
             Category::Roof,
             name,
             format!("{:.0} cm", thickness * 100.0),
             uid,
-            |d| matches!(d, TypeData::Roof { layers, .. } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
-            || TypeData::Roof { layers, covering: None, framing: Default::default() },
+            |d| {
+                matches!(d, TypeData::Roof { layers, covering: c, framing: f }
+                    if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL
+                        && *c == covering && *f == framing)
+            },
+            || TypeData::Roof { layers, covering, framing: framing.clone() },
         );
+        if framing.system != cc_core::roofing::FramingSystem::None {
+            self.framed_roofs.insert(id);
+        }
         let mut roof = Roof::new(footprint, z0 - elevation, 0.0, shape);
         roof.holes = holes;
         self.add_element(id, e, level, type_id, Self::tag(e), ElementKind::Roof(roof));
         true
+    }
+
+    /// A roof's covering and framing as this program writes them
+    /// ([`crate::export::ROOFING_PSET`]); none and the default framing otherwise.
+    fn roofing(&self, id: u32) -> (Option<cc_core::roofing::TileKind>, cc_core::roofing::RoofFraming) {
+        use cc_core::roofing::{FramingSystem, RoofFraming, TileKind};
+        let set = |n: &str| n == crate::export::ROOFING_PSET;
+        let text = |name: &str| self.pset_texts(id, &set, name).first().map(|s| s.to_string());
+        let mut framing = RoofFraming::default();
+        let Some(system) = text("FramingSystem").and_then(|s| FramingSystem::from_code(&s)) else {
+            return (None, framing);
+        };
+        framing.system = system;
+        let covering = text("Covering").and_then(|s| TileKind::from_code(&s));
+        if let Some(m) = text("FramingMaterial") {
+            framing.material = m;
+        }
+        let numbers = self.numeric_properties(id, crate::export::ROOFING_PSET);
+        let length = |name: &str| numbers.iter().find(|n| n.0 == name).map(|n| n.1 * self.scale);
+        let sizes = [&mut framing.purlin, &mut framing.rafter, &mut framing.batten, &mut framing.truss];
+        for ((_, w, h), size) in crate::export::ROOFING_SIZES.iter().zip(sizes) {
+            if let (Some(w), Some(h)) = (length(w), length(h)) {
+                *size = cc_core::roofing::MemberSize::new(w, h);
+            }
+        }
+        for (name, v) in [
+            ("PurlinSpacing", &mut framing.purlin_spacing),
+            ("RafterSpacing", &mut framing.rafter_spacing),
+            ("TrussSpacing", &mut framing.truss_spacing),
+        ] {
+            if let Some(x) = length(name) {
+                *v = x;
+            }
+        }
+        // Hostile files: invalid sizes and spacings go back to the defaults.
+        framing.repair();
+        (covering, framing)
     }
 
     fn import_space(&mut self, id: u32, e: &Entity) -> bool {
