@@ -289,8 +289,10 @@ action-import-ifc = Importa IFC…
 action-export-pdf = Esporta PDF…
 action-export-svg = Esporta SVG…
 action-export-image = Esporta immagine…
+action-export-dxf = Esporta DXF…
 hint-export-sheet = Apri una tavola per esportarla
 hint-export-image = Aprire una vista con un disegno per esportarla come immagine
+hint-export-dxf = Aprire una vista con un disegno per esportarla come DXF
 action-undo = Annulla
 action-redo = Ripeti
 action-copy = Copia
@@ -608,6 +610,7 @@ file-filter-ifc = File IFC
 file-filter-pdf = Documento PDF
 file-filter-svg = Immagine SVG
 file-filter-png = Immagine PNG
+file-filter-dxf = Disegno DXF
 
 # Nomi predefiniti
 default-section-name = Sezione { $n }
@@ -1078,6 +1081,7 @@ cmd-desc-export-ifc = Esporta il modello in IFC4 per altre applicazioni BIM.
 cmd-desc-export-pdf = Esporta la tavola aperta come PDF vettoriale.
 cmd-desc-export-svg = Esporta la tavola aperta come SVG.
 cmd-desc-export-image = Esporta la vista aperta (pianta, sezione, 3D, tavola…) come immagine PNG.
+cmd-desc-export-dxf = Esporta la vista aperta (pianta, sezione, prospetto, tavola…) come disegno DXF per altri programmi CAD: a grandezza reale in millimetri, la tavola in millimetri di carta, ogni categoria sul suo layer.
 cmd-desc-about = Versione, licenza e riconoscimenti.
 cmd-desc-check-updates = Chiede a GitHub se esiste una versione più recente di ConstructCAD (solo avviso; non viene scaricato nulla).
 cmd-desc-undo = Annulla l'ultima modifica.

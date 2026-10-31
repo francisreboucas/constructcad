@@ -281,8 +281,10 @@ action-import-ifc = ນຳເຂົ້າ IFC…
 action-export-pdf = ສົ່ງອອກ PDF…
 action-export-svg = ສົ່ງອອກ SVG…
 action-export-image = ສົ່ງອອກເປັນຮູບພາບ…
+action-export-dxf = ສົ່ງອອກ DXF…
 hint-export-sheet = ເປີດແຜ່ນງານຂຶ້ນມາກ່ອນເພື່ອສົ່ງອອກ
 hint-export-image = ເປີດມຸມມອງທີ່ມີຮູບແຕ້ມເພື່ອສົ່ງອອກເປັນຮູບພາບ
+hint-export-dxf = ເປີດມຸມມອງທີ່ມີຮູບແຕ້ມເພື່ອສົ່ງອອກເປັນ DXF
 action-undo = ກັບຄືນ (Undo)
 action-redo = ເຮັດຄືນ (Redo)
 action-copy = ສຳເນົາ
@@ -600,6 +602,7 @@ file-filter-ifc = ໄຟລ໌ IFC
 file-filter-pdf = ເອກະສານ PDF
 file-filter-svg = ຮູບພາບ SVG
 file-filter-png = ຮູບພາບ PNG
+file-filter-dxf = ຮູບແຕ້ມ DXF
 
 # Default names
 default-section-name = ຮູບຕັດ { $n }
@@ -1048,6 +1051,7 @@ cmd-desc-export-ifc = ສົ່ງອອກແບບຈຳລອງເປັນ�
 cmd-desc-export-pdf = ສົ່ງອອກແຜ່ນງານທີ່ເປີດຢູ່ເປັນໄຟລ໌ PDF ເວັກເຕີ.
 cmd-desc-export-svg = ສົ່ງອອກແຜ່ນງານທີ່ເປີດຢູ່ເປັນໄຟລ໌ SVG.
 cmd-desc-export-image = ສົ່ງອອກມຸມມອງທີ່ເປີດຢູ່ (ແຜນຜັງ, ຮູບຕັດ, 3D, ແຜ່ນງານ…) ເປັນຮູບພາບ PNG.
+cmd-desc-export-dxf = ສົ່ງອອກມຸມມອງທີ່ເປີດຢູ່ (ແຜນ, ຮູບຕັດ, ດ້ານໜ້າ, ແຜ່ນ…) ເປັນຮູບແຕ້ມ DXF ສຳລັບໂປຣແກຣມ CAD ອື່ນ: ຂະໜາດຈິງເປັນມິນລິແມັດ, ແຜ່ນເປັນມິນລິແມັດເຈ້ຍ, ແຕ່ລະໝວດຢູ່ໃນຊັ້ນຂອງມັນ.
 cmd-desc-about = ເວີຊັນ, ໃບອະນຸຍາດ ແລະ ທີມງານພັດທະນາ.
 cmd-desc-check-updates = ສອບຖາມໄປຍັງ GitHub ວ່າ ConstructCAD ມີລຸ້ນໃໝ່ກວ່າຫຼືບໍ່ (ແຈ້ງເຕືອນເທົ່ານັ້ນ, ບໍ່ມີການດາວໂຫຼດ).
 cmd-desc-undo = ກັບຄືນການດັດແກ້ຫຼ້າສຸດ.
