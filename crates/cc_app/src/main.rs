@@ -35,6 +35,7 @@ mod recovery;
 mod ribbon;
 mod schedule_ui;
 mod sheet;
+mod sketch_mode;
 mod stair_ui;
 mod state;
 mod systems_dialog;

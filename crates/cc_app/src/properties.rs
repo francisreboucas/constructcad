@@ -107,6 +107,11 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
     theme::panel_header(ui, &t!("props-title"), None);
     egui::ScrollArea::vertical().id_salt("props").auto_shrink([false, false]).show(ui, |ui| {
         ui.spacing_mut().item_spacing.y = 0.0;
+        // An open sketch shows its selected curve.
+        if state.sketch.is_some() {
+            crate::sketch_mode::properties(ui, state);
+            return;
+        }
         if let Some((sheet, index)) = state.sheet_selection
             && state.active_view == Some(sheet)
         {

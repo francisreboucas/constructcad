@@ -999,9 +999,7 @@ pub fn handle(
         (Tool::Hosted { category, type_id }, Some(level)) => {
             hosted_tool(ui, resp, painter, state, level, *category, *type_id, xf)
         }
-        (Tool::Sketch { category, type_id }, Some(level)) => {
-            sketch_tool(ui, resp, painter, state, level, *category, *type_id, xf)
-        }
+        (Tool::Sketch { .. }, Some(level)) => crate::sketch_mode::canvas(ui, resp, painter, state, level, xf),
         (Tool::Section, level) => section_tool(ui, resp, painter, state, level, xf),
         (Tool::Opening { host, .. }, Some(level)) => {
             if let Some(pts) = sketch_input(ui, resp, painter, state, level, xf) {
@@ -2489,22 +2487,6 @@ pub(crate) fn place_opening_3d(state: &mut AppState, tool: &Tool, host: ElementI
     create_opening(state, category, type_id, host, offset, sill, v < 0.0, flip_hand);
 }
 
-#[allow(clippy::too_many_arguments)]
-fn sketch_tool(
-    ui: &Ui,
-    resp: &Response,
-    painter: &Painter,
-    state: &mut AppState,
-    level: LevelId,
-    category: Category,
-    type_id: ElementTypeId,
-    xf: &Xf,
-) {
-    if let Some(pts) = sketch_input(ui, resp, painter, state, level, xf) {
-        finish_sketch(state, level, category, type_id, pts);
-    }
-}
-
 /// Add the sketched outline `pts` as an opening of `roof` (refused, with a
 /// message, when it is not inside the roof or overlaps another opening).
 /// Add the sketched opening `pts` to the roof or floor `host`.
@@ -2583,41 +2565,6 @@ fn sketch_input(
         }
     }
     None
-}
-
-pub fn finish_sketch(
-    state: &mut AppState,
-    level: LevelId,
-    category: Category,
-    type_id: ElementTypeId,
-    pts: Vec<DVec2>,
-) {
-    if pts.len() < 3 || polygon::area(&pts) < 1e-4 {
-        state.message = t!("msg-sketch-invalid");
-        return;
-    }
-    let sketch = create::SketchArgs {
-        boundary: Some(pts.iter().map(|p| p.to_array()).collect()),
-        level: Some(Ref::Id(level.0)),
-        type_ref: Some(Ref::Id(type_id.0)),
-        ..Default::default()
-    };
-    match category {
-        Category::Floor => run_create(state, create::FloorCreate { sketch, openings: Vec::new() }),
-        Category::Ceiling => run_create(state, create::CeilingCreate { sketch }),
-        Category::Foundation => run_create(state, cc_engine::commands::foundation::FoundationSlabCreate { sketch }),
-        Category::Mass => run_create(
-            state,
-            cc_engine::commands::mass::MassCreate {
-                outline: pts.iter().map(|p| p.to_array()).collect(),
-                level: Some(Ref::Id(level.0)),
-                type_ref: Some(Ref::Id(type_id.0)),
-                ..Default::default()
-            },
-        ),
-        _ => run_create(state, create::RoofCreate { sketch, overhang: None, holes: Vec::new() }),
-    };
-    state.interaction.points.clear();
 }
 
 fn section_tool(ui: &Ui, resp: &Response, painter: &Painter, state: &mut AppState, level: Option<LevelId>, xf: &Xf) {

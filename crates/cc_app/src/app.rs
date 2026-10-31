@@ -260,6 +260,16 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         }
         return;
     }
+    // An open sketch has its own picks and selection.
+    if state.sketch.is_some() {
+        if escape {
+            crate::sketch_mode::escape(state);
+        }
+        if delete && let Some(s) = state.sketch.as_mut() {
+            s.delete_selected();
+        }
+        return;
+    }
     if escape {
         if !state.typed.is_empty() || state.typed.angle_active {
             state.typed.clear();
@@ -437,7 +447,13 @@ impl ConstructApp {
         egui::Panel::top("ribbon").frame(bar(PALETTE.panel, 6).stroke(egui::Stroke::new(1.0, PALETTE.border))).show(
             ui,
             |ui| {
-                if env { crate::component_env::ribbon(ui, state) } else { ribbon::ribbon(ui, state) }
+                if env {
+                    crate::component_env::ribbon(ui, state)
+                } else if state.sketch.is_some() {
+                    crate::sketch_mode::ribbon(ui, state)
+                } else {
+                    ribbon::ribbon(ui, state)
+                }
             },
         );
         egui::Panel::top("options").frame(bar(PALETTE.surface, 5).stroke(egui::Stroke::new(1.0, PALETTE.border))).show(

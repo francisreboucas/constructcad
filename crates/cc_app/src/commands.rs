@@ -70,6 +70,21 @@ pub enum UiCommand {
     CompSaveFile,
     CompFinish,
     CompCancel,
+    /// Sketch mode: drawing tools, picking the walls, finish and cancel.
+    SketchLine,
+    SketchRect,
+    SketchPolygon,
+    SketchPolygonOut,
+    SketchCircle,
+    SketchEllipse,
+    SketchArc3,
+    SketchArcCenter,
+    SketchArcTangent,
+    SketchPickWalls,
+    SketchFinish,
+    SketchCancel,
+    /// Open the sketch of the selected floor, ceiling, roof or mass.
+    EditBoundary,
     Select,
     SelectInstances,
     ColumnsAtGrids,
@@ -226,6 +241,21 @@ impl UiCommand {
             CompFinish,
             CompCancel,
         ]);
+        all.extend([
+            SketchLine,
+            SketchRect,
+            SketchPolygon,
+            SketchPolygonOut,
+            SketchCircle,
+            SketchEllipse,
+            SketchArc3,
+            SketchArcCenter,
+            SketchArcTangent,
+            SketchPickWalls,
+            SketchFinish,
+            SketchCancel,
+            EditBoundary,
+        ]);
         all.extend([AlignGridEnds, ColumnsAtGrids, BeamsOnGrids, BeamsBetweenColumns, StructuralSchedules]);
         all.extend([FootingsUnderColumns, StripFootingsUnderWalls, FoundationSlab, SlabJoinSupports]);
         all.extend([AnalyticalView, AnalyticalExport, Truss, BracesX, TypicalRebar, RebarView, SteelSchedule]);
@@ -340,6 +370,19 @@ impl UiCommand {
             CompSaveFile => Icon::Save,
             CompFinish => Icon::Finish,
             CompCancel => Icon::Close,
+            SketchLine => Icon::DrawLine,
+            SketchRect => Icon::DrawRect,
+            SketchPolygon => Icon::DrawPolygon,
+            SketchPolygonOut => Icon::DrawPolygonOut,
+            SketchCircle => Icon::DrawCircle,
+            SketchEllipse => Icon::DrawEllipse,
+            SketchArc3 => Icon::DrawArc3,
+            SketchArcCenter => Icon::DrawArcCenter,
+            SketchArcTangent => Icon::DrawArcTangent,
+            SketchPickWalls => Icon::Wall,
+            SketchFinish => Icon::Finish,
+            SketchCancel => Icon::Close,
+            EditBoundary => Icon::EditBoundary,
             ComponentLibrary => Icon::Library,
             Select => Icon::Select,
             SelectInstances => Icon::SelectInstances,
@@ -478,6 +521,19 @@ impl UiCommand {
             CompSaveFile => t!("action-save-component"),
             CompFinish => t!("comp-env-finish"),
             CompCancel => t!("comp-env-cancel"),
+            SketchLine => t!("sketch-tool-line"),
+            SketchRect => t!("sketch-tool-rect"),
+            SketchPolygon => t!("sketch-tool-polygon"),
+            SketchPolygonOut => t!("sketch-tool-polygon-out"),
+            SketchCircle => t!("sketch-tool-circle"),
+            SketchEllipse => t!("sketch-tool-ellipse"),
+            SketchArc3 => t!("sketch-tool-arc3"),
+            SketchArcCenter => t!("sketch-tool-arc-center"),
+            SketchArcTangent => t!("sketch-tool-arc-tangent"),
+            SketchPickWalls => t!("sketch-from-walls"),
+            SketchFinish => t!("sketch-finish-mode"),
+            SketchCancel => t!("sketch-cancel-mode"),
+            EditBoundary => t!("edit-boundary"),
             LoadComponent => t!("action-load-component"),
             ComponentLibrary => t!("action-component-library"),
             Select => t!("tool-select"),
@@ -626,6 +682,19 @@ impl UiCommand {
             CompSaveFile => t!("cmd-desc-comp-save"),
             CompFinish => t!("cmd-desc-comp-finish"),
             CompCancel => t!("cmd-desc-comp-cancel"),
+            SketchLine => t!("cmd-desc-sketch-tool-line"),
+            SketchRect => t!("cmd-desc-sketch-tool-rect"),
+            SketchPolygon => t!("cmd-desc-sketch-tool-polygon"),
+            SketchPolygonOut => t!("cmd-desc-sketch-tool-polygon-out"),
+            SketchCircle => t!("cmd-desc-sketch-tool-circle"),
+            SketchEllipse => t!("cmd-desc-sketch-tool-ellipse"),
+            SketchArc3 => t!("cmd-desc-sketch-tool-arc3"),
+            SketchArcCenter => t!("cmd-desc-sketch-tool-arc-center"),
+            SketchArcTangent => t!("cmd-desc-sketch-tool-arc-tangent"),
+            SketchPickWalls => t!("cmd-desc-sketch-from-walls"),
+            SketchFinish => t!("cmd-desc-sketch-finish-mode"),
+            SketchCancel => t!("cmd-desc-sketch-cancel-mode"),
+            EditBoundary => t!("cmd-desc-edit-boundary"),
             LoadComponent => t!("cmd-desc-load-component"),
             ComponentLibrary => t!("cmd-desc-component-library"),
             Select => t!("cmd-desc-select"),
@@ -888,6 +957,7 @@ impl UiCommand {
             CompRefPlane => "component_ref_plane_add",
             CompDimension => "component_dimension_add",
             CompEqual => "component_equal_add",
+            SketchFinish | EditBoundary => "sketch_set",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
             ComponentLibrary => "component_library_list",
@@ -950,8 +1020,22 @@ impl UiCommand {
         let has_sel = !state.selection.is_empty();
         let project = state.project();
         match self {
+            Undo if state.sketch.as_ref().is_some_and(|s| !s.can_undo()) => Some(t!("why-nothing-undo")),
+            Redo if state.sketch.as_ref().is_some_and(|s| !s.can_redo()) => Some(t!("why-nothing-redo")),
+            Undo | Redo if state.sketch.is_some() => None,
             Undo if !state.session.doc.can_undo() => Some(t!("why-nothing-undo")),
             Redo if !state.session.doc.can_redo() => Some(t!("why-nothing-redo")),
+            SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
+            | SketchArcCenter | SketchArcTangent | SketchPickWalls | SketchFinish | SketchCancel
+                if state.sketch.is_none() =>
+            {
+                Some(t!("why-no-sketch"))
+            }
+            SketchPickWalls if state.active_level().is_none() => Some(t!("msg-open-plan")),
+            Delete if state.sketch.is_some() => {
+                state.sketch.as_ref().is_some_and(|s| s.selected.is_empty()).then(|| t!("msg-select-first"))
+            }
+            EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ImportCad if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
@@ -1061,7 +1145,14 @@ impl UiCommand {
             Select if state.component_env.is_some() => {
                 state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::Select)
             }
+            Select if state.sketch.is_some() => {
+                state.sketch.as_ref().is_some_and(|s| s.draw == crate::sketch_mode::Draw::Select)
+            }
             Select => *tool == Tool::Select,
+            SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
+            | SketchArcCenter | SketchArcTangent => {
+                state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
+            }
             CompExtrusion | CompRevolution | CompSweep | CompBlend => {
                 let want = match self {
                     CompExtrusion => crate::component_sketch::PieceKind::Extrusion,
@@ -1210,6 +1301,23 @@ pub fn invoke(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
 
 /// Run `command` (callers check availability first). Menu commands act on
 /// their most likely choice: the active level, the first elevation.
+/// The drawing tool a sketch command picks.
+fn sketch_draw(command: UiCommand) -> Option<crate::sketch_mode::Draw> {
+    use crate::sketch_mode::Draw;
+    Some(match command {
+        UiCommand::SketchLine => Draw::Line,
+        UiCommand::SketchRect => Draw::Rect,
+        UiCommand::SketchPolygon => Draw::Polygon,
+        UiCommand::SketchPolygonOut => Draw::PolygonOut,
+        UiCommand::SketchCircle => Draw::Circle,
+        UiCommand::SketchEllipse => Draw::Ellipse,
+        UiCommand::SketchArc3 => Draw::Arc3,
+        UiCommand::SketchArcCenter => Draw::ArcCenter,
+        UiCommand::SketchArcTangent => Draw::ArcTangent,
+        _ => return None,
+    })
+}
+
 pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
     use UiCommand::*;
     // A ribbon panel shown over the views closes once a command runs.
@@ -1234,12 +1342,18 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         About => state.dialogs.about = true,
         CheckUpdates => state.updates.start(ctx, true),
         Preferences => crate::preferences::open(state, crate::preferences::Section::General),
-        Undo => {
-            actions::run_command(state, cc_engine::commands::project::Undo {});
-        }
-        Redo => {
-            actions::run_command(state, cc_engine::commands::project::Redo {});
-        }
+        Undo => match state.sketch.as_mut() {
+            Some(s) => s.undo(),
+            None => {
+                actions::run_command(state, cc_engine::commands::project::Undo {});
+            }
+        },
+        Redo => match state.sketch.as_mut() {
+            Some(s) => s.redo(),
+            None => {
+                actions::run_command(state, cc_engine::commands::project::Redo {});
+            }
+        },
         Default3D => actions::open_default_3d(state),
         Place(category) => actions::activate_category_tool(state, category),
         NewComponent => {
@@ -1292,7 +1406,18 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         Select if state.component_env.is_some() => {
             crate::component_env::set_tool(state, crate::component_env::EnvTool::Select);
         }
+        Select if state.sketch.is_some() => crate::sketch_mode::set_draw(state, crate::sketch_mode::Draw::Select),
         Select => state.set_tool(Tool::Select),
+        SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
+        | SketchArcCenter | SketchArcTangent => {
+            if let Some(draw) = sketch_draw(command) {
+                crate::sketch_mode::set_draw(state, draw);
+            }
+        }
+        SketchPickWalls => crate::sketch_mode::pick_walls(state),
+        SketchFinish => crate::sketch_mode::finish(state),
+        SketchCancel => crate::sketch_mode::cancel(state),
+        EditBoundary => crate::sketch_mode::edit_boundary(state),
         SelectInstances => crate::actions::select_instances(state),
         Group => crate::actions::group_selection(state),
         ColumnsAtGrids => crate::actions::columns_at_grids(state),
@@ -1394,7 +1519,10 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         }
         Pin => crate::modify::set_pinned(state, true),
         Unpin => crate::modify::set_pinned(state, false),
-        Delete => state.delete_selection(),
+        Delete => match state.sketch.as_mut() {
+            Some(s) => s.delete_selected(),
+            None => state.delete_selection(),
+        },
         Paste => crate::clipboard::paste(state),
         Cut => crate::clipboard::cut(ctx, state),
         ClipboardCopy => {
