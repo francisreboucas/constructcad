@@ -126,10 +126,16 @@ impl Project {
 
         for ty in self.types.values_mut() {
             match &mut ty.data {
-                TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => {
+                TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
                     for layer in layers.iter_mut() {
                         repairs += usize::from(fix_positive(&mut layer.thickness, 0.01));
                     }
+                }
+                TypeData::Roof { layers, framing, .. } => {
+                    for layer in layers.iter_mut() {
+                        repairs += usize::from(fix_positive(&mut layer.thickness, 0.01));
+                    }
+                    repairs += framing.repair();
                 }
                 TypeData::Door { width, height, .. } => {
                     repairs += usize::from(fix_positive(width, 0.9)) + usize::from(fix_positive(height, 2.1));
@@ -228,6 +234,9 @@ impl Project {
                 repairs += std::sync::Arc::make_mut(&mut c.drawing).repair();
             }
         }
+
+        // Sketches that are invalid or no longer make their element's outline.
+        repairs += self.elements.values_mut().map(|e| usize::from(e.drop_stale_sketch())).sum::<usize>();
 
         // Mass floors on levels that are gone.
         let levels: std::collections::BTreeSet<_> = self.levels.iter().map(|l| l.id).collect();

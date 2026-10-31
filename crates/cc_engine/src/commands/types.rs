@@ -6,6 +6,7 @@ use crate::refs::{self, Ref};
 use crate::registry::{Command, CommandKind};
 use crate::session::Session;
 use crate::t;
+use cc_core::roofing::FramingSystem;
 use cc_core::{ComponentDef, ElementType, ElementTypeId, TypeData, expr};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -86,7 +87,18 @@ impl Command for TypeSet {
         {
             return Err(EngineError::invalid(format!("the name '{name}' is empty or already used")));
         }
-        let data = self.params.as_ref().map(|patch| patch_variant(&ty.data, patch)).transpose()?;
+        let mut data = self.params.as_ref().map(|patch| patch_variant(&ty.data, patch)).transpose()?;
+        // A new roof covering brings the framing it usually lies on, if none was chosen.
+        if let (
+            Some(TypeData::Roof { covering: Some(kind), framing, .. }),
+            TypeData::Roof { covering: old, framing: was, .. },
+        ) = (&mut data, &ty.data)
+            && Some(*kind) != *old
+            && framing.system == FramingSystem::None
+            && was.system == FramingSystem::None
+        {
+            framing.system = kind.spec().framing;
+        }
         if data.as_ref().is_some_and(|d| std::mem::discriminant(d) != std::mem::discriminant(&ty.data)) {
             return Err(EngineError::invalid("params cannot change the type's category"));
         }

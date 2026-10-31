@@ -17,6 +17,7 @@ mod mesh;
 pub mod polygon;
 pub mod ramp;
 pub mod rebar;
+pub mod roof_framing;
 pub mod roofs;
 mod rooms;
 pub mod section;

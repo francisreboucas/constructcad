@@ -250,6 +250,16 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
     if space && state.tool == Tool::Select && crate::tools::rotate_selection(state) {
         state.message = t!("msg-rotated");
     }
+    // An open sketch has its own picks and selection.
+    if state.sketch.is_some() {
+        if escape {
+            crate::sketch_mode::escape(state);
+        }
+        if delete && let Some(s) = state.sketch.as_mut() {
+            s.delete_selected();
+        }
+        return;
+    }
     // The component environment has its own tools and selection.
     if state.component_env.is_some() {
         if escape {
@@ -280,8 +290,13 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     let typing_length = state.typing_segment();
-    if backspace && typing_length {
-        state.typed.pop();
+    // Backspace edits a typed length, or else steps a chain back one segment.
+    if backspace {
+        if typing_length && !state.typed.is_empty() {
+            state.typed.pop();
+        } else {
+            crate::tools::chain_back(state);
+        }
     }
     for event in &events {
         match event {
@@ -437,13 +452,25 @@ impl ConstructApp {
         egui::Panel::top("ribbon").frame(bar(PALETTE.panel, 6).stroke(egui::Stroke::new(1.0, PALETTE.border))).show(
             ui,
             |ui| {
-                if env { crate::component_env::ribbon(ui, state) } else { ribbon::ribbon(ui, state) }
+                if state.sketch.is_some() {
+                    crate::sketch_mode::ribbon(ui, state)
+                } else if env {
+                    crate::component_env::ribbon(ui, state)
+                } else {
+                    ribbon::ribbon(ui, state)
+                }
             },
         );
         egui::Panel::top("options").frame(bar(PALETTE.surface, 5).stroke(egui::Stroke::new(1.0, PALETTE.border))).show(
             ui,
             |ui| {
-                if env { crate::component_env::options(ui, state) } else { ribbon::options_bar(ui, state) }
+                if env && state.sketch.is_some() {
+                    ui.horizontal(|ui| crate::sketch_mode::options(ui, state));
+                } else if env {
+                    crate::component_env::options(ui, state)
+                } else {
+                    ribbon::options_bar(ui, state)
+                }
             },
         );
         egui::Panel::bottom("status")

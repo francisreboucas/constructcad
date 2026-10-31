@@ -228,19 +228,11 @@ impl ComponentShape {
 
 /// The expressions of a profile's points (an arc's radius only when set).
 fn profile_expressions(points: &[ProfilePoint]) -> Vec<(&'static str, &String)> {
-    let mut out = Vec::with_capacity(points.len() * 2);
-    for p in points {
-        out.push(("u", &p.u));
-        out.push(("v", &p.v));
-        if !p.radius.trim().is_empty() {
-            out.push(("radius", &p.radius));
-        }
-    }
-    out
+    points.iter().flat_map(ProfilePoint::expressions).collect()
 }
 
 fn profile_expressions_mut(points: &mut [ProfilePoint]) -> Vec<&mut String> {
-    points.iter_mut().flat_map(|p| [&mut p.u, &mut p.v, &mut p.radius]).collect()
+    points.iter_mut().flat_map(ProfilePoint::expressions_mut).collect()
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]

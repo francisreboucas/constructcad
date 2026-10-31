@@ -388,3 +388,30 @@ fn equalities_keep_a_plane_halfway_as_the_others_move() {
     run(&mut s, "component_ref_plane_delete", json!({"type": ty, "name": "Mid"}));
     assert!(run(&mut s, "component_get", json!({"type": ty}))["def"]["equals"].is_null());
 }
+
+#[test]
+fn pieces_take_parts_of_ellipses() {
+    let mut s = Session::default();
+    let ty = bench(&mut s)["id"].clone();
+    // An elliptical plate 2 Width by 0.6, drawn as two halves of the ellipse.
+    let half = |u: &str| json!({"u": u, "v": 0, "ellipse": {"u": 0, "v": 0, "rx": "Width", "ry": 0.3}});
+    let plate = run(
+        &mut s,
+        "component_piece_add",
+        json!({"type": ty, "plane": "plan", "start": "0", "end": "0.02", "points": [half("Width"), half("-Width")]}),
+    );
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    let points = &c["def"]["items"][plate["index"].as_u64().unwrap() as usize]["shape"]["Profile"]["points"];
+    assert_eq!(points[0]["ellipse"]["rx"], "Width", "{c}");
+    // Renaming the parameter reaches the ellipse.
+    run(&mut s, "component_param_set", json!({"type": ty, "name": "Width", "rename": "W"}));
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    let points = &c["def"]["items"][plate["index"].as_u64().unwrap() as usize]["shape"]["Profile"]["points"];
+    assert_eq!((points[0]["u"].clone(), points[1]["ellipse"]["rx"].clone()), (json!("W"), json!("W")));
+    // A bad expression in an ellipse is refused.
+    let bad = json!({"u": 1, "v": 0, "ellipse": {"u": 0, "v": 0, "rx": "Nope", "ry": 0.3}});
+    assert_eq!(
+        fails(&mut s, "component_piece_add", json!({"type": ty, "plane": "plan", "points": [bad, half("-1")]})),
+        ErrorCode::InvalidArguments
+    );
+}

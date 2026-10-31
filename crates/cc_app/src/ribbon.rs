@@ -6,7 +6,7 @@ use crate::icons::{self, Badge, Icon, Tones};
 use crate::state::{AppState, RibbonTab};
 use crate::t;
 use crate::theme::{self, PALETTE};
-use crate::tools::{DimensionMode, Tool, walls_loop};
+use crate::tools::{DimensionMode, Tool};
 use cc_core::{Category, ViewCategory};
 use cc_views::format;
 use egui::{Align, Button, DragValue, Layout, Response, RichText, Sense, Stroke, StrokeKind, Ui, vec2};
@@ -674,6 +674,11 @@ pub fn selected_text(state: &AppState) -> Option<cc_core::ElementId> {
 }
 
 /// Families of small buttons, each starting its own column.
+/// A captioned group of small buttons in columns (a contextual ribbon's).
+pub fn env_stacks(ui: &mut Ui, state: &mut AppState, caption: String, families: &[&[UiCommand]]) {
+    group(ui, caption, |ui| stacks(ui, state, families));
+}
+
 fn stacks(ui: &mut Ui, state: &mut AppState, families: &[&[UiCommand]]) {
     for family in families {
         if let Some(command) = stacked(ui, state, family) {
@@ -694,6 +699,7 @@ fn modify_tab(ui: &mut Ui, state: &mut AppState) {
     });
     group(ui, t!("group-measure"), |ui| command_button(ui, state, Measure));
     group(ui, t!("group-geometry"), |ui| command_buttons(ui, state, &[JoinGeometry, UnjoinGeometry]));
+    group(ui, t!("group-sketch"), |ui| command_button(ui, state, EditBoundary));
     group(ui, t!("group-group"), |ui| command_buttons(ui, state, &[Group, Ungroup]));
     group(ui, t!("group-phasing"), |ui| command_button(ui, state, Demolish));
 }
@@ -944,31 +950,7 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
                 ui.checkbox(&mut state.interaction.flip_hand, t!("prop-flip-hand"));
                 ui.label(theme::muted(t!("hint-hosted")));
             }
-            Tool::Sketch { category, type_id } => {
-                let n = state.interaction.points.len();
-                if ui.add_enabled(n >= 3, Button::new(t!("sketch-finish"))).clicked()
-                    && let Some(level) = state.active_level()
-                {
-                    let pts = state.interaction.points.clone();
-                    crate::tools::finish_sketch(state, level, category, type_id, pts);
-                }
-                if ui.button(t!("sketch-from-walls")).on_hover_text(t!("hint-from-walls")).clicked() {
-                    match state.active_level() {
-                        Some(level) => {
-                            let outward = if category == Category::Ceiling { -1.0 } else { 1.0 };
-                            match walls_loop(state.project(), level, outward) {
-                                Some(pts) => crate::tools::finish_sketch(state, level, category, type_id, pts),
-                                None => state.message = t!("msg-no-wall-loop"),
-                            }
-                        }
-                        None => state.message = t!("msg-open-plan"),
-                    }
-                }
-                if ui.add_enabled(n > 0, Button::new(t!("action-cancel"))).clicked() {
-                    state.interaction.points.clear();
-                }
-                ui.label(theme::muted(t!("hint-sketch")));
-            }
+            Tool::Sketch { .. } => crate::sketch_mode::options(ui, state),
             Tool::Section => {
                 ui.label(theme::muted(t!("msg-section-hint")));
             }

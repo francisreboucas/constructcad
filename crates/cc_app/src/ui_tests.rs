@@ -309,6 +309,16 @@ fn ribbon_buttons_are_accessible() {
     for node in harness.query_all_by_role(Role::Button) {
         found.insert(node.accesskit_node().label().unwrap_or_default());
     }
+    // So does an open sketch.
+    let mut state = sample_state();
+    let floor = state.project().default_type(cc_core::Category::Floor).unwrap();
+    state.set_tool(crate::tools::Tool::Sketch { category: cc_core::Category::Floor, type_id: floor });
+    let harness = themed_harness(state, egui::vec2(1600.0, 140.0), egui::Theme::Light, |ui, state| {
+        crate::sketch_mode::ribbon(ui, state)
+    });
+    for node in harness.query_all_by_role(Role::Button) {
+        found.insert(node.accesskit_node().label().unwrap_or_default());
+    }
     let state = sample_state();
     let hidden = [UiCommand::CommandPalette, UiCommand::ToggleRibbon];
     for command in UiCommand::all().into_iter().filter(|c| !hidden.contains(c)) {
@@ -1225,4 +1235,171 @@ fn walls_floors_and_roofs_come_from_selected_masses() {
             .iter()
             .all(|id| state.project().element(*id).is_some_and(|e| e.category() == cc_core::Category::Roof))
     );
+}
+
+/// A roof type's dialog has the covering and framing; with tiles and timber
+/// framing, a roof's properties show them.
+#[test]
+fn roof_types_take_tiles_and_framing() {
+    let mut state = sample_state();
+    let roof_type = state.project().default_type(cc_core::Category::Roof).unwrap();
+    state.dialogs.type_editor = Some(roof_type);
+    let mut harness = app_harness(state);
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-roofing")).is_some());
+
+    let mut state = sample_state();
+    let params = serde_json::json!({"covering": "CeramicColonial", "framing": {"system": "Timber"}});
+    state.session.execute("type_set", serde_json::json!({"type": roof_type.0, "params": params})).unwrap();
+    let roof = state.project().elements.values().find(|e| e.type_id == roof_type).map(|e| e.id).unwrap();
+    state.selection = [roof].into_iter().collect();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1800.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-roofing")).is_some(), "the roof shows its covering and framing");
+}
+
+/// Sketch mode end to end: a mass sketched as a circle, its boundary edited
+/// (the circle's radius in the properties' place), Escape and Delete inside
+/// the sketch, and Cancel leaving the model as it was.
+#[test]
+fn sketch_mode_creates_and_edits_outlines() {
+    use crate::commands::UiCommand;
+    use crate::sketch_mode::{Draw, Target};
+    use cc_core::sketch::SketchCurve;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Mass);
+    assert!(matches!(state.sketch.as_ref().map(|s| s.target), Some(Target::New { .. })));
+    let circle = SketchCurve::Circle { center: glam::DVec2::new(30.0, 30.0), radius: 3.0 };
+    state.sketch.as_mut().unwrap().add(vec![circle]);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(state.sketch.is_none(), "{}", state.message);
+    let mass = *state.selection.iter().next().unwrap();
+    let drawn = state.project().element(mass).and_then(|e| e.drawn_sketch()).cloned().unwrap();
+    assert_eq!(drawn.curves, vec![circle]);
+
+    // Edit Boundary opens the curves; a bigger circle draws the outline again.
+    assert_eq!(UiCommand::EditBoundary.unavailable(&state), None);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::EditBoundary);
+    let s = state.sketch.as_mut().unwrap();
+    assert_eq!((s.target, s.draw, s.curves.clone()), (Target::Edit { id: mass }, Draw::Select, vec![circle]));
+    let bigger = SketchCurve::Circle { center: glam::DVec2::new(30.0, 30.0), radius: 4.0 };
+    s.set_curve(0, bigger);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    let e = state.project().element(mass).unwrap();
+    assert_eq!(e.drawn_sketch().unwrap().curves, vec![bigger]);
+
+    // Inside a sketch, undo undoes the sketch's own changes; an open sketch does not finish.
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::EditBoundary);
+    let s = state.sketch.as_mut().unwrap();
+    s.selected.insert(0);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::Delete);
+    assert!(state.sketch.as_ref().unwrap().curves.is_empty());
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::Undo);
+    assert_eq!(state.sketch.as_ref().unwrap().curves, vec![bigger]);
+    state
+        .sketch
+        .as_mut()
+        .unwrap()
+        .add(vec![SketchCurve::Line { a: glam::DVec2::new(40.0, 40.0), b: glam::DVec2::new(41.0, 40.0) }]);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(state.sketch.is_some(), "an open line keeps the sketch open");
+    assert_eq!(state.message, t!("sketch-open-end"));
+    // In a sketch the modify tools act on its curves: those on the picked
+    // curves need some, the others pick curves themselves.
+    let s = state.sketch.as_mut().unwrap();
+    s.selected.clear();
+    assert_eq!(UiCommand::Move.unavailable(&state), Some(t!("msg-select-first")));
+    assert_eq!(UiCommand::Offset.unavailable(&state), None);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::TrimCorner);
+    assert_eq!(state.sketch.as_ref().unwrap().draw, Draw::TrimCorner);
+    assert!(UiCommand::TrimCorner.selected(&state) && !UiCommand::Split.selected(&state));
+    state.sketch.as_mut().unwrap().selected.insert(0);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::Rotate);
+    assert_eq!(state.sketch.as_ref().unwrap().draw, Draw::Rotate);
+    assert!(matches!(state.tool, crate::tools::Tool::Sketch { .. }), "the element tools stay out of the sketch");
+    let revision = state.session.doc.revision();
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchCancel);
+    assert!(state.sketch.is_none() && state.tool == crate::tools::Tool::Select);
+    assert_eq!(state.session.doc.revision(), revision, "cancel changes nothing");
+}
+
+/// A piece of the component environment is sketched in the same sketch as
+/// outlines in plans: its ribbon, options, picked curve and Finish.
+#[test]
+fn component_pieces_are_sketched_with_the_sketch_tools() {
+    use crate::commands::UiCommand;
+    let mut state = sample_state();
+    let table = state
+        .project()
+        .types_of(cc_core::Category::Component)
+        .find(|t| matches!(&t.data, cc_core::TypeData::Component { component, .. } if component == "Mesa"))
+        .map(|t| t.id)
+        .unwrap();
+    crate::component_env::open(&mut state, table);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::CompExtrusion);
+    assert!(UiCommand::CompExtrusion.selected(&state) && UiCommand::SketchEllipse.unavailable(&state).is_none());
+    assert!(UiCommand::SketchPickWalls.unavailable(&state).is_some(), "walls are picked in plans only");
+    let s = state.sketch.as_mut().unwrap();
+    s.curves = vec![
+        cc_core::sketch::SketchCurve::ellipse(glam::DVec2::new(0.0, 0.0), glam::DVec2::new(0.5, 0.3), 15.0),
+        cc_core::sketch::SketchCurve::Circle { center: glam::DVec2::new(0.6, 0.0), radius: 0.1 },
+    ];
+    s.selected.insert(0);
+    s.piece.as_mut().unwrap().view = Some(cc_views::ComponentViewKind::Plan);
+    let mut harness = themed_harness(state, egui::vec2(1280.0, 820.0), egui::Theme::Light, |ui, state| {
+        egui::Panel::top("ribbon").show(ui, |ui| crate::sketch_mode::ribbon(ui, state));
+        egui::Panel::top("options").show(ui, |ui| ui.horizontal(|ui| crate::sketch_mode::options(ui, state)));
+        egui::Panel::left("left").default_size(290.0).show(ui, |ui| crate::component_env::panel(ui, state));
+        egui::CentralPanel::default().show(ui, |ui| crate::component_env::central(ui, state));
+    });
+    for _ in 0..3 {
+        harness.run();
+    }
+    if let Some(path) = std::env::var_os("CC_RENDER_PIECE_SKETCH") {
+        harness.render().unwrap().save(path).unwrap();
+    }
+    let title = t!("sketch-title-piece", "kind" => t!("comp-env-extrusion"));
+    assert!(harness.query_by_label(&title).is_some(), "{title}");
+    // The ribbon's Ellipse tool, and the picked ellipse's section in the panel.
+    assert_eq!(harness.query_all_by_label(&t!("sketch-ellipse")).count(), 2);
+    assert!(!UiCommand::Select.selected(harness.state()), "the sketch's tool, not the environment's");
+    assert!(harness.query_by_label(&t!("comp-sketch-void")).is_some(), "the piece's options");
+    // Two loops apart make no profile: the sketch stays open with the reason.
+    crate::commands::run(harness.state_mut(), &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(harness.state().sketch.is_some());
+    assert_eq!(harness.state().message, t!("sketch-apart"));
+}
+
+/// The component environment's side panel keeps its fields and buttons
+/// clear of the panel's left border (they were drawn against it, cut).
+#[test]
+fn component_panel_is_inset() {
+    let mut state = sample_state();
+    let table = state
+        .project()
+        .types_of(cc_core::Category::Component)
+        .find(|t| matches!(&t.data, cc_core::TypeData::Component { component, .. } if component == "Mesa"))
+        .map(|t| t.id)
+        .unwrap();
+    crate::component_env::open(&mut state, table);
+    if let Some(e) = state.component_env.as_mut() {
+        e.pick = Some(crate::component_env::Pick::Piece(0));
+    }
+    let harness = themed_harness(state, egui::vec2(700.0, 700.0), egui::Theme::Light, |ui, state| {
+        // The app's side panel has no margin of its own.
+        egui::Panel::left("left").frame(egui::Frame::new()).default_size(290.0).show(ui, |ui| {
+            let left = ui.max_rect().left();
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::new("panel-left"), left));
+            crate::component_env::panel(ui, state)
+        });
+    });
+    let panel_left: f32 = harness.ctx.data(|d| d.get_temp(egui::Id::new("panel-left"))).unwrap();
+    for label in [format!("+ {}", t!("comp-env-add-param")), t!("action-delete")] {
+        let inset = harness.get_by_label(&label).rect().min.x - panel_left;
+        assert!(inset >= 6.0, "{label} starts {inset} from the panel's border");
+    }
 }

@@ -24,7 +24,7 @@ use glam::DVec2;
 use std::collections::BTreeMap;
 
 /// Scale the views are drawn at (text and dimension sizes).
-const VIEW_SCALE: u32 = 10;
+pub(crate) const VIEW_SCALE: u32 = 10;
 /// Pick distance, screen points.
 const PICK_PX: f32 = 6.0;
 
@@ -48,8 +48,6 @@ pub enum EnvTool {
     RefPlane { first: Option<(ComponentViewKind, DVec2)> },
     /// Two parallel planes, then the line's place.
     Dimension { first: Option<(ComponentViewKind, String)> },
-    /// An outline drawn in a view, made into a piece.
-    Sketch(crate::component_sketch::Sketch),
     /// Three parallel planes: an outer one, the one kept halfway, the other.
     Equal { picked: Vec<String>, view: Option<ComponentViewKind> },
 }
@@ -127,17 +125,19 @@ pub fn save_file(state: &mut AppState) {
 /// Leave the environment keeping the changes.
 pub fn finish(state: &mut AppState) {
     state.component_env = None;
+    state.sketch = None;
 }
 
 /// Leave the environment undoing every change made in it.
 pub fn cancel(state: &mut AppState) {
+    state.sketch = None;
     if let Some(env) = state.component_env.take() {
         state.session.undo_to(env.start_depth);
     }
 }
 
 /// The component's definition, name and parameter values of the shown type.
-fn component(state: &AppState) -> Option<(String, cc_core::ComponentDef)> {
+pub(crate) fn component(state: &AppState) -> Option<(String, cc_core::ComponentDef)> {
     let env = state.component_env.as_ref()?;
     match state.project().element_type(env.type_id).map(|t| &t.data) {
         Some(TypeData::Component { component, def }) => Some((component.clone(), def.clone())),
@@ -245,10 +245,6 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
 pub fn options(ui: &mut Ui, state: &mut AppState) {
     let Some(env) = &state.component_env else { return };
     let hint = match &env.tool {
-        EnvTool::Sketch(_) => {
-            crate::component_sketch::options(ui, state);
-            return;
-        }
         EnvTool::Select => t!("comp-env-hint-select"),
         EnvTool::RefPlane { first: None } => t!("comp-env-hint-plane"),
         EnvTool::RefPlane { first: Some(_) } => t!("comp-env-hint-plane-second"),
@@ -372,6 +368,11 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
     if let Some(name) = &hovered_plane {
         highlight(name, PALETTE.accent.gamma_multiply(0.5));
     }
+    // A piece being sketched takes the clicks.
+    if state.sketch.is_some() {
+        crate::component_sketch::canvas(ui, &resp, &painter, state, &view, kind, &xf, tol);
+        return;
+    }
     let tool = env.tool.clone();
     let clicked = resp.clicked_by(egui::PointerButton::Primary);
     match tool {
@@ -392,9 +393,6 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                     env.pick = picked;
                 }
             }
-        }
-        EnvTool::Sketch(sketch) => {
-            crate::component_sketch::handle(state, sketch, &view, kind, &xf, &painter, hover, clicked, tol);
         }
         EnvTool::Equal { mut picked, view: picked_view } => {
             if picked_view.is_some_and(|v| v != kind) {
@@ -523,15 +521,6 @@ pub fn escape(state: &mut AppState) {
     env.tool = match &env.tool {
         EnvTool::RefPlane { first: Some(_) } => EnvTool::RefPlane { first: None },
         EnvTool::Dimension { first: Some(_) } => EnvTool::Dimension { first: None },
-        EnvTool::Sketch(s) if !s.points.is_empty() || !s.bottom.is_empty() => {
-            EnvTool::Sketch(crate::component_sketch::Sketch {
-                view: None,
-                points: Vec::new(),
-                bottom: Vec::new(),
-                closed: false,
-                ..s.clone()
-            })
-        }
         EnvTool::Equal { picked, .. } if !picked.is_empty() => EnvTool::Equal { picked: Vec::new(), view: None },
         EnvTool::Select => {
             env.pick = None;
@@ -589,53 +578,65 @@ pub fn panel(ui: &mut Ui, state: &mut AppState) {
         return;
     };
     egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-        ui.add_space(6.0);
-        ui.label(theme::title(name.clone()));
-        types_row(ui, state);
-        ui.add_space(6.0);
-        crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, &def));
-        let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
-        match pick {
-            Some(Pick::Plane(plane)) => {
-                crate::table::section(ui, "comp-env-plane", t!("comp-env-plane"), |ui| {
-                    plane_props(ui, state, &def, &plane)
-                });
+        // Inset from the panel's edges, so fields and buttons are not cut by its border.
+        egui::Frame::new().inner_margin(egui::Margin { left: 8, right: 8, top: 0, bottom: 8 }).show(ui, |ui| {
+            ui.set_width(ui.available_width());
+            // A piece being sketched shows its picked curve.
+            if state.sketch.is_some() {
+                crate::sketch_mode::properties(ui, state);
+            } else {
+                panel_content(ui, state, &name, &def);
             }
-            Some(Pick::Dimension(index)) => {
-                crate::table::section(ui, "comp-env-dimension", t!("comp-env-dimension"), |ui| {
-                    dimension_props(ui, state, &def, index);
-                });
-            }
-            Some(Pick::Equal(index)) => {
-                crate::table::section(ui, "comp-env-equal", t!("comp-env-equal"), |ui| {
-                    if let Some(q) = def.equals.get(index) {
-                        crate::table::readonly_row(
-                            ui,
-                            &t!("comp-env-between"),
-                            format!("{} — {} — {}", q.a, q.middle, q.b),
-                        );
-                        crate::table::readonly_row(ui, &t!("comp-env-at"), q.expression());
-                    }
-                    if ui.button(t!("action-delete")).clicked() {
-                        delete_pick(state);
-                    }
-                });
-            }
-            Some(Pick::Piece(index)) => {
-                crate::table::section(ui, "comp-env-piece", t!("comp-env-piece"), |ui| {
-                    crate::component_env::piece_props(ui, state, &def, index);
-                });
-            }
-            None => {}
-        }
-        let problems = def.ref_problems();
-        if !problems.is_empty() {
-            ui.add_space(6.0);
-            for p in problems {
-                ui.label(egui::RichText::new(p).color(PALETTE.danger).size(12.0));
-            }
-        }
+        });
     });
+}
+
+/// The panel's title, type, parameters and the picked object's values.
+fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::ComponentDef) {
+    ui.add_space(6.0);
+    ui.label(theme::title(name.to_string()));
+    types_row(ui, state);
+    ui.add_space(6.0);
+    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def));
+    let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
+    match pick {
+        Some(Pick::Plane(plane)) => {
+            crate::table::section(ui, "comp-env-plane", t!("comp-env-plane"), |ui| plane_props(ui, state, def, &plane));
+        }
+        Some(Pick::Dimension(index)) => {
+            crate::table::section(ui, "comp-env-dimension", t!("comp-env-dimension"), |ui| {
+                dimension_props(ui, state, def, index);
+            });
+        }
+        Some(Pick::Equal(index)) => {
+            crate::table::section(ui, "comp-env-equal", t!("comp-env-equal"), |ui| {
+                if let Some(q) = def.equals.get(index) {
+                    crate::table::readonly_row(
+                        ui,
+                        &t!("comp-env-between"),
+                        format!("{} — {} — {}", q.a, q.middle, q.b),
+                    );
+                    crate::table::readonly_row(ui, &t!("comp-env-at"), q.expression());
+                }
+                if ui.button(t!("action-delete")).clicked() {
+                    delete_pick(state);
+                }
+            });
+        }
+        Some(Pick::Piece(index)) => {
+            crate::table::section(ui, "comp-env-piece", t!("comp-env-piece"), |ui| {
+                crate::component_env::piece_props(ui, state, def, index);
+            });
+        }
+        None => {}
+    }
+    let problems = def.ref_problems();
+    if !problems.is_empty() {
+        ui.add_space(6.0);
+        for p in problems {
+            ui.label(egui::RichText::new(p).color(PALETTE.danger).size(12.0));
+        }
+    }
 }
 
 /// The type whose values the views show.
@@ -854,11 +855,7 @@ fn points_table(
                 if j == i {
                     if is_u { u = new.clone() } else { v = new.clone() }
                 }
-                SketchPointArg {
-                    u: ExprArg::Text(u),
-                    v: ExprArg::Text(v),
-                    radius: (!p.radius.trim().is_empty()).then(|| ExprArg::Text(p.radius.clone())),
-                }
+                SketchPointArg { u: ExprArg::Text(u), v: ExprArg::Text(v), ..SketchPointArg::of(p) }
             })
             .collect(),
     )
@@ -924,6 +921,12 @@ pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDe
     crate::table::row(ui, &t!("prop-name"), |ui| {
         set.name = draft_field(ui, state, &format!("piece-name:{index}"), &item.name, 150.0)
     });
+    if matches!(item.shape, S::Profile { .. } | S::Revolution { .. } | S::Sweep { .. } | S::Blend { .. })
+        && ui.button(t!("comp-edit-sketch")).on_hover_text(t!("comp-edit-sketch-tip")).clicked()
+    {
+        crate::component_sketch::edit(state, index);
+        return;
+    }
     let mut void = item.void;
     crate::table::row(ui, &t!("comp-sketch-void"), |ui| ui.checkbox(&mut void, ""));
     if void != item.void {
@@ -1030,7 +1033,10 @@ pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDe
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::component_sketch::PieceKind;
     use cc_core::Document;
+    use cc_core::sketch::SketchCurve;
+    use cc_engine::commands::sketch::CurveArg;
 
     fn table_state() -> (AppState, ElementTypeId) {
         let state = AppState::new(Document::new(crate::actions::new_project()));
@@ -1087,24 +1093,30 @@ mod tests {
         assert!(def.ref_planes.is_empty() && def.param("Half").is_none());
     }
 
+    /// The open piece sketch, drawn in `view` with `curves`.
+    fn sketch(state: &mut AppState, kind: PieceKind, view: ComponentViewKind, curves: Vec<SketchCurve>) {
+        crate::component_sketch::start(state, kind);
+        let s = state.sketch.as_mut().unwrap();
+        s.curves = curves;
+        s.piece.as_mut().unwrap().view = Some(view);
+    }
+
+    fn rect(a: (f64, f64), b: (f64, f64)) -> Vec<SketchCurve> {
+        CurveArg::Rectangle { corner: [a.0, a.1], opposite: [b.0, b.1], rotation: 0.0 }.curves().unwrap()
+    }
+
     #[test]
     fn sketched_rectangles_become_pieces_locked_to_planes() {
-        use crate::component_sketch::{PieceKind, Sketch, rect_points, snap};
         let (mut state, table) = table_state();
         open(&mut state, table);
         add_plane(&mut state, PlaneAxis::X, 0.3);
         let plan = view(&state, ComponentViewKind::Plan).unwrap();
-        let a = snap(&plan, DVec2::new(0.301, 0.1), 0.01);
-        let b = snap(&plan, DVec2::new(0.0, 0.2), 0.01);
-        assert_eq!(a.u, "Plane1");
-        let sketch = Sketch {
-            view: Some(ComponentViewKind::Plan),
-            points: rect_points(&a, &b),
-            void: true,
-            ..Sketch::new(PieceKind::Extrusion)
-        };
+        assert_eq!(crate::component_sketch::snap(&plan, DVec2::new(0.301, 0.1), 0.01).0.x, 0.3);
+        sketch(&mut state, PieceKind::Extrusion, ComponentViewKind::Plan, rect((0.3, 0.1), (0.0, 0.2)));
+        state.sketch.as_mut().unwrap().piece.as_mut().unwrap().void = true;
         let before = component(&state).unwrap().1.items.len();
-        crate::component_sketch::finish_for_tests(&mut state, sketch);
+        crate::component_sketch::finish_for_tests(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
         let (_, def) = component(&state).unwrap();
         assert_eq!(def.items.len(), before + 1);
         let piece = def.items.last().unwrap();
@@ -1128,40 +1140,82 @@ mod tests {
 
     #[test]
     fn blends_take_two_outlines_and_sweeps_a_path() {
-        use crate::component_sketch::{PieceKind, Sketch, rect_points, snap};
         let (mut state, table) = table_state();
         open(&mut state, table);
-        let plan = view(&state, ComponentViewKind::Plan).unwrap();
-        let pt = |x: f64, y: f64| snap(&plan, DVec2::new(x, y), 1e-6);
         let before = component(&state).unwrap().1.items.len();
         // The bottom outline is kept; the top one makes the piece.
-        let sketch = Sketch {
-            view: Some(ComponentViewKind::Plan),
-            points: rect_points(&pt(-0.2, -0.2), &pt(0.2, 0.2)),
-            ..Sketch::new(PieceKind::Blend)
-        };
-        crate::component_sketch::finish_for_tests(&mut state, sketch);
-        let Some(EnvTool::Sketch(waiting)) = state.component_env.as_ref().map(|e| e.tool.clone()) else { panic!() };
-        assert_eq!(waiting.bottom.len(), 4);
+        sketch(&mut state, PieceKind::Blend, ComponentViewKind::Plan, rect((-0.2, -0.2), (0.2, 0.2)));
+        crate::component_sketch::finish_for_tests(&mut state);
+        let waiting = state.sketch.as_ref().unwrap();
+        assert_eq!(waiting.piece.as_ref().unwrap().bottom.as_ref().map(Vec::len), Some(4));
+        assert!(waiting.curves.is_empty());
         assert_eq!(component(&state).unwrap().1.items.len(), before);
-        let top = Sketch { points: rect_points(&pt(-0.1, -0.1), &pt(0.1, 0.1)), ..waiting };
-        crate::component_sketch::finish_for_tests(&mut state, top);
+        // An ellipse on top.
+        let top = SketchCurve::ellipse(DVec2::ZERO, DVec2::new(0.15, 0.1), 0.0);
+        state.sketch.as_mut().unwrap().curves = vec![top];
+        crate::component_sketch::finish_for_tests(&mut state);
         let (_, def) = component(&state).unwrap();
-        assert!(matches!(def.items.last().map(|i| &i.shape), Some(cc_core::ComponentShape::Blend { .. })));
-        // A sweep's drawn points are its path, with the section from the options.
-        let sweep = Sketch {
-            view: Some(ComponentViewKind::Plan),
-            points: vec![pt(-0.5, 0.0), pt(0.0, 0.0), pt(0.0, 0.4)],
-            round: true,
-            ..Sketch::new(PieceKind::Sweep)
-        };
-        crate::component_sketch::finish_for_tests(&mut state, sweep);
+        let Some(cc_core::ComponentShape::Blend { top, .. }) = def.items.last().map(|i| &i.shape) else { panic!() };
+        assert!(top.iter().all(|p| p.ellipse.is_some()), "{top:?}");
+        // A sweep's curves are its path, with the section from the options; a revolution waits for its axis.
+        let path = vec![
+            SketchCurve::Line { a: DVec2::new(-0.5, 0.0), b: DVec2::ZERO },
+            SketchCurve::Arc { a: DVec2::ZERO, b: DVec2::new(0.2, 0.2), bulge: (std::f64::consts::PI / 8.0).tan() },
+        ];
+        sketch(&mut state, PieceKind::Sweep, ComponentViewKind::Plan, path);
+        state.sketch.as_mut().unwrap().piece.as_mut().unwrap().round = true;
+        crate::component_sketch::finish_for_tests(&mut state);
         let (_, def) = component(&state).unwrap();
         let Some(cc_core::ComponentShape::Sweep { path, profile, .. }) = def.items.last().map(|i| &i.shape) else {
-            panic!()
+            panic!("{}", state.message)
         };
         assert_eq!((path.len(), profile.len()), (3, 2));
+        assert!(!path[1].radius.is_empty());
         assert!(def.resolve(&Default::default()).1.is_empty());
+        sketch(&mut state, PieceKind::Revolution, ComponentViewKind::Front, rect((0.1, 0.0), (0.2, 0.3)));
+        crate::component_sketch::finish_for_tests(&mut state);
+        assert!(state.sketch.as_ref().and_then(|s| s.piece.as_ref()).is_some_and(|p| p.axis));
+        crate::sketch_mode::escape(&mut state);
+        assert!(state.sketch.as_ref().and_then(|s| s.piece.as_ref()).is_some_and(|p| !p.axis));
+    }
+
+    #[test]
+    fn edited_sketches_keep_the_points_that_stay() {
+        let (mut state, table) = table_state();
+        open(&mut state, table);
+        add_plane(&mut state, PlaneAxis::X, 0.3);
+        sketch(&mut state, PieceKind::Extrusion, ComponentViewKind::Plan, rect((0.3, 0.1), (0.0, 0.2)));
+        crate::component_sketch::finish_for_tests(&mut state);
+        let index = component(&state).unwrap().1.items.len() - 1;
+        // A point written by hand as an expression.
+        let mut def = component(&state).unwrap().1;
+        let cc_core::ComponentShape::Profile { points, .. } = &mut def.items[index].shape else { panic!() };
+        let at = points.iter().position(|p| p.u == "Plane1" && p.v == "0.2").unwrap();
+        points[at].v = "0.1 + 0.1".into();
+        let t = state.component_env.as_ref().unwrap().type_id;
+        let command: cc_engine::commands::types::TypeSet =
+            serde_json::from_value(serde_json::json!({ "type": t.0, "params": { "def": def } })).unwrap();
+        crate::actions::run_command(&mut state, command).unwrap();
+        // Edit Sketch opens its lines; moving the corner at (0, 0.1) leaves the others as written.
+        crate::component_sketch::edit(&mut state, index);
+        let s = state.sketch.as_mut().unwrap();
+        assert_eq!(s.curves.len(), 4);
+        for c in &mut s.curves {
+            if let SketchCurve::Line { a, b } = c {
+                for p in [a, b] {
+                    if p.distance(DVec2::new(0.0, 0.1)) < 1e-9 {
+                        *p = DVec2::new(-0.1, 0.1);
+                    }
+                }
+            }
+        }
+        crate::component_sketch::finish_for_tests(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
+        let def = component(&state).unwrap().1;
+        let cc_core::ComponentShape::Profile { points, .. } = &def.items[index].shape else { panic!() };
+        assert_eq!(def.items.len(), index + 1, "edited, not added");
+        assert!(points.iter().any(|p| p.v == "0.1 + 0.1"), "{points:?}");
+        assert!(points.iter().any(|p| p.u == "-0.1"), "{points:?}");
     }
 
     #[test]

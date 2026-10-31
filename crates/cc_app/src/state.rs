@@ -164,6 +164,8 @@ pub struct AppState {
     pub value_edit: Option<crate::dim_edit::ValueEdit>,
     /// The component modeling environment, when open (it replaces the views).
     pub component_env: Option<crate::component_env::Env>,
+    /// The open sketch of an outline (see [`crate::sketch_mode`]).
+    pub sketch: Option<crate::sketch_mode::Session>,
     /// Text editor open over a view (text notes).
     pub text_edit: Option<crate::text_tool::TextEditor>,
     /// Options of the text tools.
@@ -223,6 +225,7 @@ impl AppState {
             seen_selection: Default::default(),
             value_edit: None,
             component_env: None,
+            sketch: None,
             text_edit: None,
             text_options: Default::default(),
         }
@@ -325,6 +328,23 @@ impl AppState {
     }
 
     pub fn set_tool(&mut self, tool: Tool) {
+        // Sketch tools open a sketch (an outline being edited keeps its own); others close it.
+        match &tool {
+            Tool::Sketch { category, type_id } => {
+                let editing =
+                    self.sketch.as_ref().is_some_and(|s| matches!(s.target, crate::sketch_mode::Target::Edit { .. }));
+                if !editing {
+                    let target = crate::sketch_mode::Target::New { category: *category, type_id: *type_id };
+                    match self.sketch.as_mut() {
+                        Some(s) if matches!(s.target, crate::sketch_mode::Target::New { category: c, .. } if c == *category) => {
+                            s.target = target
+                        }
+                        _ => self.sketch = Some(crate::sketch_mode::Session::new(target, Vec::new())),
+                    }
+                }
+            }
+            _ => self.sketch = None,
+        }
         self.tool = tool;
         self.interaction = Interaction::default();
         self.typed.clear();

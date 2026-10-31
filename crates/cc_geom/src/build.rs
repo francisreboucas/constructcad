@@ -146,6 +146,8 @@ pub struct ModelGeometry {
     pub opening_fills: BTreeMap<ElementId, Vec<cc_core::component::ComponentPart>>,
     /// Conceptual masses: body, volume and mass floors.
     pub masses: BTreeMap<ElementId, crate::mass::MassGeom>,
+    /// Roofs: their framing members and covering figures.
+    pub roof_framing: BTreeMap<ElementId, crate::roof_framing::RoofFramingGeom>,
 }
 
 /// A foundation's body: a vertical prism.
@@ -311,7 +313,7 @@ impl ModelGeometry {
             closed.face_gaps.clear();
             return vec![mesh(&closed.to_solid([0, 0, 0]))];
         }
-        self.solids_of(id).map(mesh).collect()
+        self.body_of(id).map(mesh).collect()
     }
 
     /// Volume the bodies of `a` and `b` share (0 when they only touch). Bodies
@@ -353,7 +355,7 @@ impl ModelGeometry {
                 *self.join_deductions.entry(cut).or_default() += shared;
                 continue;
             }
-            for solid in self.solids.iter_mut().filter(|s| s.element == cut) {
+            for solid in self.solids.iter_mut().filter(|s| s.element == cut && !s.secondary) {
                 for cutter in &cutters {
                     let body: Vec<Vec<DVec3>> = solid.faces.iter().map(|f| f.verts.clone()).collect();
                     if !crate::csg::bounds_overlap(&body, cutter) {
@@ -812,12 +814,33 @@ impl ModelGeometry {
                 }
                 _ => continue,
             }
+            // A roof's framing and covering figures, from its sloped faces.
+            if let (ElementKind::Roof(_), TypeData::Roof { covering, framing, .. }) = (&e.kind, &ty.data) {
+                let g = crate::roof_framing::roof_framing(&s, framing, *covering);
+                if !g.members.is_empty() {
+                    // Its own solid, in the framing's material, apart from the
+                    // roof's body (left out of its volume, joins and IFC body).
+                    let mut members = Solid::of_material(e.id, Category::Beam, project, &framing.material);
+                    members.secondary = true;
+                    for m in &g.members {
+                        m.add_to(&mut members);
+                    }
+                    self.solids.push(members);
+                }
+                self.roof_framing.insert(e.id, g);
+            }
             self.solids.push(s);
         }
     }
 
     pub fn solids_of(&self, id: ElementId) -> impl Iterator<Item = &Solid> {
         self.solids.iter().filter(move |s| s.element == id)
+    }
+
+    /// The solids of an element's body: its solids without secondary parts
+    /// such as a roof's framing.
+    pub fn body_of(&self, id: ElementId) -> impl Iterator<Item = &Solid> {
+        self.solids_of(id).filter(|s| !s.secondary)
     }
 
     pub fn bounds(&self) -> Option<(DVec3, DVec3)> {
@@ -828,7 +851,7 @@ impl ModelGeometry {
     /// segment (the sides of a column, the faces of a component).
     pub fn plan_edges(&self, id: ElementId) -> Vec<(DVec2, DVec2)> {
         let mut out = Vec::new();
-        for face in self.solids_of(id).flat_map(|s| s.faces.iter()) {
+        for face in self.body_of(id).flat_map(|s| s.faces.iter()) {
             let n = DVec2::new(face.normal.x, face.normal.y);
             if face.normal.z.abs() > 1e-6 || n.length_squared() < 0.5 {
                 continue;
@@ -857,7 +880,7 @@ impl ModelGeometry {
             let shared = self.join_deductions.get(&id).copied().unwrap_or(0.0);
             return (wall.volume() - shared).max(0.0);
         }
-        self.solids_of(id).map(Solid::volume).sum()
+        self.body_of(id).map(Solid::volume).sum()
     }
 
     /// The nearest solid along `ray` among the elements `shown` accepts.

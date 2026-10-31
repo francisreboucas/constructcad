@@ -326,6 +326,11 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
         }
         F::Slope => match &e.kind {
             ElementKind::Pipe(s) if !s.is_vertical() => Value::Text(format::slope(s.slope())),
+            ElementKind::Roof(_) => geom
+                .roof_framing
+                .get(&e.id)
+                .and_then(|g| g.slopes)
+                .map_or(Value::Missing, |(lo, _)| Value::Text(format::slope(lo))),
             ElementKind::Ramp(r) => {
                 cc_geom::ramp_geom(project, e, r).map_or(Value::Missing, |g| Value::Text(format::slope(g.check.slope)))
             }
@@ -343,7 +348,24 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
         F::FloorArea => geom.masses.get(&e.id).map_or(Value::Missing, |m| Value::Area(m.floor_area())),
         F::FloorCount => geom.masses.get(&e.id).map_or(Value::Missing, |m| Value::Count(m.floors.len())),
         F::BarLength => geom.rebar.get(&e.id).map_or(Value::Missing, |r| Value::Length(r.bar_length())),
-        F::Weight => geom.rebar.get(&e.id).map_or(Value::Missing, |r| Value::Weight(r.weight())),
+        F::Weight => match (geom.rebar.get(&e.id), roof_covering(project, geom, e)) {
+            (Some(r), _) => Value::Weight(r.weight()),
+            (None, Some((spec, g))) => Value::Weight(spec.weight_on(g.sloped_area)),
+            _ => Value::Missing,
+        },
+        F::TileCount => roof_covering(project, geom, e)
+            .and_then(|(spec, g)| spec.tiles(g.sloped_area).map(|n| Value::Count(n as usize)))
+            .unwrap_or(Value::Missing),
+        F::FramingLength => geom
+            .roof_framing
+            .get(&e.id)
+            .filter(|g| !g.members.is_empty())
+            .map_or(Value::Missing, |g| Value::Length(g.total_length())),
+        F::FramingVolume => geom
+            .roof_framing
+            .get(&e.id)
+            .filter(|g| !g.members.is_empty())
+            .map_or(Value::Missing, |g| Value::Volume(g.volume())),
         F::Number => match &e.kind {
             ElementKind::Room(r) => text(&r.number),
             _ => Value::Missing,
@@ -513,6 +535,18 @@ pub fn to_csv(table: &Table, header: impl Fn(&str) -> String, cell: impl Fn(&Cel
         line(table.totals.clone());
     }
     out
+}
+
+/// A roof's covering (from its type) and its framing figures.
+fn roof_covering<'a>(
+    project: &Project,
+    geom: &'a ModelGeometry,
+    e: &Element,
+) -> Option<(cc_core::roofing::TileSpec, &'a cc_geom::roof_framing::RoofFramingGeom)> {
+    let Some(TypeData::Roof { covering: Some(kind), .. }) = project.element_type(e.type_id).map(|t| &t.data) else {
+        return None;
+    };
+    Some((kind.spec(), geom.roof_framing.get(&e.id)?))
 }
 
 #[cfg(test)]

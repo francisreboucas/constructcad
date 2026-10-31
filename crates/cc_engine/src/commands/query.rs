@@ -254,6 +254,10 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
     let group = p.group_of(id).map(|g| g.0);
     let level = json!({"id": e.level.0, "name": p.level_name(e.level)});
     let type_ = json!({"id": e.type_id.0, "name": p.type_name(e.type_id)});
+    let roof_type = match &e.kind {
+        ElementKind::Roof(_) => s.project().element_type(e.type_id).map(|t| t.data.clone()),
+        _ => None,
+    };
     let geom = s.geometry();
     if geom.solids_of(id).next().is_some() {
         derived.insert("volume".into(), json!(geom.volume(id)));
@@ -281,6 +285,12 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
     }
     if let ElementKind::Roof(r) = &e.kind {
         derived.insert("plan_area".into(), json!(cc_geom::roofs::plan_area(r)));
+        if let (Some(cc_core::TypeData::Roof { covering, framing, .. }), Some(g)) =
+            (&roof_type, geom.roof_framing.get(&id))
+        {
+            let (covering, framing, g) = (*covering, framing, g);
+            derived.insert("roofing".into(), super::roofing::roof_json(covering, framing.system, g));
+        }
     }
     if let Some(boundary) = geom.rooms.get(&id) {
         derived.insert("area".into(), json!(polygon::area(boundary)));

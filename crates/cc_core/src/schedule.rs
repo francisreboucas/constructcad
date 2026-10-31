@@ -65,6 +65,12 @@ pub enum ScheduleField {
     PhaseDemolished,
     /// Gross floor area of a mass: the sum of its mass floors.
     FloorArea,
+    /// Number of tiles on a roof.
+    TileCount,
+    /// Total length of a roof's framing members.
+    FramingLength,
+    /// Volume of a roof's framing members.
+    FramingVolume,
     /// How many mass floors a mass has.
     FloorCount,
 }
@@ -117,6 +123,9 @@ impl ScheduleField {
             ScheduleField::PhaseDemolished => "col-phase-demolished",
             ScheduleField::FloorArea => "col-floor-area",
             ScheduleField::FloorCount => "col-floor-count",
+            ScheduleField::TileCount => "col-tile-count",
+            ScheduleField::FramingLength => "col-framing-length",
+            ScheduleField::FramingVolume => "col-framing-volume",
         }
     }
 
@@ -131,7 +140,17 @@ impl ScheduleField {
             Category::Door => &[F::Width, F::Height, F::Sill, F::Host, F::ComponentName],
             Category::Window => &[F::Width, F::Height, F::Sill, F::Host, F::ComponentName],
             Category::Floor | Category::Ceiling => &[F::Thickness, F::Area, F::Perimeter, F::Volume],
-            Category::Roof => &[F::Thickness, F::Area, F::Perimeter, F::Volume],
+            Category::Roof => &[
+                F::Thickness,
+                F::Area,
+                F::Perimeter,
+                F::Volume,
+                F::Slope,
+                F::TileCount,
+                F::Weight,
+                F::FramingLength,
+                F::FramingVolume,
+            ],
             Category::Column => &[F::Section, F::Height, F::Volume, F::Material, F::Structural],
             Category::Beam => &[F::Section, F::Length, F::CutLength, F::Volume, F::Material],
             Category::Foundation => &[F::Section, F::Length, F::Area, F::Thickness, F::Volume, F::Material],

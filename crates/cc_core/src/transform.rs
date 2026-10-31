@@ -78,6 +78,9 @@ impl Element {
     /// under a mirror.
     pub fn transform(&mut self, t: &PlanTransform) {
         let p = |v: &mut DVec2| *v = t.apply(*v);
+        if let Some(Some(sketch)) = self.drawn_sketch_mut() {
+            sketch.transform(t);
+        }
         match &mut self.kind {
             ElementKind::Wall(w) => {
                 p(&mut w.start);

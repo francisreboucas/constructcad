@@ -146,6 +146,15 @@ A script is a list of steps, either a JSON array of `{"command": â€¦, "args": {â
 ccad --save-as house.ccad script examples/small_house.ccmacro
 ```
 
+### Outlines drawn with curves
+
+Floors, ceilings, roofs, foundation slabs and masses take their outline as `curves` instead of points: lines, arcs (by `bulge` or a point they pass `through`), circles, ellipses (whole or a part), rectangles and regular polygons (these two become lines). Loops inside the outline are openings of floors and roofs. The element keeps its curves: `sketch_get` gives them back (or lines along the outline of an element drawn with points) and `sketch_set` draws the outline again; moving, rotating and mirroring the element moves them too, and editing the outline's points directly drops them.
+
+```text
+{"command": "mass_create", "args": {"curves": [{"kind": "circle", "center": [0, 0], "radius": 5}], "height": 9}}
+{"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
+```
+
 Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, call `ccad run` from a shell script or use an agent over MCP.
 
 ## Macros in the app

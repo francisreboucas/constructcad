@@ -6,7 +6,7 @@
 //! overlap; sorting by centroid depth alone fails for large faces such as roofs.
 
 use crate::{Drawing2D, LineStyle, cut::POCHE, format};
-use cc_core::{CameraState, Direction, ElementId, Project};
+use cc_core::{CameraState, Direction, ElementId, Project, TypeData};
 use cc_geom::polygon::signed_area;
 use cc_geom::{ModelGeometry, clip_polygon, face_plane_segments};
 use glam::{DVec2, DVec3};
@@ -165,7 +165,10 @@ pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>) -> Dra
                 match cut {
                     Some(c) => {
                         let ty = c.project.element(solid.element).and_then(|e| c.project.element_type(e.type_id));
-                        let material = ty.map_or("", |t| t.data.cut_material());
+                        let material = ty.map_or("", |t| match &t.data {
+                            TypeData::Roof { framing, .. } if solid.secondary => framing.material.as_str(),
+                            data => data.cut_material(),
+                        });
                         crate::cut::cut_fill(&mut d, c.project, material, pts, c.spacing, Some(solid.element));
                     }
                     None => d.cut_fill(pts, POCHE, Some(solid.element)),
@@ -267,17 +270,21 @@ fn paint_order(frame: &Frame, faces: &[ProjectedFace]) -> Vec<usize> {
             pending[front] += 1;
         }
     }
-    // Kahn's algorithm, taking the farthest ready face first; on a cycle the
-    // farthest remaining face is forced.
+    // Kahn's algorithm, taking the farthest ready face first. On a cycle the
+    // face waiting on the fewest others is forced (the farthest among them):
+    // forcing the farthest instead lets a large face, such as a roof with
+    // many members under it, be painted before most of what it hides.
     let mut done = vec![false; n];
     let mut order = Vec::with_capacity(n);
     for _ in 0..n {
-        let farthest = |ready_only: bool| {
+        let ready =
+            (0..n).filter(|&k| !done[k] && pending[k] == 0).max_by(|&x, &y| faces[x].depth.total_cmp(&faces[y].depth));
+        let forced = || {
             (0..n)
-                .filter(|&k| !done[k] && (!ready_only || pending[k] == 0))
-                .max_by(|&x, &y| faces[x].depth.total_cmp(&faces[y].depth))
+                .filter(|&k| !done[k])
+                .min_by(|&x, &y| pending[x].cmp(&pending[y]).then(faces[y].depth.total_cmp(&faces[x].depth)))
         };
-        let Some(k) = farthest(true).or_else(|| farthest(false)) else { break };
+        let Some(k) = ready.or_else(forced) else { break };
         done[k] = true;
         order.push(k);
         for &f in &before[k] {
@@ -496,6 +503,53 @@ mod tests {
         let roof_top = fills.iter().filter(|f| f.1 == roof_id).max_by(|a, b| a.2.total_cmp(&b.2)).unwrap().0;
         let last_wall = fills.iter().filter(|f| f.1 == wall_id).map(|f| f.0).max().unwrap();
         assert!(roof_top > last_wall, "roof top painted at {roof_top}, a wall face at {last_wall}");
+    }
+
+    /// Three members lying over one another in a ring (a cycle) under a
+    /// large tilted face whose mean depth is the farthest: breaking the cycle
+    /// must not paint the large face before the members it hides.
+    #[test]
+    fn cycles_do_not_paint_a_large_face_early() {
+        let frame = Frame::looking(DVec3::new(0.0, 0.0, 10.0), -DVec3::Z);
+        let face = |verts: Vec<DVec3>| {
+            let normal = (verts[1] - verts[0]).cross(verts[2] - verts[0]).normalize();
+            ProjectedFace {
+                depth: verts.iter().map(|v| frame.depth(*v)).sum::<f64>() / verts.len() as f64,
+                normal,
+                point: verts[0],
+                pts: verts.iter().map(|v| frame.project(*v)).collect(),
+                color: [0; 4],
+                element: ElementId(1),
+                edges: Vec::new(),
+            }
+        };
+        // The large face rises along x: 4.25 to 5.75 m high over the members.
+        let z = |x: f64| 1.0 + 0.5 * x;
+        let big = face(vec![
+            DVec3::new(-10.0, -10.0, z(-10.0)),
+            DVec3::new(10.0, -10.0, z(10.0)),
+            DVec3::new(10.0, 10.0, z(10.0)),
+            DVec3::new(-10.0, 10.0, z(-10.0)),
+        ]);
+        // Strips along the sides of a triangle around (8, 0), each rising from
+        // 3 to 3.5 m in turn, so each lies over the next where they cross.
+        let center = DVec2::new(8.0, 0.0);
+        let corner = |k: usize| {
+            let a = std::f64::consts::TAU * k as f64 / 3.0;
+            center + DVec2::new(a.cos(), a.sin()) * 1.5
+        };
+        let mut faces = vec![big];
+        for k in 0..3 {
+            let (p, q) = (corner(k), corner(k + 1));
+            let d = (q - p).normalize();
+            let (a, b) = (p - d * 0.5, q + d * 0.5);
+            let side = d.perp() * 0.15;
+            let at = |p: DVec2, h: f64| DVec3::new(p.x, p.y, h);
+            faces.push(face(vec![at(a - side, 3.0), at(b - side, 3.5), at(b + side, 3.5), at(a + side, 3.0)]));
+        }
+        let order = paint_order(&frame, &faces);
+        assert_eq!(order.len(), 4);
+        assert_eq!(order.last(), Some(&0), "the large face hides the members: painted last, {order:?}");
     }
 
     #[test]
