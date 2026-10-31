@@ -98,6 +98,8 @@ struct Exporter<'a> {
     products: BTreeMap<ElementId, Id>,
     // Relationship collectors, emitted at the end.
     typed: BTreeMap<ElementTypeId, Vec<Id>>,
+    /// Roof framing: an `IfcMemberType` per roof type and member name, with its members.
+    member_types: BTreeMap<(ElementTypeId, &'static str), (Id, Vec<Id>)>,
     contained: BTreeMap<LevelId, Vec<Id>>,
     usage_objects: BTreeMap<Id, Vec<Id>>,
     /// Storey and its placement per level.
@@ -136,6 +138,7 @@ impl<'a> Exporter<'a> {
             products: BTreeMap::new(),
             usage_objects: BTreeMap::new(),
             typed: BTreeMap::new(),
+            member_types: BTreeMap::new(),
             contained: BTreeMap::new(),
             storeys: BTreeMap::new(),
             status_written: Default::default(),
@@ -1907,6 +1910,10 @@ impl<'a> Exporter<'a> {
                     "Qto_RoofBaseQuantities",
                     &[("GrossArea", Quantity::Area(gross)), ("ProjectedArea", Quantity::Area(projected))],
                 );
+                if let TypeData::Roof { covering, framing, .. } = &ty.data {
+                    let level_z = project.level_elevation(e.level);
+                    self.write_roof_framing(e, product, storey, level_z, *covering, framing);
+                }
             }
             _ => {}
         }
@@ -1951,6 +1958,117 @@ impl<'a> Exporter<'a> {
                 ("ProjectedArea", Quantity::Area(projected)),
             ],
         );
+        if let TypeData::Roof { covering, framing, .. } = &ty.data {
+            self.write_roof_framing(e, product, storey, level_z, *covering, framing);
+        }
+    }
+
+    /// A roof's covering and framing: the type's choices in [`ROOFING_PSET`]
+    /// (so importers can restore them) and each framing member as an
+    /// `IfcMember` (purlin, rafter, batten, or chord, post and strut of a
+    /// truss) aggregated in the roof, as a B-rep in the framing's material.
+    fn write_roof_framing(
+        &mut self,
+        e: &Element,
+        roof: Id,
+        storey: Id,
+        level_z: f64,
+        covering: Option<cc_core::roofing::TileKind>,
+        framing: &cc_core::roofing::RoofFraming,
+    ) {
+        use cc_core::roofing::FramingSystem;
+        use cc_geom::roof_framing::{MemberKind, TrussPart};
+        if covering.is_none() && framing.system == FramingSystem::None {
+            return;
+        }
+        let label = |s: &str| Value::Typed("IFCLABEL", Box::new(s.into()));
+        let length = |v: f64| Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(v)));
+        let mut props = vec![("FramingSystem", label(framing.system.code()))];
+        if let Some(c) = covering {
+            props.push(("Covering", label(c.code())));
+        }
+        if !framing.material.is_empty() {
+            props.push(("FramingMaterial", label(&framing.material)));
+        }
+        let sizes = [framing.purlin, framing.rafter, framing.batten, framing.truss];
+        for ((_, w, h), size) in ROOFING_SIZES.iter().zip(sizes) {
+            props.push((w, length(size.width)));
+            props.push((h, length(size.height)));
+        }
+        props.push(("PurlinSpacing", length(framing.purlin_spacing)));
+        props.push(("RafterSpacing", length(framing.rafter_spacing)));
+        props.push(("TrussSpacing", length(framing.truss_spacing)));
+        self.property_set(&format!("roofing-{}", e.id), ROOFING_PSET, vec![roof], props);
+
+        let geom = self.geom;
+        let Some(g) = geom.roof_framing.get(&e.id) else { return };
+        if g.members.is_empty() {
+            return;
+        }
+        let style = self.material_style(&framing.material);
+        let mut members = Vec::with_capacity(g.members.len());
+        for (i, m) in g.members.iter().enumerate() {
+            let (name, kind, object_type) = match (m.kind, m.truss) {
+                (MemberKind::Purlin, _) => ("Purlin", "PURLIN", None),
+                (MemberKind::Rafter, _) => ("Rafter", "RAFTER", None),
+                (MemberKind::Batten, _) => ("Batten", "USERDEFINED", Some("BATTEN")),
+                (MemberKind::Truss, Some(TrussPart::Post)) => ("King Post", "POST", None),
+                (MemberKind::Truss, Some(TrussPart::Strut)) => ("Strut", "STRUT", None),
+                (MemberKind::Truss, Some(TrussPart::Tie)) => ("Tie", "CHORD", None),
+                (MemberKind::Truss, _) => ("Top Chord", "CHORD", None),
+            };
+            let placement = self.local_placement(Some(storey), Frame::at(DVec3::ZERO));
+            let body = self.faceted_brep(&m.faces(), level_z);
+            self.styled(body, style);
+            let shape = self.shape_of_type(vec![body], None, "Brep");
+            let gid = self.guid(&format!("framing-{}-{i}", e.id));
+            let n = Value::Null;
+            let object_type = object_type.map_or(n.clone(), |t| t.into());
+            let member = self.w.add(
+                "IFCMEMBER",
+                args![
+                    gid,
+                    n.clone(),
+                    name,
+                    n.clone(),
+                    object_type.clone(),
+                    placement,
+                    shape,
+                    n.clone(),
+                    Value::Enum(kind)
+                ],
+            );
+            members.push(member);
+            let key = (e.type_id, name);
+            if !self.member_types.contains_key(&key) {
+                let gid = self.guid(&format!("member-type-{}-{name}", e.type_id));
+                let ty_name = format!("{} - {name}", self.project.type_name(e.type_id));
+                let t = self.w.add(
+                    "IFCMEMBERTYPE",
+                    args![
+                        gid,
+                        n.clone(),
+                        ty_name,
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        object_type.clone(),
+                        Value::Enum(kind)
+                    ],
+                );
+                self.member_types.insert(key, (t, Vec::new()));
+            }
+            if let Some((_, objects)) = self.member_types.get_mut(&key) {
+                objects.push(member);
+            }
+        }
+        if !framing.material.is_empty() {
+            let material = self.material(&framing.material);
+            self.associate_material(&format!("mat-framing-{}", e.id), members.clone(), material);
+        }
+        self.aggregate(&format!("agg-framing-{}", e.id), roof, members);
     }
 
     // --- Relationships collected while writing elements ---
@@ -1960,6 +2078,10 @@ impl<'a> Exporter<'a> {
         for (type_id, objects) in std::mem::take(&mut self.typed) {
             let Some(&ty) = self.types.get(&type_id) else { continue };
             let gid = self.guid(&format!("deftype-{type_id}"));
+            self.w.add("IFCRELDEFINESBYTYPE", args![gid, n.clone(), n.clone(), n.clone(), objects, ty]);
+        }
+        for ((type_id, name), (ty, objects)) in std::mem::take(&mut self.member_types) {
+            let gid = self.guid(&format!("deftype-member-{type_id}-{name}"));
             self.w.add("IFCRELDEFINESBYTYPE", args![gid, n.clone(), n.clone(), n.clone(), objects, ty]);
         }
         for (i, (usage, objects)) in std::mem::take(&mut self.usage_objects).into_iter().enumerate() {
@@ -2043,6 +2165,15 @@ fn section_area(section: cc_core::ColumnSection) -> f64 {
 pub const COMPONENT_PSET: &str = "ConstructCAD_Parameters";
 /// Property set of an element's construction phases (`PhaseCreated`, `PhaseDemolished`).
 pub const PHASING_PSET: &str = "ConstructCAD_Phasing";
+/// Property set of a roof's covering and framing (see `write_roof_framing`).
+pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
+/// The framing's member sizes in [`ROOFING_PSET`]: member, width and height properties.
+pub const ROOFING_SIZES: [(&str, &str, &str); 4] = [
+    ("Purlin", "PurlinWidth", "PurlinHeight"),
+    ("Rafter", "RafterWidth", "RafterHeight"),
+    ("Batten", "BattenWidth", "BattenHeight"),
+    ("Truss", "TrussWidth", "TrussHeight"),
+];
 /// Property set of the project's phases, in time order (properties `1`, `2`…).
 pub const PHASES_PSET: &str = "ConstructCAD_Phases";
 
