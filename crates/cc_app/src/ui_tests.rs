@@ -1049,6 +1049,73 @@ fn a_view_picked_on_a_sheet_shows_its_properties() {
     assert!(harness.query_by_label(&t!("section-graphics")).is_some(), "and the view's own graphics");
 }
 
+/// A view dragged from the project browser and dropped on a sheet is
+/// placed there, where it was dropped, and picked.
+#[test]
+fn a_view_dragged_from_the_browser_lands_on_the_sheet() {
+    let mut state = sample_state();
+    let project = state.project();
+    let sheet = project
+        .views
+        .values()
+        .find(|v| matches!(v.kind, cc_core::ViewKind::Sheet { .. }))
+        .map(|v| v.id)
+        .expect("the sample has a sheet");
+    // A view on no sheet yet, whose name no other view has (its browser row is found by name).
+    let unique = |name: &str| project.views.values().filter(|v| v.name == name).count() == 1;
+    let (view, name) = project
+        .views
+        .values()
+        .filter(|v| v.placeable() && crate::actions::sheet_of(project, v.id).is_none())
+        .filter(|v| !matches!(v.category(), cc_core::ViewCategory::Legend) && unique(&v.name))
+        .map(|v| (v.id, v.name.clone()))
+        .next()
+        .expect("a view to place");
+    state.active_view = Some(sheet);
+    let mut harness = themed_harness(state, egui::vec2(1100.0, 1000.0), egui::Theme::Light, |ui, state| {
+        let Some(sheet) = state.active_view else { return };
+        ui.horizontal_top(|ui| {
+            ui.allocate_ui(egui::vec2(320.0, 980.0), |ui| crate::browser::show(ui, state));
+            ui.allocate_ui(ui.available_size(), |ui| crate::sheet::show(ui, state, sheet));
+        });
+    });
+    harness.run();
+    let start = harness.get_by_label(&name).rect().center();
+    let target = egui::pos2(720.0, 500.0);
+    let pointer = |h: &mut Harness<'static, AppState>, pos: egui::Pos2, pressed: Option<bool>| {
+        h.input_mut().events.push(egui::Event::PointerMoved(pos));
+        if let Some(pressed) = pressed {
+            h.input_mut().events.push(egui::Event::PointerButton {
+                pos,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::NONE,
+            });
+        }
+        h.run();
+    };
+    pointer(&mut harness, start, None);
+    pointer(&mut harness, start, Some(true));
+    for i in 1..=10 {
+        pointer(&mut harness, start + (target - start) * (i as f32 / 10.0), None);
+    }
+    pointer(&mut harness, target, Some(false));
+    harness.run();
+    let state = harness.state_mut();
+    let placed = match state.project().view(sheet).map(|v| &v.kind) {
+        Some(cc_core::ViewKind::Sheet { viewports, .. }) => viewports.iter().position(|vp| vp.view == view),
+        _ => None,
+    };
+    let index = placed.expect("the dropped view is on the sheet");
+    assert_eq!(state.sheet_selection, Some((sheet, index)), "and picked");
+    let paper = state.sheet(sheet).map(|s| s.paper).unwrap();
+    let Some(cc_core::ViewKind::Sheet { viewports, .. }) = state.project().view(sheet).map(|v| &v.kind) else {
+        panic!("not a sheet")
+    };
+    let center = viewports[index].center;
+    assert!(center.cmpge(glam::DVec2::ZERO).all() && center.cmple(paper).all(), "{center} on {paper}");
+}
+
 /// The home screen in both themes, the Open button under the pointer: the
 /// sidebar buttons take the theme's colors (they stayed white in the dark
 /// theme, their light text unreadable).

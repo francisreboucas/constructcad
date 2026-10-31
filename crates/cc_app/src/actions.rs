@@ -110,6 +110,21 @@ pub fn place_on_sheet(state: &mut AppState, sheet: ViewId, view: ViewId) {
     run(state, views::SheetPlaceView { sheet: Ref::Id(sheet.0), view: Ref::Id(view.0), center: None });
 }
 
+/// Place `view` on `sheet` centered at `center` (paper millimeters) and
+/// select the new viewport; errors (already on a sheet…) go to the status bar.
+pub fn place_on_sheet_at(state: &mut AppState, sheet: ViewId, view: ViewId, center: glam::DVec2) {
+    let command =
+        views::SheetPlaceView { sheet: Ref::Id(sheet.0), view: Ref::Id(view.0), center: Some([center.x, center.y]) };
+    if run(state, command).is_some() {
+        let index = match state.project().view(sheet).map(|v| &v.kind) {
+            Some(ViewKind::Sheet { viewports, .. }) => viewports.iter().position(|vp| vp.view == view),
+            _ => None,
+        };
+        state.sheet_selection = index.map(|i| (sheet, i));
+        state.selection.clear();
+    }
+}
+
 pub fn remove_viewport(state: &mut AppState, sheet: ViewId, index: usize) {
     let view = match state.project().view(sheet).map(|v| &v.kind) {
         Some(ViewKind::Sheet { viewports, .. }) => viewports.get(index).map(|vp| vp.view),
