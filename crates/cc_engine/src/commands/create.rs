@@ -276,9 +276,14 @@ impl Command for WindowCreate {
 /// Parameters shared by floors, ceilings and roofs.
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 pub struct SketchArgs {
-    /// Closed outline (at least 3 points); omit with `from_walls`.
+    /// Closed outline (at least 3 points); omit with `from_walls` or `curves`.
     #[serde(default)]
     pub boundary: Option<Vec<Point>>,
+    /// The outline drawn with curves (lines, arcs, circles, ellipses, rectangles,
+    /// polygons) instead of `boundary`; loops inside the outline are openings
+    /// (floors and roofs). The element keeps the curves (see `sketch_get`).
+    #[serde(default)]
+    pub curves: Option<Vec<super::sketch::CurveArg>>,
     /// Follow the outer boundary of the walls of the level, leaving interior walls out
     /// (exterior faces; interior faces for ceilings).
     #[serde(default)]
@@ -295,10 +300,35 @@ pub struct SketchArgs {
     pub offset: Option<f64>,
 }
 
+/// The level, outline and openings of a sketched element, and the curves it
+/// was drawn with (`curves`).
+pub(crate) fn sketched(
+    s: &Session,
+    a: &SketchArgs,
+    category: Category,
+) -> Result<(LevelId, cc_core::sketch::Profile, Option<cc_core::sketch::Sketch>)> {
+    let Some(curves) = &a.curves else {
+        let (level, outline) = sketch(s, a, category)?;
+        return Ok((level, cc_core::sketch::Profile { outline, openings: Vec::new() }, None));
+    };
+    if a.boundary.is_some() || a.from_walls {
+        return Err(EngineError::invalid("give curves, a boundary or from_walls, only one"));
+    }
+    let level = refs::level_or_first(s.project(), a.level.as_ref())?;
+    let drawn = super::sketch::sketch_of(curves)?;
+    let profile = super::sketch::profile(&drawn)?;
+    Ok((level, profile, Some(drawn)))
+}
+
+/// The level and outline of an element with no openings.
 pub(crate) fn sketch(s: &Session, a: &SketchArgs, category: Category) -> Result<(LevelId, Vec<DVec2>)> {
     let p = s.project();
     let level = refs::level_or_first(p, a.level.as_ref())?;
     let pts = match (&a.boundary, a.from_walls) {
+        _ if a.curves.is_some() => {
+            let drawn = super::sketch::sketch_of(a.curves.as_deref().unwrap_or_default())?;
+            super::sketch::outline(&drawn)?
+        }
         (Some(b), _) => points(b)?,
         (None, true) => {
             let outward = if category == Category::Ceiling { -1.0 } else { 1.0 };
@@ -327,9 +357,16 @@ impl Command for FloorCreate {
     const NAME: &'static str = "floor_create";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        let (level, boundary) = sketch(s, &self.sketch, Category::Floor)?;
-        let mut floor = Floor::new(boundary, finite(self.sketch.offset.unwrap_or(0.0), "offset")?);
-        floor.openings = self.openings.iter().map(|o| points(o)).collect::<Result<_>>()?;
+        let (level, profile, drawn) = sketched(s, &self.sketch, Category::Floor)?;
+        if drawn.is_some() && !self.openings.is_empty() {
+            return Err(EngineError::invalid("with curves, draw the openings as loops inside the outline"));
+        }
+        let mut floor = Floor::new(profile.outline, finite(self.sketch.offset.unwrap_or(0.0), "offset")?);
+        floor.openings = match drawn {
+            Some(_) => profile.openings,
+            None => self.openings.iter().map(|o| points(o)).collect::<Result<_>>()?,
+        };
+        floor.sketch = drawn;
         check_openings(&floor.boundary, &floor.openings)?;
         create(
             s,
@@ -353,8 +390,12 @@ impl Command for CeilingCreate {
     const NAME: &'static str = "ceiling_create";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        let (level, boundary) = sketch(s, &self.sketch, Category::Ceiling)?;
-        let ceiling = Ceiling { boundary, height_offset: finite(self.sketch.offset.unwrap_or(2.6), "offset")? };
+        let (level, profile, drawn) = sketched(s, &self.sketch, Category::Ceiling)?;
+        if let Some(at) = profile.openings.first().and_then(|o| o.first()) {
+            return Err(super::sketch::sketch_error(cc_core::sketch::SketchError::Openings(*at)));
+        }
+        let height_offset = finite(self.sketch.offset.unwrap_or(2.6), "offset")?;
+        let ceiling = Ceiling { boundary: profile.outline, height_offset, sketch: drawn };
         let kind = ElementKind::Ceiling(ceiling);
         create(s, t!("tx-create-ceiling"), level, Category::Ceiling, self.sketch.type_ref.as_ref(), kind)
     }
@@ -423,14 +464,21 @@ impl Command for RoofCreate {
     const NAME: &'static str = "roof_create";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        let (level, footprint) = sketch(s, &self.sketch, Category::Roof)?;
+        let (level, profile, drawn) = sketched(s, &self.sketch, Category::Roof)?;
+        if drawn.is_some() && !self.holes.is_empty() {
+            return Err(EngineError::invalid("with curves, draw the openings as loops inside the outline"));
+        }
         let base_offset = match self.sketch.offset {
             Some(o) => finite(o, "offset")?,
             None => default_roof_base(s.project(), level),
         };
         let overhang = finite(self.overhang.unwrap_or(0.5), "overhang")?.max(0.0);
-        let mut roof = Roof::new(footprint, base_offset, overhang, RoofShape::Flat);
-        roof.holes = self.holes.iter().map(|h| points(h)).collect::<Result<_>>()?;
+        let mut roof = Roof::new(profile.outline, base_offset, overhang, RoofShape::Flat);
+        roof.holes = match drawn {
+            Some(_) => profile.openings,
+            None => self.holes.iter().map(|h| points(h)).collect::<Result<_>>()?,
+        };
+        roof.sketch = drawn;
         check_roof_holes(&roof)?;
         create(s, t!("tx-create-roof"), level, Category::Roof, self.sketch.type_ref.as_ref(), ElementKind::Roof(roof))
     }

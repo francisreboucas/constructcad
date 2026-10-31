@@ -23,6 +23,7 @@ pub mod query;
 pub mod ramp;
 pub mod rebar;
 pub mod roofing;
+pub mod sketch;
 pub mod stair;
 pub mod structure;
 pub mod types;

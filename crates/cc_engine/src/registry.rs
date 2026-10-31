@@ -168,6 +168,8 @@ registry![
         ramp::RampCheck,
         roofing::RoofCheck,
         mass::MassCreate,
+        sketch::SketchGet,
+        sketch::SketchSet,
         mass::MassFloorsSet,
         mass::MassFloors,
         mass::MassTypeCreate,

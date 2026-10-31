@@ -235,6 +235,9 @@ impl Project {
             }
         }
 
+        // Sketches that are invalid or no longer make their element's outline.
+        repairs += self.elements.values_mut().map(|e| usize::from(e.drop_stale_sketch())).sum::<usize>();
+
         // Mass floors on levels that are gone.
         let levels: std::collections::BTreeSet<_> = self.levels.iter().map(|l| l.id).collect();
         for e in self.elements.values_mut() {

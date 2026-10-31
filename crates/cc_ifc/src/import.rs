@@ -1472,7 +1472,7 @@ impl<'a> Importer<'a> {
             |d| matches!(d, TypeData::Ceiling { thickness: t, .. } if (t - thickness).abs() < TYPE_TOL),
             || TypeData::Ceiling { thickness, material },
         );
-        let ceiling = Ceiling { boundary, height_offset: z0 - elevation };
+        let ceiling = Ceiling { boundary, height_offset: z0 - elevation, sketch: None };
         self.add_element(id, e, level, type_id, Self::tag(e), ElementKind::Ceiling(ceiling));
         true
     }

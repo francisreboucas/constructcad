@@ -22,8 +22,13 @@ use serde_json::{Value, json};
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct MassCreate {
-    /// Base outline `[[x, y], …]` in plan, closed (at least three points).
+    /// Base outline `[[x, y], …]` in plan, closed (at least three points); or `curves`.
+    #[serde(default)]
     pub outline: Vec<Point>,
+    /// The base outline drawn with curves (lines, arcs, circles, ellipses,
+    /// rectangles, polygons) in one loop, instead of `outline`; the mass keeps them.
+    #[serde(default)]
+    pub curves: Option<Vec<super::sketch::CurveArg>>,
     /// Level id or name (default: the lowest level).
     #[serde(default)]
     pub level: Option<Ref>,
@@ -100,7 +105,20 @@ impl Command for MassCreate {
             Some(h) => positive(h, "height")?,
             None => p.level_height(level, 3.0).max(0.1),
         };
-        let base = outline(&self.outline, "outline")?;
+        let (base, drawn) = match &self.curves {
+            Some(_) if !self.outline.is_empty() => {
+                return Err(EngineError::invalid("give outline or curves, not both"));
+            }
+            Some(curves) => {
+                let drawn = super::sketch::sketch_of(curves)?;
+                let base = super::sketch::outline(&drawn)?;
+                if base.len() > MAX_OUTLINE {
+                    return Err(EngineError::invalid(format!("the outline makes more than {MAX_OUTLINE} points")));
+                }
+                (base, Some(drawn))
+            }
+            None => (outline(&self.outline, "outline")?, None),
+        };
         let top = match (&self.top, self.top_inset) {
             (Some(_), Some(_)) => return Err(EngineError::invalid("give top or top_inset, not both")),
             (Some(top), None) => Some(outline(top, "top")?),
@@ -123,7 +141,7 @@ impl Command for MassCreate {
             (None, None) => None,
             (r, _) => Some(refs::type_of(p, Category::Mass, r.as_ref())?),
         };
-        let mass = Mass { outline: base, base_offset, height, top, floors };
+        let mass = Mass { outline: base, base_offset, height, top, floors, sketch: drawn };
         let id = edit(s, t!("tx-create-mass"), |e| {
             let type_id = match ty {
                 Some(t) => t,

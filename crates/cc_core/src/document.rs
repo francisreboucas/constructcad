@@ -495,6 +495,17 @@ impl<'a> EditCtx<'a> {
         &mut self.project.phase_graphics
     }
 
+    /// Elements whose outline this edit changed without their sketch drop it
+    /// (see [`crate::sketch`]).
+    fn sync_sketches(&mut self) {
+        let ids: Vec<ElementId> = self.tx.elements.keys().copied().collect();
+        for id in ids {
+            if let Some(e) = self.project.elements.get_mut(&id) {
+                e.drop_stale_sketch();
+            }
+        }
+    }
+
     /// Keep phases consistent: elements and views added by this edit get
     /// the creation phase (views: the last phase and the default phase
     /// filter), and hosted elements follow their hosts
@@ -550,6 +561,7 @@ impl<'a> EditCtx<'a> {
         // Associative dimensions follow what this edit changed (elements or levels).
         self.sync_dimensions();
         self.sync_phases();
+        self.sync_sketches();
         self.sync_views();
         let p = &*self.project;
         self.tx.elements.retain(|id, c| {

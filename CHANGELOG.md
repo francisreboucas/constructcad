@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Roof framing in IFC. Each purlin, rafter, batten and truss member (top chord, tie, king post, strut) is exported as an `IfcMember` (`PURLIN`, `RAFTER`, `CHORD`, `POST`, `STRUT`, battens `USERDEFINED`) aggregated in its `IfcRoof`, with an `IfcMemberType` per roof type and member and the framing's material. The covering and framing settings go in a `ConstructCAD_Roofing` property set, so importing the file restores them on the roof's type and draws the framing again instead of adding the members as objects.
+- Outlines drawn with curves. Floors, ceilings, roofs, foundation slabs and masses take `curves` instead of points: lines, arcs, circles, ellipses (whole or partial), rectangles and regular polygons; loops inside the outline become openings of floors and roofs, and errors say where the sketch is open, branches or crosses. The element keeps its curves, which follow moves, rotations and mirrors; the new commands `sketch_get` and `sketch_set` read them and draw the outline again.
 
 ## [0.8.0] - 2026-10-30
 
