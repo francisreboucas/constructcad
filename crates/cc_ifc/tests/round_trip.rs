@@ -499,3 +499,49 @@ fn ifc_status_maps_to_phases() {
         _ => true,
     }));
 }
+
+/// Roof framing: each member is an `IfcMember` aggregated in its roof, and
+/// the covering and framing come back on the roof's type, the members drawn
+/// again rather than imported as objects of their own.
+#[test]
+fn roof_framing_round_trips() {
+    use cc_core::roofing::{FramingSystem, TileKind};
+    let mut original = load(include_str!("fixtures/roofs.ccad"));
+    original.materials.push(cc_core::Material::new("Pinus", [190, 150, 100]));
+    for t in original.types.values_mut() {
+        if let TypeData::Roof { covering, framing, .. } = &mut t.data {
+            *covering = Some(TileKind::CeramicRoman);
+            framing.system = FramingSystem::TimberTrusses;
+            framing.material = "Pinus".into();
+            framing.truss_spacing = 2.4;
+            framing.rafter = cc_core::roofing::MemberSize::new(0.05, 0.07);
+        }
+    }
+    let geom = cc_geom::ModelGeometry::build(&original);
+    let members: usize = geom.roof_framing.values().map(|g| g.members.len()).sum();
+    assert!(members > 0, "the fixture's roofs are framed");
+    let text = export(&original, &ExportOptions { time_stamp: None, file_name: "t.ifc".into() });
+    assert_eq!(text.matches("IFCMEMBER(").count(), members);
+    assert!(
+        text.contains(".PURLIN.") && text.contains(".RAFTER.") && text.contains(".CHORD.") && text.contains(".POST.")
+    );
+    assert!(text.contains("'ConstructCAD_Roofing'"));
+
+    let (imported, report) = import(&text, Project::from_template()).unwrap();
+    assert!(!report.skipped.contains_key("IFCMEMBER"), "{:?}", report.skipped);
+    let count = |p: &Project, c: Category| p.elements.values().filter(|e| e.category() == c).count();
+    assert_eq!(count(&imported, Category::Roof), count(&original, Category::Roof));
+    assert_eq!(count(&imported, Category::Component), count(&original, Category::Component), "no members as objects");
+    for e in imported.elements.values().filter(|e| e.category() == Category::Roof) {
+        let Some(TypeData::Roof { covering, framing, .. }) = imported.element_type(e.type_id).map(|t| &t.data) else {
+            panic!("a roof type");
+        };
+        assert_eq!(*covering, Some(TileKind::CeramicRoman));
+        assert_eq!((framing.system, framing.material.as_str()), (FramingSystem::TimberTrusses, "Pinus"));
+        close(framing.truss_spacing, 2.4, 1e-9, "truss spacing");
+        close(framing.rafter.height, 0.07, 1e-9, "rafter height");
+    }
+    assert!(imported.materials.iter().any(|m| m.name == "Pinus"));
+    let geom = cc_geom::ModelGeometry::build(&imported);
+    assert_eq!(geom.roof_framing.values().map(|g| g.members.len()).sum::<usize>(), members);
+}
