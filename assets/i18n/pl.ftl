@@ -62,9 +62,9 @@ tool-beam = Belka
 tool-stair = Schody
 tool-railing = Balustrada
 hint-column = Kliknij, aby umieścić słup · przyciąga do końców ścian i przecięć osi · Spacja obraca o 90°
-hint-beam = Kliknij początek i koniec każdej belki (łańcuchowo) · Esc kończy
+hint-beam = Kliknij początek i koniec każdej belki (łańcuchowo) · Esc kończy · Backspace lub Ctrl+Z cofa ostatni odcinek
 hint-stair = Kliknij początek schodów, a następnie kierunek biegu · stopnie wynikają z typu
-hint-railing = Kliknij punkty balustrady · Enter, dwuklik lub Zakończ kończy
+hint-railing = Kliknij punkty balustrady · Enter, dwuklik lub Zakończ kończy · Backspace usuwa ostatni punkt
 category-column = Słupy
 category-beam = Belki
 category-stair = Schody
@@ -322,10 +322,10 @@ view-new-sheet = Arkusz
 # Podpowiedzi
 hint-shortcut = Skrót
 hint-select = Kliknij, aby zaznaczyć · przeciągnij, aby przesunąć (Ctrl kopiuje) · Spacja obraca lub odwraca · okno: od lewej do prawej zaznacza zawarte, od prawej do lewej przecinane
-hint-wall = Kliknij punkt początkowy i kolejne · wpisz długość + Enter · Shift = ortogonalnie · Esc kończy
+hint-wall = Kliknij punkt początkowy i kolejne · wpisz długość + Enter · Shift = ortogonalnie · Esc kończy · Backspace lub Ctrl+Z cofa ostatni odcinek
 wall-mode-line = Prosta
 wall-mode-arc = Łuk
-hint-wall-arc = Kliknij początek i koniec łuku, a potem punkt na łuku · Esc kończy
+hint-wall-arc = Kliknij początek i koniec łuku, a potem punkt na łuku · Esc kończy · Backspace lub Ctrl+Z cofa ostatni odcinek
 hint-wall-arc-point = Kliknij punkt na łuku albo wpisz promień i naciśnij Enter
 hint-hosted = Najedź na ścianę i kliknij · Spacja odwraca otwór
 hint-sketch = Kliknij wierzchołki · kliknij pierwszy punkt lub naciśnij Enter, aby zakończyć · Backspace usuwa ostatni
@@ -1418,9 +1418,9 @@ group-analysis = Analiza
 group-electrical = Elektryka
 group-plumbing = Wod-kan
 group-systems = Systemy
-hint-conduit = Kliknij początek i koniec każdego odcinka; nowa rzędna podczas rysowania dodaje odcinek pionowy (kliknij ponownie ostatni punkt, aby dodać tylko go); Esc kończy łańcuch.
+hint-conduit = Kliknij początek i koniec każdego odcinka; nowa rzędna podczas rysowania dodaje odcinek pionowy (kliknij ponownie ostatni punkt, aby dodać tylko go); Esc kończy łańcuch. · Backspace lub Ctrl+Z cofa ostatni odcinek
 hint-device = Kliknij, aby umieścić; Spacja obraca o 90°. Urządzenia ścienne wystają przodem w stronę pomieszczenia.
-hint-pipe = Kliknij początek i koniec każdego odcinka; nowa rzędna podczas rysowania dodaje odcinek pionowy (kliknij ponownie ostatni punkt, aby dodać tylko go); Esc kończy łańcuch.
+hint-pipe = Kliknij początek i koniec każdego odcinka; nowa rzędna podczas rysowania dodaje odcinek pionowy (kliknij ponownie ostatni punkt, aby dodać tylko go); Esc kończy łańcuch. · Backspace lub Ctrl+Z cofa ostatni odcinek
 msg-choose-panel = Wskaż rozdzielnicę (`panel`): projekt nie ma żadnej lub ma kilka.
 msg-mep-connected = Utworzone odcinki: { $count } (bez sieci w pobliżu: { $skipped }).
 msg-not-a-panel = Element { $id } nie jest rozdzielnicą.

@@ -290,8 +290,13 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         }
     }
     let typing_length = state.typing_segment();
-    if backspace && typing_length {
-        state.typed.pop();
+    // Backspace edits a typed length, or else steps a chain back one segment.
+    if backspace {
+        if typing_length && !state.typed.is_empty() {
+            state.typed.pop();
+        } else {
+            crate::tools::chain_back(state);
+        }
     }
     for event in &events {
         match event {

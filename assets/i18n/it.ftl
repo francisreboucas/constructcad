@@ -62,9 +62,9 @@ tool-beam = Trave
 tool-stair = Scala
 tool-railing = Ringhiera
 hint-column = Fai clic per inserire un pilastro · si aggancia alle estremità dei muri e agli incroci della griglia · Spazio ruota di 90°
-hint-beam = Fai clic sull'inizio e sulla fine di ogni trave (concatenate) · Esc termina
+hint-beam = Fai clic sull'inizio e sulla fine di ogni trave (concatenate) · Esc termina · Backspace o Ctrl+Z annulla l'ultimo segmento
 hint-stair = Fai clic sul piede della scala, poi sulla direzione della rampa · le alzate seguono il tipo
-hint-railing = Fai clic sui punti della ringhiera · Enter, un doppio clic o Fine la termina
+hint-railing = Fai clic sui punti della ringhiera · Enter, un doppio clic o Fine la termina · Backspace toglie l'ultimo punto
 category-column = Pilastri
 category-beam = Travi
 category-stair = Scale
@@ -322,10 +322,10 @@ view-new-sheet = Tavola
 # Suggerimenti
 hint-shortcut = Scorciatoia
 hint-select = Fai clic per selezionare · trascina per spostare (Ctrl copia) · Spazio ruota o inverte · finestra: da sinistra a destra seleziona gli elementi contenuti, da destra a sinistra quelli intersecati
-hint-wall = Fai clic sul punto iniziale e sui successivi · digita una lunghezza + Enter · Shift = ortogonale · Esc termina
+hint-wall = Fai clic sul punto iniziale e sui successivi · digita una lunghezza + Enter · Shift = ortogonale · Esc termina · Backspace o Ctrl+Z annulla l'ultimo segmento
 wall-mode-line = Retta
 wall-mode-arc = Arco
-hint-wall-arc = Fai clic sull'inizio e sulla fine dell'arco, poi su un punto dell'arco · Esc termina
+hint-wall-arc = Fai clic sull'inizio e sulla fine dell'arco, poi su un punto dell'arco · Esc termina · Backspace o Ctrl+Z annulla l'ultimo segmento
 hint-wall-arc-point = Fai clic su un punto dell'arco, oppure digita il raggio e premi Invio
 hint-hosted = Passa sopra un muro e fai clic · Spazio inverte l'apertura
 hint-sketch = Fai clic sui vertici · fai clic sul primo punto o premi Enter per finire · Backspace rimuove l'ultimo
@@ -1418,9 +1418,9 @@ group-analysis = Analisi
 group-electrical = Elettrico
 group-plumbing = Idrosanitario
 group-systems = Sistemi
-hint-conduit = Fai clic sull'inizio e sulla fine di ogni tratto; una nuova quota durante il disegno aggiunge un tratto verticale (fai di nuovo clic sull'ultimo punto per avere solo quello); Esc termina la catena.
+hint-conduit = Fai clic sull'inizio e sulla fine di ogni tratto; una nuova quota durante il disegno aggiunge un tratto verticale (fai di nuovo clic sull'ultimo punto per avere solo quello); Esc termina la catena. · Backspace o Ctrl+Z annulla l'ultimo segmento
 hint-device = Fai clic per inserire; Spazio ruota di 90°. I punti a parete sporgono verso il fronte.
-hint-pipe = Fai clic sull'inizio e sulla fine di ogni tratto; una nuova quota durante il disegno aggiunge un tratto verticale (fai di nuovo clic sull'ultimo punto per avere solo quello); Esc termina la catena.
+hint-pipe = Fai clic sull'inizio e sulla fine di ogni tratto; una nuova quota durante il disegno aggiunge un tratto verticale (fai di nuovo clic sull'ultimo punto per avere solo quello); Esc termina la catena. · Backspace o Ctrl+Z annulla l'ultimo segmento
 msg-choose-panel = Indica il quadro di distribuzione (`panel`): il progetto non ne ha nessuno o ne ha diversi.
 msg-mep-connected = { $count } tratti creati ({ $skipped } senza rete nelle vicinanze).
 msg-not-a-panel = L'elemento { $id } non è un quadro di distribuzione.

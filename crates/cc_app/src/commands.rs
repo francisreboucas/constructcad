@@ -1369,13 +1369,18 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         Undo => match state.sketch.as_mut() {
             Some(s) => s.undo(),
             None => {
-                actions::run_command(state, cc_engine::commands::project::Undo {});
+                // While a chain is drawn, undo steps it back and the tool goes on.
+                if !crate::tools::chain_back(state) {
+                    actions::run_command(state, cc_engine::commands::project::Undo {});
+                }
             }
         },
         Redo => match state.sketch.as_mut() {
             Some(s) => s.redo(),
             None => {
-                actions::run_command(state, cc_engine::commands::project::Redo {});
+                if !crate::tools::chain_forward(state) {
+                    actions::run_command(state, cc_engine::commands::project::Redo {});
+                }
             }
         },
         Default3D => actions::open_default_3d(state),

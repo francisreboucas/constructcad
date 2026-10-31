@@ -90,6 +90,7 @@ Os comandos de arquivo do motor (`project_open`, `project_save`, `ifc_import`, `
 | Ctrl+X / Ctrl+C / Ctrl+V | Recortar / Copiar / Colar |
 | Delete | Excluir a seleção |
 | Esc | Cancelar a operação, sair da ferramenta, limpar a seleção |
+| Backspace | Ao desenhar uma sequência de paredes, vigas, tubos ou eletrodutos: desfaz o último segmento e continua do início dele (Ctrl+Z também; Ctrl+Y o refaz); o último ponto de um guarda-corpo |
 | Espaço | Girar ou inverter a seleção ou o elemento sendo posicionado |
 
 As teclas de duas letras funcionam com o foco numa vista e nenhum campo de texto em edição. O README lista todas elas, e cada dica mostra também o seu atalho.

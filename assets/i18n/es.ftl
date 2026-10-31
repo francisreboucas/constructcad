@@ -62,9 +62,9 @@ tool-beam = Viga
 tool-stair = Escalera
 tool-railing = Barandilla
 hint-column = Haga clic para colocar un pilar · se ajusta a extremos de muros y cruces de ejes · Espacio gira 90°
-hint-beam = Haga clic en el inicio y el final de cada viga (encadenadas) · Esc termina
+hint-beam = Haga clic en el inicio y el final de cada viga (encadenadas) · Esc termina · Retroceso o Ctrl+Z deshace el último segmento
 hint-stair = Haga clic en el pie de la escalera y luego en la dirección del tramo · las contrahuellas siguen el tipo
-hint-railing = Haga clic en los puntos de la barandilla · Enter, un doble clic o Terminar la finaliza
+hint-railing = Haga clic en los puntos de la barandilla · Enter, un doble clic o Terminar la finaliza · Retroceso quita el último punto
 category-column = Pilares
 category-beam = Vigas
 category-stair = Escaleras
@@ -322,10 +322,10 @@ view-new-sheet = Hoja
 # Sugerencias
 hint-shortcut = Atajo
 hint-select = Haga clic para seleccionar · arrastre para mover (Ctrl copia) · Espacio gira o invierte · ventana: de izquierda a derecha selecciona lo contenido, de derecha a izquierda lo que cruza
-hint-wall = Haga clic en el punto inicial y los siguientes · escriba una longitud + Enter · Mayús = ortogonal · Esc termina
+hint-wall = Haga clic en el punto inicial y los siguientes · escriba una longitud + Enter · Mayús = ortogonal · Esc termina · Retroceso o Ctrl+Z deshace el último segmento
 wall-mode-line = Recta
 wall-mode-arc = Arco
-hint-wall-arc = Haga clic en el inicio y el final del arco, luego en un punto del arco · Esc termina
+hint-wall-arc = Haga clic en el inicio y el final del arco, luego en un punto del arco · Esc termina · Retroceso o Ctrl+Z deshace el último segmento
 hint-wall-arc-point = Haga clic en un punto del arco o escriba el radio y pulse Intro
 hint-hosted = Pase el cursor sobre un muro y haga clic · Espacio invierte la abertura
 hint-sketch = Haga clic en los vértices · haga clic en el primer punto o pulse Enter para terminar · Retroceso quita el último
@@ -1418,9 +1418,9 @@ group-analysis = Análisis
 group-electrical = Eléctrica
 group-plumbing = Sanitaria
 group-systems = Sistemas
-hint-conduit = Haga clic en el inicio y el final de cada tramo; una nueva elevación durante el dibujo añade un tramo vertical (haga clic de nuevo en el último punto para solo ese); Esc termina la cadena.
+hint-conduit = Haga clic en el inicio y el final de cada tramo; una nueva elevación durante el dibujo añade un tramo vertical (haga clic de nuevo en el último punto para solo ese); Esc termina la cadena. · Retroceso o Ctrl+Z deshace el último segmento
 hint-device = Haga clic para insertar; Espacio lo gira 90°. Los puntos de pared quedan con el frente hacia el ambiente.
-hint-pipe = Haga clic en el inicio y el final de cada tramo; una nueva elevación durante el dibujo añade un tramo vertical (haga clic de nuevo en el último punto para solo ese); Esc termina la cadena.
+hint-pipe = Haga clic en el inicio y el final de cada tramo; una nueva elevación durante el dibujo añade un tramo vertical (haga clic de nuevo en el último punto para solo ese); Esc termina la cadena. · Retroceso o Ctrl+Z deshace el último segmento
 msg-choose-panel = Indique el tablero de distribución (`panel`): el proyecto no tiene ninguno o tiene varios.
 msg-mep-connected = { $count } tramos creados ({ $skipped } sin red cercana).
 msg-not-a-panel = El elemento { $id } no es un tablero de distribución.

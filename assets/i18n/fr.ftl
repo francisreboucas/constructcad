@@ -62,9 +62,9 @@ tool-beam = Poutre
 tool-stair = Escalier
 tool-railing = Garde-corps
 hint-column = Cliquez pour placer un poteau · accrochage aux extrémités des murs et aux intersections du quadrillage · Espace pivote de 90°
-hint-beam = Cliquez le début et la fin de chaque poutre (en chaîne) · Échap termine
+hint-beam = Cliquez le début et la fin de chaque poutre (en chaîne) · Échap termine · Retour arrière ou Ctrl+Z annule le dernier segment
 hint-stair = Cliquez le pied de l'escalier, puis la direction de la volée · les contremarches suivent le type
-hint-railing = Cliquez les points du garde-corps · Entrée, un double clic ou Terminer le termine
+hint-railing = Cliquez les points du garde-corps · Entrée, un double clic ou Terminer le termine · Retour arrière retire le dernier point
 category-column = Poteaux
 category-beam = Poutres
 category-stair = Escaliers
@@ -322,10 +322,10 @@ view-new-sheet = Feuille
 # Indications
 hint-shortcut = Raccourci
 hint-select = Cliquez pour sélectionner · faites glisser pour déplacer (Ctrl copie) · Espace pivote ou retourne · fenêtre : de gauche à droite sélectionne ce qui est inclus, de droite à gauche ce qui est traversé
-hint-wall = Cliquez le point de départ et les suivants · saisissez une longueur + Entrée · Maj = orthogonal · Échap termine
+hint-wall = Cliquez le point de départ et les suivants · saisissez une longueur + Entrée · Maj = orthogonal · Échap termine · Retour arrière ou Ctrl+Z annule le dernier segment
 wall-mode-line = Droite
 wall-mode-arc = Arc
-hint-wall-arc = Cliquez le début et la fin de l'arc, puis un point de l'arc · Échap termine
+hint-wall-arc = Cliquez le début et la fin de l'arc, puis un point de l'arc · Échap termine · Retour arrière ou Ctrl+Z annule le dernier segment
 hint-wall-arc-point = Cliquez un point de l'arc, ou tapez le rayon et appuyez sur Entrée
 hint-hosted = Survolez un mur et cliquez · Espace retourne l'ouverture
 hint-sketch = Cliquez les sommets · cliquez le premier point ou appuyez sur Entrée pour terminer · Retour arrière supprime le dernier
@@ -1418,9 +1418,9 @@ group-analysis = Analyse
 group-electrical = Électricité
 group-plumbing = Plomberie
 group-systems = Systèmes
-hint-conduit = Cliquez le début et la fin de chaque tronçon ; une nouvelle altitude pendant le dessin ajoute un tronçon vertical (cliquez de nouveau le dernier point pour celui-là seul) ; Échap termine la chaîne.
+hint-conduit = Cliquez le début et la fin de chaque tronçon ; une nouvelle altitude pendant le dessin ajoute un tronçon vertical (cliquez de nouveau le dernier point pour celui-là seul) ; Échap termine la chaîne. · Retour arrière ou Ctrl+Z annule le dernier segment
 hint-device = Cliquez pour placer ; Espace pivote de 90°. Les points muraux se tournent vers leur face avant.
-hint-pipe = Cliquez le début et la fin de chaque tronçon ; une nouvelle altitude pendant le dessin ajoute un tronçon vertical (cliquez de nouveau le dernier point pour celui-là seul) ; Échap termine la chaîne.
+hint-pipe = Cliquez le début et la fin de chaque tronçon ; une nouvelle altitude pendant le dessin ajoute un tronçon vertical (cliquez de nouveau le dernier point pour celui-là seul) ; Échap termine la chaîne. · Retour arrière ou Ctrl+Z annule le dernier segment
 msg-choose-panel = Indiquez le tableau de distribution (`panel`) : le projet n'en a aucun ou en a plusieurs.
 msg-mep-connected = { $count } tronçons créés ({ $skipped } sans réseau à proximité).
 msg-not-a-panel = L'élément { $id } n'est pas un tableau de distribution.
