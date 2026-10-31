@@ -603,17 +603,10 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
     group(ui, t!("group-model"), |ui| {
-        command_buttons(
-            ui,
-            state,
-            &[
-                place(Component),
-                UiCommand::NewComponent,
-                UiCommand::EditComponent,
-                UiCommand::LoadComponent,
-                UiCommand::ComponentLibrary,
-            ],
-        );
+        command_button(ui, state, place(Component));
+        // Making, editing and loading components: one column of small buttons.
+        stacks(ui, state, &[&[UiCommand::NewComponent, UiCommand::EditComponent, UiCommand::LoadComponent]]);
+        command_button(ui, state, UiCommand::ComponentLibrary);
     });
     group(ui, t!("group-datum"), |ui| command_buttons(ui, state, &[place(Grid), UiCommand::AlignGridEnds]));
     group(ui, t!("group-selection"), |ui| command_button(ui, state, UiCommand::Select));
