@@ -24,6 +24,19 @@ pub enum MemberKind {
     Truss,
 }
 
+/// The part of a truss a member is.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TrussPart {
+    /// A top chord, along a roof face.
+    Chord,
+    /// The level tie (bottom chord).
+    Tie,
+    /// The king post, under the apex.
+    Post,
+    /// A strut, from the post's foot to a chord.
+    Strut,
+}
+
 /// A framing member: its axis (along the roof plane), section, the
 /// in-plane direction its width runs along and the direction its height
 /// runs down (away from the roof), with the depth below the roof's
@@ -34,6 +47,8 @@ pub struct Member {
     pub a: DVec3,
     pub b: DVec3,
     pub size: MemberSize,
+    /// Which part of its truss, for truss members.
+    pub truss: Option<TrussPart>,
     side: DVec3,
     down: DVec3,
     depth: f64,
@@ -53,6 +68,13 @@ impl Member {
         let end = |p: DVec3| [p - half + top, p + half + top, p + half + bottom, p - half + bottom];
         let (n, f) = (end(self.a), end(self.b));
         [n[0], n[1], n[2], n[3], f[0], f[1], f[2], f[3]]
+    }
+
+    /// The member's box as polygons, faces turned outward.
+    pub fn faces(&self) -> Vec<crate::Face> {
+        let mut s = Solid::new(cc_core::ElementId(0), cc_core::Category::Beam, [0; 3]);
+        self.add_to(&mut s);
+        s.faces
     }
 
     /// Add the member's box to `solid`, faces turned outward.
@@ -271,9 +293,10 @@ fn trusses(faces: &[SlopedFace], framing: &RoofFraming, depth: f64, out: &mut Ro
         return;
     }
     let t = framing.truss;
-    let put = |out: &mut RoofFramingGeom, a: DVec3, b: DVec3, down: DVec3, depth: f64| {
+    let put = |out: &mut RoofFramingGeom, a: DVec3, b: DVec3, down: DVec3, depth: f64, part: TrussPart| {
         if out.members.len() < MAX_MEMBERS && a.distance(b) > 0.05 {
-            out.members.push(Member { kind: MemberKind::Truss, a, b, size: t, side: r, down, depth });
+            let truss = Some(part);
+            out.members.push(Member { kind: MemberKind::Truss, a, b, size: t, truss, side: r, down, depth });
         }
     };
     let span = |cut: &(DVec3, DVec3)| {
@@ -316,19 +339,19 @@ fn trusses(faces: &[SlopedFace], framing: &RoofFraming, depth: f64, out: &mut Ro
                 if down.z > 0.0 {
                     down = -down;
                 }
-                put(out, *a, *b, down, 0.0);
+                put(out, *a, *b, down, 0.0, TrussPart::Chord);
             }
             // The tie, level, its top at the chords' lowest end.
-            put(out, point(s0, low), point(s1, low), -DVec3::Z, 0.0);
+            put(out, point(s0, low), point(s1, low), -DVec3::Z, 0.0, TrussPart::Tie);
             // The king post and the struts, centered on their lines.
             let foot = point(apex.dot(across), low);
             if apex.z - low > 0.3 {
-                put(out, foot, apex, across, -t.height / 2.0);
+                put(out, foot, apex, across, -t.height / 2.0, TrussPart::Post);
                 for (a, b) in &cuts {
                     let mid = (*a + *b) / 2.0;
                     if (b.z - a.z).abs() > 0.05 && mid.distance(foot) > 0.3 {
                         let d = (mid - foot).normalize_or_zero();
-                        put(out, foot, mid, r.cross(d).normalize_or_zero(), -t.height / 2.0);
+                        put(out, foot, mid, r.cross(d).normalize_or_zero(), -t.height / 2.0, TrussPart::Strut);
                     }
                 }
             }
@@ -392,7 +415,7 @@ pub fn roof_framing(roof: &Solid, framing: &RoofFraming, covering: Option<TileKi
         let at = |x: f64, t: f64| o + along * x + up * t;
         let mut put = |kind: MemberKind, size: MemberSize, depth: f64, a: DVec3, b: DVec3, side: DVec3| {
             if out.members.len() < MAX_MEMBERS {
-                out.members.push(Member { kind, a, b, size, side, down: n, depth });
+                out.members.push(Member { kind, a, b, size, truss: None, side, down: n, depth });
             }
         };
         // Members along the eaves at heights `ts` up the slope, `depth` under the roof.
