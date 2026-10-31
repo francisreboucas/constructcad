@@ -3,9 +3,13 @@
 //! (see [`cc_core::sketch`]), in the active plan. The ribbon shows the
 //! drawing tools and *Finish*/*Cancel* while the sketch is open; in its
 //! *Select* mode a click picks a curve, whose grips stretch it and whose
-//! values the properties palette edits. *Finish* creates the element (or
-//! draws the edited element's outline again, *Edit Boundary*) through the
-//! engine's `curves`; the sketch's own changes undo inside it.
+//! values the properties palette edits; a window picks the curves inside it
+//! (or, dragged to the left, those it touches) and a double click the chain
+//! of joined curves. The modify tools move, copy, rotate and mirror the
+//! picked curves, and offset, trim, extend and split curves (see
+//! [`cc_core::sketch_edit`]). *Finish* creates the element (or draws the
+//! edited element's outline again, *Edit Boundary*) through the engine's
+//! `curves`; the sketch's own changes undo inside it.
 
 use crate::paint::{HIGHLIGHT, PREVIEW, Xf};
 use crate::state::AppState;
@@ -14,7 +18,8 @@ use crate::theme::{self, PALETTE};
 use crate::tools::{Tool, draw_snap, snap_at, temp_dimension};
 use cc_core::arc::Arc;
 use cc_core::sketch::{JOIN_TOL, Sketch, SketchCurve, SketchError};
-use cc_core::{Category, ElementId, ElementTypeId, LevelId};
+use cc_core::sketch_edit;
+use cc_core::{Category, ElementId, ElementTypeId, LevelId, PlanTransform};
 use cc_engine::Ref;
 use cc_engine::commands::sketch::CurveArg;
 use egui::{Color32, Painter, Response, Stroke, Ui};
@@ -61,6 +66,36 @@ pub enum Draw {
     ArcTangent,
     /// The center, the end of an axis, then the other axis's half length.
     Ellipse,
+    /// Move the picked curves: base point, then target.
+    Move,
+    /// Copies of the picked curves: base point, then targets.
+    Copy,
+    /// Rotate the picked curves: center, reference direction, final direction.
+    Rotate,
+    /// Mirror the picked curves across a line of the sketch.
+    MirrorPick,
+    /// Mirror the picked curves across an axis drawn with two points.
+    MirrorAxis,
+    /// A copy of a curve, or of its chain, at a distance.
+    Offset,
+    /// Two curves trimmed or extended to meet.
+    TrimCorner,
+    /// Curves trimmed or extended to a reference curve.
+    TrimExtend,
+    /// A curve split in two.
+    Split,
+}
+
+impl Draw {
+    /// The tools that act on the picked curves.
+    pub fn on_selection(self) -> bool {
+        matches!(self, Draw::Move | Draw::Copy | Draw::Rotate | Draw::MirrorPick | Draw::MirrorAxis)
+    }
+
+    /// The modify tools.
+    fn modifies(self) -> bool {
+        self.on_selection() || matches!(self, Draw::Offset | Draw::TrimCorner | Draw::TrimExtend | Draw::Split)
+    }
 }
 
 /// A grip of a selected curve: `which` is an end (0, 1), the middle of an
@@ -84,6 +119,11 @@ pub struct Session {
     /// Sides of the next polygon.
     pub sides: usize,
     pub selected: BTreeSet<usize>,
+    /// The curve picked first by *Trim corner* (with where it was clicked)
+    /// or the reference of *Trim/Extend*.
+    picked: Option<(usize, DVec2)>,
+    /// Where a selection window started.
+    boxing: Option<DVec2>,
     undo: Vec<Vec<SketchCurve>>,
     redo: Vec<Vec<SketchCurve>>,
     /// The grip being dragged, and where the curves were when it started.
@@ -100,6 +140,8 @@ impl Session {
             chain: true,
             sides: 6,
             selected: BTreeSet::new(),
+            picked: None,
+            boxing: None,
             undo: Vec::new(),
             redo: Vec::new(),
             drag: None,
@@ -169,6 +211,46 @@ impl Session {
         self.remember();
         if let Some(c) = self.curves.get_mut(i) {
             *c = curve;
+        }
+    }
+
+    /// Change some curves and add others, in one undo step.
+    fn change(&mut self, changes: &[(usize, SketchCurve)], added: &[SketchCurve]) {
+        if changes.iter().map(|(_, c)| c).chain(added).any(|c| !c.is_valid()) {
+            return;
+        }
+        self.remember();
+        for &(i, c) in changes {
+            if let Some(slot) = self.curves.get_mut(i) {
+                *slot = c;
+            }
+        }
+        self.curves.extend_from_slice(added);
+    }
+
+    /// The picked curves moved by `t` (one undo step), or copies of them;
+    /// returns the copies' indices.
+    pub fn transform_selected(&mut self, t: &PlanTransform, copy: bool) -> BTreeSet<usize> {
+        let moved: Vec<(usize, SketchCurve)> = self
+            .selected
+            .iter()
+            .filter_map(|&i| {
+                let mut c = *self.curves.get(i)?;
+                c.transform(t);
+                Some((i, c))
+            })
+            .collect();
+        if moved.is_empty() {
+            return BTreeSet::new();
+        }
+        let start = self.curves.len();
+        if copy {
+            let added: Vec<SketchCurve> = moved.iter().map(|(_, c)| *c).collect();
+            self.change(&[], &added);
+            (start..self.curves.len()).collect()
+        } else {
+            self.change(&moved, &[]);
+            BTreeSet::new()
         }
     }
 
@@ -413,8 +495,9 @@ pub fn error_text(e: &SketchError) -> String {
 /// Escape: drop the curve being drawn, then leave the drawing tool, then the selection.
 pub fn escape(state: &mut AppState) {
     let Some(s) = state.sketch.as_mut() else { return };
-    if !s.picks.is_empty() {
+    if !s.picks.is_empty() || s.picked.is_some() {
         s.picks.clear();
+        s.picked = None;
     } else if s.draw != Draw::Select {
         s.draw = Draw::Select;
     } else {
@@ -422,11 +505,16 @@ pub fn escape(state: &mut AppState) {
     }
 }
 
+/// Pick a drawing or modify tool; those acting on the picked curves need some.
 pub fn set_draw(state: &mut AppState, draw: Draw) {
-    if let Some(s) = state.sketch.as_mut() {
-        s.draw = draw;
-        s.picks.clear();
+    let Some(s) = state.sketch.as_mut() else { return };
+    if draw.on_selection() && s.selected.is_empty() {
+        state.message = t!("msg-select-first");
+        return;
     }
+    s.draw = draw;
+    s.picks.clear();
+    s.picked = None;
 }
 
 /// Add lines along the loop of the level's walls (their exterior faces;
@@ -476,6 +564,13 @@ pub fn canvas(ui: &Ui, resp: &Response, painter: &Painter, state: &mut AppState,
     let snapped = raw.map(|r| snap_at(state, Some(level), r, anchor, &extra, xf.scale, shift));
     if s.draw == Draw::Select {
         select(ui, resp, painter, &mut s, raw, snapped.map(|x| x.point), xf, tol);
+    } else if s.draw.modifies() {
+        if let (Some(raw), Some(sn)) = (raw, snapped) {
+            draw_snap(painter, xf, sn);
+            if let Some(message) = modify(resp, painter, &mut s, &state.modify, raw, sn.point, xf, tol) {
+                state.message = message;
+            }
+        }
     } else if let Some(sn) = snapped {
         draw_snap(painter, xf, sn);
         draw(resp, painter, &mut s, sn.point, xf, tol);
@@ -533,10 +628,42 @@ fn select(
     }
     let Some(raw) = raw else { return };
     // Dragging a grip: ends joined to it move along, so loops stay closed.
-    if resp.drag_started_by(egui::PointerButton::Primary)
-        && let Some((grip, _)) = grip_list.iter().find(|(_, p)| p.distance(raw) <= tol * 1.5)
-    {
-        s.drag = Some((*grip, s.curves.clone()));
+    // Dragged elsewhere, a window picks curves.
+    if resp.drag_started_by(egui::PointerButton::Primary) {
+        match grip_list.iter().find(|(_, p)| p.distance(raw) <= tol * 1.5) {
+            Some((grip, _)) => s.drag = Some((*grip, s.curves.clone())),
+            None => s.boxing = Some(raw),
+        }
+    }
+    if let Some(start) = s.boxing {
+        let rect = egui::Rect::from_two_pos(xf.to_screen(start), xf.to_screen(raw));
+        // Dragged to the left, the window picks the curves it touches.
+        let touching = xf.to_screen(raw).x < xf.to_screen(start).x;
+        painter.rect_filled(rect, 0.0, HIGHLIGHT.gamma_multiply(0.08));
+        painter.rect_stroke(rect, 0.0, Stroke::new(1.0, HIGHLIGHT), egui::StrokeKind::Middle);
+        if resp.drag_stopped() || !ui.input(|i| i.pointer.primary_down()) {
+            let picked: BTreeSet<usize> = s
+                .curves
+                .iter()
+                .enumerate()
+                .filter(|(_, c)| {
+                    let pts: Vec<egui::Pos2> = c.points().iter().map(|p| xf.to_screen(*p)).collect();
+                    if touching {
+                        pts.windows(2).any(|w| segment_touches(w[0], w[1], rect))
+                    } else {
+                        pts.iter().all(|p| rect.contains(*p))
+                    }
+                })
+                .map(|(i, _)| i)
+                .collect();
+            if ui.input(|i| i.modifiers.command) {
+                s.selected.extend(picked);
+            } else {
+                s.selected = picked;
+            }
+            s.boxing = None;
+        }
+        return;
     }
     if let Some((grip, before)) = s.drag.clone() {
         let p = snapped.unwrap_or(raw);
@@ -582,7 +709,12 @@ fn select(
         let pts: Vec<egui::Pos2> = c.points().iter().map(|p| xf.to_screen(*p)).collect();
         painter.add(egui::Shape::line(pts, Stroke::new(2.4, HIGHLIGHT.gamma_multiply(0.6))));
     }
-    if resp.clicked() {
+    if resp.double_clicked()
+        && let Some(i) = hit
+    {
+        // The chain of curves joined to it.
+        s.selected = sketch_edit::chain(&s.curves, i).0.into_iter().map(|(k, _)| k).collect();
+    } else if resp.clicked() {
         let ctrl = ui.input(|i| i.modifiers.command);
         match (hit, ctrl) {
             (Some(i), true) => {
@@ -621,7 +753,7 @@ fn draw(resp: &Response, painter: &Painter, s: &mut Session, p: DVec2, xf: &Xf, 
     let needed = match s.draw {
         Draw::Line | Draw::Rect | Draw::Polygon | Draw::PolygonOut | Draw::Circle | Draw::ArcTangent => 2,
         Draw::Arc3 | Draw::ArcCenter | Draw::Ellipse => 3,
-        Draw::Select => return,
+        _ => return,
     };
     if picks.len() + 1 < needed {
         // The tangent arc starts at a free end of the sketch.
@@ -698,6 +830,208 @@ fn next_curves(s: &Session, picks: &[DVec2], p: DVec2, tol: f64) -> Option<Vec<S
     }
 }
 
+/// Whether the segment `a`–`b` (screen points) touches `rect`.
+fn segment_touches(a: egui::Pos2, b: egui::Pos2, rect: egui::Rect) -> bool {
+    // Clip the segment's parameter to the rectangle's slabs.
+    let (mut t0, mut t1) = (0.0_f32, 1.0_f32);
+    let d = b - a;
+    for (p, q) in [(-d.x, a.x - rect.min.x), (d.x, rect.max.x - a.x), (-d.y, a.y - rect.min.y), (d.y, rect.max.y - a.y)]
+    {
+        if p == 0.0 {
+            if q < 0.0 {
+                return false;
+            }
+        } else {
+            let r = q / p;
+            if p < 0.0 {
+                t0 = t0.max(r);
+            } else {
+                t1 = t1.min(r);
+            }
+        }
+    }
+    t0 <= t1
+}
+
+/// A curve of the sketch drawn over it.
+fn paint_curve(painter: &Painter, xf: &Xf, c: &SketchCurve, width: f32, color: Color32) {
+    let pts: Vec<egui::Pos2> = c.points().iter().map(|p| xf.to_screen(*p)).collect();
+    painter.add(egui::Shape::line(pts, Stroke::new(width, color)));
+}
+
+/// The line of the sketch under the cursor, as a mirror axis.
+fn mirror_axis(s: &Session, p: DVec2, tol: f64) -> Option<(DVec2, DVec2)> {
+    s.curves
+        .iter()
+        .filter_map(|c| match *c {
+            SketchCurve::Line { a, b } => Some((a, b, distance(c, p))),
+            _ => None,
+        })
+        .filter(|(_, _, d)| *d <= tol)
+        .min_by(|x, y| x.2.total_cmp(&y.2))
+        .map(|(a, b, _)| (a, b))
+}
+
+/// The modify tools at the cursor (`raw`, snapped `p`): the transforms of
+/// the picked curves preview and apply them; offset, trim and split act on
+/// the curves clicked. Returns a message when a click does nothing.
+#[allow(clippy::too_many_arguments)]
+fn modify(
+    resp: &Response,
+    painter: &Painter,
+    s: &mut Session,
+    opts: &crate::modify::ModifyOptions,
+    raw: DVec2,
+    p: DVec2,
+    xf: &Xf,
+    tol: f64,
+) -> Option<String> {
+    let click = resp.clicked();
+    let hit = s.curve_at(raw, tol);
+    let hover = |painter: &Painter, i: Option<usize>| {
+        if let Some(c) = i.and_then(|i| s.curves.get(i)) {
+            paint_curve(painter, xf, c, 2.4, HIGHLIGHT.gamma_multiply(0.6));
+        }
+    };
+    if s.draw.on_selection() {
+        if let Some(&last) = s.picks.last() {
+            painter.line_segment([xf.to_screen(last), xf.to_screen(p)], Stroke::new(1.0, PREVIEW));
+        }
+        let t = match (s.draw, s.picks.as_slice()) {
+            (Draw::Move | Draw::Copy, [base]) => {
+                temp_dimension(painter, xf, *base, p, None, None, 0.0);
+                Some(PlanTransform::translate(p - *base))
+            }
+            (Draw::Rotate, [center, from]) => {
+                Some(PlanTransform::rotate_about(*center, (*from - *center).angle_to(p - *center)))
+            }
+            (Draw::MirrorAxis, [a]) => (a.distance(p) > JOIN_TOL).then(|| PlanTransform::mirror_across(*a, p - *a)),
+            (Draw::MirrorPick, _) => {
+                let axis = mirror_axis(s, raw, tol);
+                if let Some((a, b)) = axis {
+                    paint_curve(painter, xf, &SketchCurve::Line { a, b }, 2.4, HIGHLIGHT.gamma_multiply(0.6));
+                }
+                axis.map(|(a, b)| PlanTransform::mirror_across(a, b - a))
+            }
+            _ => None,
+        };
+        if let Some(t) = &t {
+            for c in s.selected.iter().filter_map(|&i| s.curves.get(i)) {
+                let mut c = *c;
+                c.transform(t);
+                paint_curve(painter, xf, &c, 1.2, PREVIEW);
+            }
+        }
+        if !click {
+            return None;
+        }
+        let Some(t) = t else {
+            if s.draw == Draw::MirrorPick {
+                return Some(t!("hint-sketch-mirror-pick"));
+            }
+            if s.picks.last().is_none_or(|l| l.distance(p) > JOIN_TOL) {
+                s.picks.push(p);
+            }
+            return None;
+        };
+        let copy = match s.draw {
+            Draw::Copy => true,
+            Draw::Rotate => opts.rotate_copy,
+            Draw::MirrorPick | Draw::MirrorAxis => opts.mirror_copy,
+            _ => false,
+        };
+        let copies = s.transform_selected(&t, copy);
+        // Copying several times goes on from the same base point.
+        if s.draw == Draw::Copy && opts.multiple {
+            return None;
+        }
+        if copy {
+            s.selected = copies;
+        }
+        s.picks.clear();
+        s.draw = Draw::Select;
+        return None;
+    }
+    match s.draw {
+        Draw::Offset => {
+            hover(painter, hit);
+            let i = hit?;
+            let out = if s.chain {
+                sketch_edit::offset_chain(&s.curves, i, opts.offset, raw)
+            } else {
+                s.curves.get(i).and_then(|c| sketch_edit::offset(c, opts.offset, raw)).map(|c| vec![c])
+            };
+            match out {
+                Some(curves) => {
+                    for c in &curves {
+                        paint_curve(painter, xf, c, 1.2, PREVIEW);
+                    }
+                    if click {
+                        s.add(curves);
+                    }
+                    None
+                }
+                None => click.then(|| t!("sketch-no-offset")),
+            }
+        }
+        Draw::TrimCorner | Draw::TrimExtend => {
+            let Some((first, at)) = s.picked else {
+                hover(painter, hit);
+                if click && let Some(i) = hit {
+                    s.picked = Some((i, raw));
+                }
+                return None;
+            };
+            if let Some(c) = s.curves.get(first) {
+                paint_curve(painter, xf, c, 2.4, HIGHLIGHT);
+            }
+            let j = hit.filter(|j| *j != first)?;
+            let (c1, c2) = (*s.curves.get(first)?, *s.curves.get(j)?);
+            hover(painter, Some(j));
+            let changes = if s.draw == Draw::TrimCorner {
+                sketch_edit::trim_corner(&c1, at, &c2, raw).map(|(a, b)| vec![(first, a), (j, b)])
+            } else {
+                sketch_edit::trim_extend(&c2, raw, &c1).map(|b| vec![(j, b)])
+            };
+            match changes {
+                Some(changes) => {
+                    for (_, c) in &changes {
+                        paint_curve(painter, xf, c, 1.2, PREVIEW);
+                    }
+                    if click {
+                        s.change(&changes, &[]);
+                        // Trim/Extend goes on with the same reference.
+                        if s.draw == Draw::TrimCorner {
+                            s.picked = None;
+                        }
+                    }
+                    None
+                }
+                None if !click => None,
+                None if (c1.is_closed() && s.draw == Draw::TrimCorner) || c2.is_closed() => Some(t!("sketch-no-trim")),
+                None => Some(t!("sketch-no-meet")),
+            }
+        }
+        Draw::Split => {
+            hover(painter, hit);
+            let i = hit?;
+            let c = *s.curves.get(i)?;
+            let Some((a, b)) = sketch_edit::split(&c, p) else {
+                return click.then(|| t!("sketch-no-split"));
+            };
+            if let Some((_, at)) = a.ends() {
+                painter.circle_stroke(xf.to_screen(at), 4.0, Stroke::new(1.5, HIGHLIGHT));
+            }
+            if click {
+                s.change(&[(i, a)], &[b]);
+                s.selected.clear();
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 // --- Ribbon, options bar and properties ---
 
 /// The sketch's ribbon: mode, drawing tools and tools.
@@ -726,13 +1060,20 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
                 &[SketchArc3, SketchArcCenter, SketchArcTangent],
             ],
         );
+        crate::ribbon::env_stacks(
+            ui,
+            state,
+            t!("group-modify"),
+            &[&[Move, CopyElements, Rotate], &[MirrorPick, MirrorDraw, Offset], &[TrimCorner, TrimExtend, Split]],
+        );
         crate::ribbon::env_group(ui, state, t!("group-sketch-tools"), &[SketchPickWalls, Delete]);
         crate::ribbon::env_group(ui, state, t!("group-mode"), &[SketchFinish, SketchCancel]);
     });
 }
 
-/// The options bar: chaining, polygon sides and the hint.
+/// The options bar: chaining, polygon sides, the modify tools' options and the hint.
 pub fn options(ui: &mut Ui, state: &mut AppState) {
+    let opts = &mut state.modify;
     let Some(s) = state.sketch.as_mut() else { return };
     match s.draw {
         Draw::Line => {
@@ -742,6 +1083,41 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         Draw::Polygon | Draw::PolygonOut => {
             ui.label(t!("sketch-sides"));
             ui.add(egui::DragValue::new(&mut s.sides).range(3..=64));
+            ui.separator();
+        }
+        Draw::Copy => {
+            ui.checkbox(&mut opts.multiple, t!("opt-multiple"));
+            ui.separator();
+        }
+        Draw::Rotate => {
+            ui.checkbox(&mut opts.rotate_copy, t!("opt-copy"));
+            ui.separator();
+            ui.label(t!("prop-rotation"));
+            ui.add(egui::DragValue::new(&mut opts.angle).speed(1.0).suffix("°"));
+            // About the center clicked, or the middle of the picked curves.
+            if ui.button(t!("action-apply")).clicked()
+                && let Some(center) = s.picks.first().copied().or_else(|| selection_center(s))
+            {
+                let copies = s.transform_selected(
+                    &PlanTransform::rotate_about(center, opts.angle.to_radians()),
+                    opts.rotate_copy,
+                );
+                if opts.rotate_copy {
+                    s.selected = copies;
+                }
+                s.picks.clear();
+                s.draw = Draw::Select;
+            }
+            ui.separator();
+        }
+        Draw::MirrorPick | Draw::MirrorAxis => {
+            ui.checkbox(&mut opts.mirror_copy, t!("opt-copy"));
+            ui.separator();
+        }
+        Draw::Offset => {
+            ui.label(t!("opt-distance"));
+            ui.add(crate::properties::length_drag(&mut opts.offset).range(0.001..=100.0));
+            ui.checkbox(&mut s.chain, t!("sketch-chain"));
             ui.separator();
         }
         _ => {}
@@ -767,8 +1143,29 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         (Draw::ArcTangent, _) => t!("hint-sketch-arc-end"),
         (Draw::Ellipse, 1) => t!("hint-sketch-axis"),
         (Draw::Ellipse, _) => t!("hint-sketch-other-axis"),
+        (Draw::Move | Draw::Copy, 0) => t!("hint-base-point"),
+        (Draw::Move | Draw::Copy, _) => t!("hint-sketch-move-target"),
+        (Draw::Rotate, 0) => t!("hint-sketch-rotate-center"),
+        (Draw::Rotate, 1) => t!("hint-sketch-rotate-from"),
+        (Draw::Rotate, _) => t!("hint-rotate-target"),
+        (Draw::MirrorPick, _) => t!("hint-sketch-mirror-pick"),
+        (Draw::MirrorAxis, _) => t!("hint-mirror-draw"),
+        (Draw::Offset, _) => t!("hint-sketch-offset"),
+        (Draw::TrimCorner, _) if s.picked.is_some() => t!("hint-sketch-trim-corner-second"),
+        (Draw::TrimCorner, _) => t!("hint-sketch-trim-corner"),
+        (Draw::TrimExtend, _) if s.picked.is_some() => t!("hint-sketch-trim-extend-second"),
+        (Draw::TrimExtend, _) => t!("hint-sketch-trim-extend"),
+        (Draw::Split, _) => t!("hint-sketch-split"),
     };
     ui.label(theme::muted(hint));
+}
+
+/// The middle of the picked curves' extents.
+fn selection_center(s: &Session) -> Option<DVec2> {
+    let pts = s.selected.iter().filter_map(|&i| s.curves.get(i)).flat_map(|c| c.points());
+    let (lo, hi) =
+        pts.fold(None, |acc: Option<(DVec2, DVec2)>, p| Some(acc.map_or((p, p), |(lo, hi)| (lo.min(p), hi.max(p)))))?;
+    Some((lo + hi) / 2.0)
 }
 
 /// The selected curve's values in the properties palette.
@@ -882,6 +1279,33 @@ mod tests {
         assert!(free_end(&s, DVec2::new(4.0, 0.0), 0.1).is_some());
         s.curves.push(SketchCurve::Line { a: DVec2::new(4.0, 0.0), b: DVec2::new(4.0, 4.0) });
         assert!(free_end(&s, DVec2::new(4.0, 0.0), 0.1).is_none());
+    }
+
+    #[test]
+    fn picked_curves_move_copy_and_change_in_one_step() {
+        let mut s = session(Draw::Select);
+        let rect = CurveArg::Rectangle { corner: [0.0, 0.0], opposite: [4.0, 2.0], rotation: 0.0 }.curves().unwrap();
+        s.add(rect);
+        s.selected = BTreeSet::from([0, 1]);
+        let copies = s.transform_selected(&PlanTransform::translate(DVec2::new(0.0, 10.0)), true);
+        assert_eq!((s.curves.len(), copies), (6, BTreeSet::from([4, 5])));
+        assert_eq!(s.curves[4], SketchCurve::Line { a: DVec2::new(0.0, 10.0), b: DVec2::new(4.0, 10.0) });
+        // Moved, not copied: one undo step brings them back.
+        s.transform_selected(&PlanTransform::rotate_about(DVec2::ZERO, std::f64::consts::PI), false);
+        assert!(matches!(s.curves[0], SketchCurve::Line { b, .. } if b.distance(DVec2::new(-4.0, 0.0)) < 1e-9));
+        s.undo();
+        assert_eq!(s.curves[0], SketchCurve::Line { a: DVec2::ZERO, b: DVec2::new(4.0, 0.0) });
+        // A change with an invalid curve changes nothing.
+        let before = s.curves.clone();
+        s.change(&[(0, SketchCurve::Line { a: DVec2::ZERO, b: DVec2::ZERO })], &[]);
+        assert_eq!(s.curves, before);
+        // Windows touch the segments that cross them, even with both ends outside.
+        let r = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(10.0, 10.0));
+        assert!(segment_touches(egui::pos2(-5.0, 5.0), egui::pos2(15.0, 5.0), r));
+        assert!(!segment_touches(egui::pos2(-5.0, 15.0), egui::pos2(15.0, 12.0), r));
+        // Tools on the picked curves need some.
+        s.selected.clear();
+        assert!(Draw::Move.on_selection() && !Draw::Offset.on_selection() && Draw::Split.modifies());
     }
 
     #[test]

@@ -1239,6 +1239,19 @@ fn sketch_mode_creates_and_edits_outlines() {
     crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
     assert!(state.sketch.is_some(), "an open line keeps the sketch open");
     assert_eq!(state.message, t!("sketch-open-end"));
+    // In a sketch the modify tools act on its curves: those on the picked
+    // curves need some, the others pick curves themselves.
+    let s = state.sketch.as_mut().unwrap();
+    s.selected.clear();
+    assert_eq!(UiCommand::Move.unavailable(&state), Some(t!("msg-select-first")));
+    assert_eq!(UiCommand::Offset.unavailable(&state), None);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::TrimCorner);
+    assert_eq!(state.sketch.as_ref().unwrap().draw, Draw::TrimCorner);
+    assert!(UiCommand::TrimCorner.selected(&state) && !UiCommand::Split.selected(&state));
+    state.sketch.as_mut().unwrap().selected.insert(0);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::Rotate);
+    assert_eq!(state.sketch.as_ref().unwrap().draw, Draw::Rotate);
+    assert!(matches!(state.tool, crate::tools::Tool::Sketch { .. }), "the element tools stay out of the sketch");
     let revision = state.session.doc.revision();
     crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchCancel);
     assert!(state.sketch.is_none() && state.tool == crate::tools::Tool::Select);
