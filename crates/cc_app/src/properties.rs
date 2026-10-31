@@ -568,6 +568,7 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                     opening_rows(ui, state, id, &r.holes, false)
                 });
             }
+            roofing_rows(ui, state, &el);
         }
     }
 
@@ -1249,6 +1250,64 @@ fn beam_justification(ui: &mut Ui, state: &mut AppState, id: cc_core::ElementId,
             }
         });
     }
+}
+
+/// A roof's covering and framing, from its type: the tiles and how many,
+/// their weight, the roof's slope against the least the tiles take, and
+/// the framing's lengths and volume.
+fn roofing_rows(ui: &mut Ui, state: &mut AppState, el: &Element) {
+    use cc_geom::roof_framing::MemberKind;
+    let Some(cc_core::TypeData::Roof { covering, framing, .. }) =
+        state.project().element_type(el.type_id).map(|t| &t.data)
+    else {
+        return;
+    };
+    if covering.is_none() && framing.system == cc_core::roofing::FramingSystem::None {
+        return;
+    }
+    let covering = *covering;
+    let Some(g) = state.session.geom().roof_framing.get(&el.id) else { return };
+    section(ui, "roofing", t!("section-roofing"), |ui| {
+        if let Some(kind) = covering {
+            let spec = kind.spec();
+            readonly_row(ui, &t!("prop-covering"), tr(kind.key()));
+            let slope = g.slopes.map(|(lo, _)| lo);
+            let ok = slope.is_some_and(|s| spec.accepts(s));
+            let text = match slope {
+                Some(s) => t!("value-slope-min", "slope" => format::slope(s), "min" => format::slope(spec.min_slope)),
+                None => t!("msg-roof-flat-tiles"),
+            };
+            row(ui, &t!("prop-slope"), |ui| {
+                let color = if ok { PALETTE.text } else { PALETTE.danger };
+                ui.label(RichText::new(text).color(color)).on_hover_text(if ok {
+                    String::new()
+                } else {
+                    t!("hint-roof-too-flat")
+                })
+            });
+            if let Some(n) = spec.tiles(g.sloped_area) {
+                readonly_row(ui, &t!("col-tile-count"), format!("{n:.0}"));
+            }
+            readonly_row(ui, &t!("col-weight"), format!("{:.0} kg", spec.weight_on(g.sloped_area)));
+        }
+        if !g.members.is_empty() {
+            if g.trusses > 0 {
+                readonly_row(ui, &t!("prop-truss-count"), g.trusses.to_string());
+            }
+            for (label, kind) in [
+                ("prop-truss", MemberKind::Truss),
+                ("prop-purlin", MemberKind::Purlin),
+                ("prop-rafter", MemberKind::Rafter),
+                ("prop-batten", MemberKind::Batten),
+            ] {
+                let length = g.length(kind);
+                if length > 0.0 {
+                    readonly_row(ui, &tr(label), format::length(length));
+                }
+            }
+            readonly_row(ui, &t!("col-framing-volume"), format::volume(g.volume()));
+        }
+    });
 }
 
 /// Base and top constraints, location line and room bounding of a wall.

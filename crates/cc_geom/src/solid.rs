@@ -74,6 +74,9 @@ pub struct Solid {
     /// 0 (opaque) to 1 (invisible), from the material.
     pub transparency: f64,
     pub faces: Vec<Face>,
+    /// A part the element carries that is not its body (a roof's framing):
+    /// drawn, but left out of its volume, joins and exported body.
+    pub secondary: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,7 +87,7 @@ pub struct Ray {
 
 impl Solid {
     pub fn new(element: ElementId, category: Category, color: [u8; 3]) -> Self {
-        Self { element, category, color, transparency: 0.0, faces: Vec::new() }
+        Self { element, category, color, transparency: 0.0, faces: Vec::new(), secondary: false }
     }
 
     /// An empty solid colored and made transparent like material `name`.

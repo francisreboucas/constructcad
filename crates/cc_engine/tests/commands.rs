@@ -2708,3 +2708,87 @@ fn walls_floors_and_roof_by_face() {
     assert_eq!(two["created"].as_array().unwrap().len(), 2);
     assert_eq!(fails(&mut s, "mass_walls_create", json!({"id": m, "sides": [4]})), ErrorCode::InvalidArguments);
 }
+
+/// Roof coverings and framing: a gable roof with French tiles on timber
+/// purlins, rafters and battens; the check against the tiles' least slope,
+/// the tiles and weight, the framing figures and its own solid (left out of
+/// the roof's volume); steel purlins for fiber cement sheets.
+#[test]
+fn roof_tiles_and_framing() {
+    let mut s = Session::default();
+    let near = |a: f64, b: f64| (a - b).abs() < 1e-6;
+    let roof = id(&run(&mut s, "roof_create", json!({"boundary": [[0, 0], [10, 0], [10, 8], [0, 8]], "overhang": 0})));
+    run(&mut s, "element_set", json!({"id": roof, "params": {"shape": {"Gable": {"slope": 0.35, "ridge_deg": 0}}}}));
+    let ty = run(&mut s, "element_get", json!({"id": roof}))["type"]["id"].as_u64().unwrap();
+    let volume_bare = run(&mut s, "element_get", json!({"id": roof}))["derived"]["volume"].as_f64().unwrap();
+
+    // A covering brings the framing it usually lies on when none was chosen.
+    run(&mut s, "type_set", json!({"type": ty, "params": {"covering": "CeramicFrench"}}));
+    assert_eq!(run(&mut s, "roof_check", json!({"id": roof}))["framing"]["system"], "Timber");
+    // Tiles only: the check and the figures, no members.
+    run(&mut s, "type_set", json!({"type": ty, "params": {"framing": {"system": "None"}}}));
+    let check = run(&mut s, "roof_check", json!({"id": roof}));
+    assert_eq!(check["ok"], true, "{check}");
+    assert!(near(check["slopes"][0].as_f64().unwrap(), 0.35));
+    let area = check["sloped_area"].as_f64().unwrap();
+    assert!(area > 80.0 && area < 90.0, "about 80 m² of plan at 35 %: {area}");
+    assert_eq!(check["tiles"].as_f64().unwrap(), (16.0 * area).ceil());
+    assert!(near(check["weight"].as_f64().unwrap(), 45.0 * area));
+    assert_eq!(check["framing"]["members"], 0);
+
+    // Timber framing: purlins, rafters and battens, in their own solid.
+    run(&mut s, "type_set", json!({"type": ty, "params": {"framing": {"system": "Timber"}}}));
+    let check = run(&mut s, "roof_check", json!({"id": roof}));
+    for k in ["purlins", "rafters", "battens"] {
+        assert!(check["framing"][k].as_f64().unwrap() > 10.0, "{k}: {check}");
+    }
+    assert!(check["framing"]["volume"].as_f64().unwrap() > 0.1);
+    let e = run(&mut s, "element_get", json!({"id": roof}));
+    assert!(near(e["derived"]["volume"].as_f64().unwrap(), volume_bare), "framing is not the roof's volume");
+    assert_eq!(e["derived"]["roofing"]["ok"], true);
+    assert!(s.geometry().solids_of(cc_core::ElementId(roof)).any(|x| x.category == cc_core::Category::Beam));
+    // Not the roof's body (joins, IFC export).
+    assert!(s.geometry().body_of(cc_core::ElementId(roof)).all(|x| !x.secondary));
+    assert_eq!(check["framing"]["trusses"], 0);
+
+    // Timber trusses under the purlins, no farther apart than their spacing along the 10 m ridge.
+    run(
+        &mut s,
+        "type_set",
+        json!({"type": ty, "params": {"framing": {"system": "TimberTrusses", "truss_spacing": 2.5}}}),
+    );
+    let trussed = run(&mut s, "roof_check", json!({"id": roof}));
+    let n = trussed["framing"]["trusses"].as_u64().unwrap();
+    assert!((5..=6).contains(&n), "{trussed}");
+    assert!(trussed["framing"]["truss_members"].as_f64().unwrap() > n as f64 * 8.0, "chords and tie span 8 m");
+    assert!(trussed["framing"]["volume"].as_f64().unwrap() > check["framing"]["volume"].as_f64().unwrap());
+    run(&mut s, "type_set", json!({"type": ty, "params": {"framing": {"system": "Timber"}}}));
+
+    // A schedule lists the tiles and the framing.
+    let schedule = run(&mut s, "view_create", json!({"kind": "schedule", "category": "roof"}));
+    run(
+        &mut s,
+        "view_set",
+        json!({"view": schedule["id"], "params": {"def": {"fields": ["Type", "TileCount", "Weight", "FramingLength"]}}}),
+    );
+    let table = run(&mut s, "schedule_table", json!({"view": schedule["id"]})).to_string();
+    assert!(table.contains(&format!("{}", (16.0 * area).ceil() as u64)), "{table}");
+
+    // Too flat for French tiles; a flat roof with tiles.
+    run(&mut s, "element_set", json!({"id": roof, "params": {"shape": {"Gable": {"slope": 0.2, "ridge_deg": 0}}}}));
+    let check = run(&mut s, "roof_check", json!({"id": roof}));
+    assert_eq!(check["ok"], false);
+    assert_eq!(check["issues"].as_array().unwrap().len(), 1);
+    run(&mut s, "element_set", json!({"id": roof, "params": {"shape": "Flat"}}));
+    let check = run(&mut s, "roof_check", json!({"id": roof}));
+    assert_eq!((check["ok"].clone(), check["framing"]["members"].clone()), (json!(false), json!(0)));
+
+    // Fiber cement on steel purlins: purlins only.
+    run(&mut s, "element_set", json!({"id": roof, "params": {"shape": {"Gable": {"slope": 0.2, "ridge_deg": 0}}}}));
+    run(&mut s, "type_set", json!({"type": ty, "params": {"covering": "FiberCement", "framing": {"system": "Steel"}}}));
+    let check = run(&mut s, "roof_check", json!({"id": roof}));
+    assert_eq!(check["ok"], true, "{check}");
+    assert!(check["framing"]["purlins"].as_f64().unwrap() > 0.0);
+    assert_eq!((check["framing"]["rafters"].as_f64(), check["framing"]["battens"].as_f64()), (Some(0.0), Some(0.0)));
+    assert_eq!(fails(&mut s, "roof_check", json!({"id": ty})), ErrorCode::NotFound);
+}

@@ -1620,8 +1620,8 @@ impl<'a> Importer<'a> {
             name,
             format!("{:.0} cm", thickness * 100.0),
             uid,
-            |d| matches!(d, TypeData::Roof { layers } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
-            || TypeData::Roof { layers },
+            |d| matches!(d, TypeData::Roof { layers, .. } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
+            || TypeData::Roof { layers, covering: None, framing: Default::default() },
         );
         let mut roof = Roof::new(footprint, z0 - elevation, 0.0, shape);
         roof.holes = holes;

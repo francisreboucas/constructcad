@@ -123,6 +123,15 @@ With the Select tool, a click picks the element under the pointer (Ctrl adds or 
 - With elements selected, **Override Graphics** changes their graphics in the active view only and **Hide in View** (EH) hides them there (shown again from Visibility/Graphics).
 - **Hide/Isolate** (temporary): HH hides the selection, HI isolates it, HC and IC hide or isolate its categories, HR resets. While active, the view has a colored border and a chip with *Reset* and *Make Permanent*. Temporary hiding is not saved, not undone and not printed.
 
+## Roof coverings and framing
+
+A roof type sets its **covering** and its **framing**, in the type dialog's *Covering and Framing* section.
+
+- **Covering**: ceramic tiles (colonial, French, Roman, Portuguese), concrete tiles, corrugated fiber cement, trapezoidal metal sheets or sandwich panels. Each comes with reference figures: the least slope it takes, its weight per m², tiles per m², the batten gauge and the widest span between purlins. They are typical values from public product data, for early design; the manufacturer's prevail.
+- **Framing**: *Timber* puts battens right under the roof at the tile's gauge, rafters down the slope under them (at the rafter spacing) and purlins along the eaves under the rafters, spread evenly from eave to ridge no farther apart than the purlin spacing (or the covering's span, when smaller). *Timber trusses* adds trusses under the purlins, across the ridge and no farther apart than the truss spacing: top chords along the roof faces, a level tie, a king post under the apex and struts to the middle of each chord. *Steel* puts purlins only, right under the sheets. Sizes, spacings and material are set on the type. Choosing a covering picks the framing it usually lies on, if none was chosen.
+- The framing follows the roof's sloped faces, whatever its shape, and shows in 3D views, elevations and sections in its material. It is not part of the roof's own volume.
+- A roof's properties show the covering, its slope against the covering's least (in red when below), the number of tiles, the weight and the framing's lengths and volume. Roof schedules can list *Slope*, *Tiles*, *Weight*, *Framing Length* and *Framing Volume*. The `roof_check` command returns the same, with the rules the roof breaks.
+
 ## Conceptual masses
 
 *Architecture → Massing → Mass* (`MS`) sketches an outline in a plan, like a floor, and extrudes it up to the level above. Masses are for massing studies before walls and floors exist: see-through bodies in 3D views, elevations and sections, cut in the plans they cross.

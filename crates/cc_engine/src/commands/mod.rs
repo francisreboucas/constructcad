@@ -22,6 +22,7 @@ pub mod project;
 pub mod query;
 pub mod ramp;
 pub mod rebar;
+pub mod roofing;
 pub mod stair;
 pub mod structure;
 pub mod types;

@@ -256,6 +256,12 @@ pub enum TypeData {
     },
     Roof {
         layers: Vec<Layer>,
+        /// The tiles or sheets it is covered with.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        covering: Option<crate::roofing::TileKind>,
+        /// Purlins, rafters and battens under its sloped faces.
+        #[serde(default)]
+        framing: crate::roofing::RoofFraming,
     },
     /// Rooms have no type parameters yet; the type groups them in schedules.
     Room {},
@@ -353,8 +359,12 @@ impl TypeData {
     /// Material names referenced by this type.
     pub fn materials(&self) -> Vec<&str> {
         match self {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => {
+            TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
                 layers.iter().map(|l| l.material.as_str()).collect()
+            }
+            TypeData::Roof { layers, framing, .. } => {
+                let framed = (!framing.material.is_empty()).then_some(framing.material.as_str());
+                layers.iter().map(|l| l.material.as_str()).chain(framed).collect()
             }
             TypeData::Door { material, .. }
             | TypeData::Window { material, .. }
@@ -382,7 +392,7 @@ impl TypeData {
     /// structure layer of layered types (else the thickest), or the main material.
     pub fn cut_material(&self) -> &str {
         match self {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => layers
+            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers, .. } => layers
                 .iter()
                 .find(|l| l.function == LayerFunction::Structure)
                 .or_else(|| layers.iter().max_by(|a, b| a.thickness.total_cmp(&b.thickness)))
@@ -403,8 +413,12 @@ impl TypeData {
             }
         };
         match self {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => {
+            TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
                 layers.iter_mut().for_each(|l| fix(&mut l.material))
+            }
+            TypeData::Roof { layers, framing, .. } => {
+                layers.iter_mut().for_each(|l| fix(&mut l.material));
+                fix(&mut framing.material);
             }
             TypeData::Door { material, .. }
             | TypeData::Window { material, .. }
@@ -571,7 +585,7 @@ impl ElementType {
 
     pub fn layers(&self) -> &[Layer] {
         match &self.data {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => layers,
+            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers, .. } => layers,
             _ => &[],
         }
     }
@@ -644,7 +658,7 @@ impl ElementType {
             TypeData::Door { material, .. }
             | TypeData::Window { material, .. }
             | TypeData::Ceiling { material, .. } => material,
-            TypeData::Wall { layers, .. } | TypeData::Roof { layers } => {
+            TypeData::Wall { layers, .. } | TypeData::Roof { layers, .. } => {
                 layers.first().map_or("", |l| l.material.as_str())
             }
             TypeData::Room {}

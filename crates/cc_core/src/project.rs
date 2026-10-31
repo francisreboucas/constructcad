@@ -314,7 +314,11 @@ impl Project {
             (&n("tpl-type-text-large"), TypeData::Text { size: 3.5, symbol: crate::LeaderSymbol::Arrow }),
             (
                 &n("tpl-type-roof-tile"),
-                TypeData::Roof { layers: vec![finish(&n("tpl-mat-roof-tile"), 0.05), layer(&n("tpl-mat-wood"), 0.10)] },
+                TypeData::Roof {
+                    layers: vec![finish(&n("tpl-mat-roof-tile"), 0.05), layer(&n("tpl-mat-wood"), 0.10)],
+                    covering: None,
+                    framing: Default::default(),
+                },
             ),
         ];
         for (name, data) in types {

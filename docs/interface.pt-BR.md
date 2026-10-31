@@ -123,6 +123,15 @@ Com a ferramenta Selecionar, um clique escolhe o elemento sob o cursor (Ctrl som
 - Com elementos selecionados, **Sobrepor gráficos** muda seus gráficos só na vista ativa e **Ocultar na vista** (EH) os oculta nela (reexibidos em Visibilidade/gráficos).
 - **Ocultar/isolar** (temporário): HH oculta a seleção, HI a isola, HC e IC ocultam ou isolam suas categorias, HR redefine. Enquanto ativo, a vista ganha uma borda colorida e um aviso com *Redefinir* e *Tornar permanente*. A ocultação temporária não é salva, não entra no desfazer e não é impressa.
 
+## Cobertura e estrutura de telhados
+
+Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e estrutura* do diálogo de tipo.
+
+- **Telha**: cerâmica (colonial, francesa, romana, portuguesa), telha de concreto, fibrocimento ondulada, metálica trapezoidal ou telha sanduíche. Cada uma traz valores de referência: a inclinação mínima, o peso por m², as telhas por m², o espaçamento das ripas (galga) e o maior vão entre terças. São valores típicos de dados públicos de fabricantes, para o estudo; os do fabricante prevalecem.
+- **Estrutura**: *Madeira* põe as ripas logo abaixo do telhado na galga da telha, os caibros descendo a água abaixo delas (no espaçamento dos caibros) e as terças ao longo do beiral abaixo dos caibros, distribuídas por igual do beiral à cumeeira, sem passar do espaçamento das terças (ou do vão da telha, se menor). *Tesouras de madeira* acrescenta tesouras abaixo das terças, atravessando a cumeeira e sem passar do espaçamento das tesouras: pernas ao longo das águas, linha (tirante) nivelada, pendural sob a cumeeira e escoras até o meio de cada perna. *Terças metálicas* põe só as terças, logo abaixo das telhas. Seções, espaçamentos e material ficam no tipo. Escolher a telha escolhe a estrutura em que ela costuma assentar, se nenhuma foi escolhida.
+- A estrutura segue as águas do telhado, qualquer que seja a forma, e aparece nas vistas 3D, elevações e cortes com o seu material. Ela não entra no volume do telhado.
+- As propriedades do telhado mostram a telha, a inclinação contra a mínima da telha (em vermelho quando abaixo), o número de telhas, o peso e os comprimentos e o volume da estrutura. As tabelas de telhados podem listar *Inclinação*, *Telhas*, *Peso*, *Estrutura (comprimento)* e *Estrutura (volume)*. O comando `roof_check` devolve o mesmo, com as regras que o telhado não atende.
+
 ## Massas conceituais
 
 *Arquitetura → Estudo de massa → Massa* (`MS`) desenha um contorno na planta, como uma laje, e o extruda até o nível de cima. As massas servem para estudos de volumetria antes de existirem paredes e lajes: corpos transparentes nas vistas 3D, elevações e cortes, cortados nas plantas que atravessam.

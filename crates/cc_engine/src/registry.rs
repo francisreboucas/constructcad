@@ -166,6 +166,7 @@ registry![
         stair::StairRailingsAdd,
         ramp::RampCreate,
         ramp::RampCheck,
+        roofing::RoofCheck,
         mass::MassCreate,
         mass::MassFloorsSet,
         mass::MassFloors,

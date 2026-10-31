@@ -1157,3 +1157,26 @@ fn walls_floors_and_roofs_come_from_selected_masses() {
             .all(|id| state.project().element(*id).is_some_and(|e| e.category() == cc_core::Category::Roof))
     );
 }
+
+/// A roof type's dialog has the covering and framing; with tiles and timber
+/// framing, a roof's properties show them.
+#[test]
+fn roof_types_take_tiles_and_framing() {
+    let mut state = sample_state();
+    let roof_type = state.project().default_type(cc_core::Category::Roof).unwrap();
+    state.dialogs.type_editor = Some(roof_type);
+    let mut harness = app_harness(state);
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-roofing")).is_some());
+
+    let mut state = sample_state();
+    let params = serde_json::json!({"covering": "CeramicColonial", "framing": {"system": "Timber"}});
+    state.session.execute("type_set", serde_json::json!({"type": roof_type.0, "params": params})).unwrap();
+    let roof = state.project().elements.values().find(|e| e.type_id == roof_type).map(|e| e.id).unwrap();
+    state.selection = [roof].into_iter().collect();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1800.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-roofing")).is_some(), "the roof shows its covering and framing");
+}

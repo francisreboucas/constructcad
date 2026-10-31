@@ -29,6 +29,7 @@ pub mod properties;
 pub mod ramp;
 pub mod recovery;
 mod repair;
+pub mod roofing;
 mod schedule;
 pub mod stair;
 pub mod sweep;

@@ -44,7 +44,7 @@ pub fn legend(project: &Project, types: &[ElementTypeId], scale: u32) -> Drawing
         y -= above;
         let o = DVec2::new(0.0, y);
         match &t.data {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers } => {
+            TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers, .. } => {
                 let total: f64 = layers.iter().map(|l| l.thickness).sum();
                 let mut v = total * 0.5;
                 for layer in layers {
