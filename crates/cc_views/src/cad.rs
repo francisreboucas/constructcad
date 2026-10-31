@@ -1,7 +1,7 @@
-//! Imported CAD drawings (underlays) in the view they belong to: thin
-//! lines in their own pen (grey, black or the layer colors, faded when the
-//! element asks), fills and texts, all below the model's linework and
-//! picked only when nothing of the model is under the pointer.
+//! Imported CAD drawings (underlays) in the view they belong to: pictures,
+//! then thin lines in their own pen (grey, black or the layer colors, faded
+//! when the element asks), fills and texts, all below the model's linework
+//! and picked only when nothing of the model is under the pointer.
 
 use crate::drawing::{Anchor, Drawing2D, LineStyle, Pen, Prim, halftone};
 use cc_core::cad::{CadColorMode, CadHAlign, CadImport, CadPrim, CadVAlign, text_width};
@@ -67,6 +67,20 @@ pub fn draw(d: &mut Drawing2D, c: &CadImport, id: ElementId, scale: u32) {
     let place = c.placement();
     let to = |p: DVec2| place.apply(p * f);
     let element = Some(id);
+    for image in &c.drawing.images {
+        if !c.layer_visible(image.layer) {
+            continue;
+        }
+        let origin = to(image.origin);
+        d.prims.push(Prim::Image {
+            origin,
+            u: to(image.origin + image.u) - origin,
+            v: to(image.origin + image.v) - origin,
+            image: image.image.clone(),
+            element,
+            faded: c.halftone,
+        });
+    }
     for prim in &c.drawing.prims {
         if !c.layer_visible(prim.layer()) {
             continue;
@@ -176,6 +190,7 @@ mod tests {
                 ],
                 extents: None,
                 units: Some(CadUnit::Millimeters),
+                images: vec![],
             }),
             units: CadUnit::Millimeters,
             scale: 1.0,

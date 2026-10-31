@@ -113,6 +113,7 @@ registry![
         io::ComponentLibraryList,
         io::ComponentSave,
         cad::CadImportFile,
+        cad::ImageImport,
         cad::CadLayers,
         cad::CadLayersSet,
     ],

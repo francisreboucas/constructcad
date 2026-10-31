@@ -132,13 +132,64 @@ pub enum Prim {
         /// The element the text annotates (hidden with it).
         element: Option<ElementId>,
     },
+    /// A picture filling the parallelogram from `origin` (its bottom-left
+    /// corner) along `u` (its width) and `v` (its height).
+    Image {
+        origin: DVec2,
+        u: DVec2,
+        v: DVec2,
+        image: std::sync::Arc<cc_core::raster::RasterImage>,
+        element: Option<ElementId>,
+        /// Mixed two thirds with white.
+        faded: bool,
+    },
 }
 
 impl Prim {
+    /// The primitive with its points moved by the affine map `f` (an image's
+    /// sides follow from where its corners land).
+    pub fn mapped(&self, f: impl Fn(DVec2) -> DVec2) -> Prim {
+        match self {
+            Prim::Line { a, b, style, element, pen } => {
+                Prim::Line { a: f(*a), b: f(*b), style: *style, element: *element, pen: *pen }
+            }
+            Prim::Fill { pts, color, element, cut } => {
+                Prim::Fill { pts: pts.iter().map(|p| f(*p)).collect(), color: *color, element: *element, cut: *cut }
+            }
+            Prim::Text { pos, text, size, anchor, angle, element } => Prim::Text {
+                pos: f(*pos),
+                text: text.clone(),
+                size: *size,
+                anchor: *anchor,
+                angle: *angle,
+                element: *element,
+            },
+            Prim::Image { origin, u, v, image, element, faded } => {
+                let o = f(*origin);
+                Prim::Image {
+                    origin: o,
+                    u: f(*origin + *u) - o,
+                    v: f(*origin + *v) - o,
+                    image: image.clone(),
+                    element: *element,
+                    faded: *faded,
+                }
+            }
+        }
+    }
+
+    /// The four corners of an image (bottom-left first, counter-clockwise when not mirrored).
+    pub fn image_corners(origin: DVec2, u: DVec2, v: DVec2) -> [DVec2; 4] {
+        [origin, origin + u, origin + u + v, origin + v]
+    }
+
     /// The element a primitive belongs to, if any.
     pub fn element(&self) -> Option<ElementId> {
         match self {
-            Prim::Line { element, .. } | Prim::Fill { element, .. } | Prim::Text { element, .. } => *element,
+            Prim::Line { element, .. }
+            | Prim::Fill { element, .. }
+            | Prim::Text { element, .. }
+            | Prim::Image { element, .. } => *element,
         }
     }
 }
@@ -242,6 +293,7 @@ impl Drawing2D {
             Prim::Line { a, b, .. } => vec![*a, *b],
             Prim::Fill { pts, .. } => pts.clone(),
             Prim::Text { pos, .. } => vec![*pos],
+            Prim::Image { origin, u, v, .. } => Prim::image_corners(*origin, *u, *v).to_vec(),
         });
         let first = it.next()?;
         Some(it.fold((first, first), |(lo, hi), p| (lo.min(p), hi.max(p))))
@@ -257,6 +309,7 @@ impl Drawing2D {
             Prim::Line { a, b, .. } => vec![*a, *b],
             Prim::Fill { pts, .. } => pts.clone(),
             Prim::Text { pos, .. } => vec![*pos],
+            Prim::Image { origin, u, v, .. } => Prim::image_corners(*origin, *u, *v).to_vec(),
         });
         match it.next() {
             Some(first) => Some(it.fold((first, first), |(lo, hi), p| (lo.min(p), hi.max(p)))),
@@ -313,6 +366,11 @@ impl Drawing2D {
             {
                 Some(*id)
             }
+            Prim::Image { origin, u, v, element: Some(id), .. }
+                if tier(id) && cc_geom::polygon::contains(&Prim::image_corners(*origin, *u, *v), p) =>
+            {
+                Some(*id)
+            }
             _ => None,
         })
     }
@@ -345,6 +403,11 @@ impl Drawing2D {
                     (*id, crosses || around || pts.iter().any(inside), !pts.is_empty() && pts.iter().all(inside))
                 }
                 Prim::Text { pos, element: Some(id), .. } => (*id, inside(pos), inside(pos)),
+                Prim::Image { origin, u, v, element: Some(id), .. } => {
+                    let c = Prim::image_corners(*origin, *u, *v);
+                    let crosses = (0..4).any(|i| segment_meets_rect(c[i], c[(i + 1) % 4], lo, hi));
+                    (*id, crosses || contains(&c, center) || c.iter().any(inside), c.iter().all(inside))
+                }
                 _ => continue,
             };
             let s = state.entry(id).or_insert((false, true));

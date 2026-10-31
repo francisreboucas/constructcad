@@ -38,7 +38,12 @@ schemars = "1"
 log = "0.4"
 sys-locale = "0.3.2"
 env_logger = "0.11"
-resvg = { version = "0.45.1", default-features = false }
+# `raster-images`: pictures in exported PNGs (the decoders `image` brings anyway).
+resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
+# Compressing the pixels of pictures in exported PDFs (cc_views).
+miniz_oxide = "0.8.9"
+# Decoding imported pictures (cc_views), the version eframe already uses.
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "gif", "bmp", "webp"] }
 # Glyph outlines for raster export (cc_views), the version egui already uses.
 skrifa = { version = "0.44.0", default-features = false, features = ["std"] }
 # DWG reading (cc_cad), MPL-2.0, pure Rust; without `parallel` (no rayon).

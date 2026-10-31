@@ -4,7 +4,7 @@
 //! the PDF/SVG files match.
 
 use crate::drawing::Anchor;
-use crate::{Drawing2D, LineStyle, Prim};
+use crate::{Drawing2D, LineStyle};
 use cc_core::{Project, View, ViewId, ViewKind};
 use glam::DVec2;
 use std::rc::Rc;
@@ -66,27 +66,7 @@ pub fn compose(
         let k = 1000.0 / view.scale.max(1) as f64;
         let anchor = (lo + hi) * 0.5;
         let map = |p: DVec2| vp.center + (p - anchor) * k;
-        for prim in &drawing.prims {
-            d.prims.push(match prim {
-                Prim::Line { a, b, style, element, pen } => {
-                    Prim::Line { a: map(*a), b: map(*b), style: *style, element: *element, pen: *pen }
-                }
-                Prim::Fill { pts, color, element, cut } => Prim::Fill {
-                    pts: pts.iter().map(|p| map(*p)).collect(),
-                    color: *color,
-                    element: *element,
-                    cut: *cut,
-                },
-                Prim::Text { pos, text, size, anchor, angle, element } => Prim::Text {
-                    pos: map(*pos),
-                    text: text.clone(),
-                    size: *size,
-                    anchor: *anchor,
-                    angle: *angle,
-                    element: *element,
-                },
-            });
-        }
+        d.prims.extend(drawing.prims.iter().map(|prim| prim.mapped(map)));
         let half = (hi - lo) * 0.5 * k;
         // Viewport title: name, scale (not for 3D views) and an underline.
         let title = vp.center + DVec2::new(-half.x, -half.y - 7.0);

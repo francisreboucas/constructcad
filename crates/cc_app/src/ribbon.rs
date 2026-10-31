@@ -581,8 +581,8 @@ fn file_tab(ui: &mut Ui, state: &mut AppState) {
 
 /// Files brought into the project or written from it, and components to load.
 fn insert_tab(ui: &mut Ui, state: &mut AppState) {
-    use UiCommand::{ComponentLibrary, ExportIfc, ImportCad, ImportIfc, ImportSkp, LoadComponent};
-    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, ImportCad, ImportSkp]));
+    use UiCommand::{ComponentLibrary, ExportIfc, ImportCad, ImportIfc, ImportImage, ImportSkp, LoadComponent};
+    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, ImportCad, ImportSkp, ImportImage]));
     group(ui, t!("group-export"), |ui| command_button(ui, state, ExportIfc));
     group(ui, t!("group-library"), |ui| command_buttons(ui, state, &[LoadComponent, ComponentLibrary]));
 }

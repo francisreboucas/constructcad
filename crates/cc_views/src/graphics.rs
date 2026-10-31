@@ -175,6 +175,9 @@ pub fn apply(d: &mut Drawing2D, resolver: &mut Resolver, scale: u32) {
         }
         let halftone = g.halftone == Some(true);
         match prim {
+            Prim::Image { origin, u, v, image, element, faded } => {
+                d.prims.push(Prim::Image { origin, u, v, image, element, faded: faded || halftone });
+            }
             Prim::Line { a, b, style, element, pen: own } => {
                 let lines = match style {
                     LineStyle::Hatch if g.cut_fill.pattern.is_some() => continue,

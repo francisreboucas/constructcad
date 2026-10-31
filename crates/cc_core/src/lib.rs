@@ -27,6 +27,7 @@ pub mod profile;
 mod project;
 pub mod properties;
 pub mod ramp;
+pub mod raster;
 pub mod recovery;
 mod repair;
 mod schedule;

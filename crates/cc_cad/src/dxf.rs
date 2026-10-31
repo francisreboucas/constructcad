@@ -154,7 +154,7 @@ pub fn read(data: &[u8], limits: &Limits) -> Result<CadRead, CadError> {
     let mut f = flattener.unwrap_or_else(|| Flattener::new(limits));
     f.set_layers(&layers);
     let (prims, layers, truncated) = f.finish();
-    let mut drawing = CadDrawing { layers, prims, extents: None, units: units.and_then(CadUnit::from_insunits) };
+    let mut drawing = CadDrawing { layers, prims, units: units.and_then(CadUnit::from_insunits), ..Default::default() };
     drawing.repair();
     drawing.compute_extents();
     read.truncated |= truncated;
