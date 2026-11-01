@@ -2147,3 +2147,16 @@ sketch-apart = Pętla leży poza obrysem: jeden obrys na element.
 sketch-nested = Pętla leży wewnątrz otworu.
 sketch-openings = Ten element przyjmuje jedną pętlę, bez otworów.
 sketch-no-area = Pętla nie ma pola.
+
+# Swept profiles
+category-sweep = Profile przeciągnięte
+tool-sweep = Profil przeciągnięty
+cmd-desc-sweep = Prowadzi profil wzdłuż ścieżki: listwy przypodłogowe, gzymsy, deski czołowe, rynny, czapy.
+hint-sweep = Kliknij punkty ścieżki; profil jest po lewej (Odwróć daje go na prawo) · Enter, dwuklik lub Zakończ kończy · Backspace usuwa ostatni punkt
+opt-sweep-closed = Ścieżka zamknięta
+opt-sweep-flip = Odwróć stronę
+prop-sweep-points = Punkty profilu
+hint-sweep-profile = Narysuj profil ponownie poleceniem sweep_profile_set (punkty lub krzywe) w palecie poleceń.
+tpl-type-baseboard = Listwa przypodłogowa 10 cm
+tx-create-sweep = Utwórz profil przeciągnięty
+tx-create-sweep-type = Utwórz typ profilu przeciągniętego

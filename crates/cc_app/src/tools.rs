@@ -66,6 +66,10 @@ pub enum Tool {
     Railing {
         type_id: ElementTypeId,
     },
+    /// Click the points of a swept profile's path (options in `AppState::sweep`).
+    Sweep {
+        type_id: ElementTypeId,
+    },
     Component {
         type_id: ElementTypeId,
     },
@@ -146,6 +150,7 @@ impl Tool {
             Tool::Stair { .. } => "tool-stair",
             Tool::Ramp { .. } => "tool-ramp",
             Tool::Railing { .. } => "tool-railing",
+            Tool::Sweep { .. } => "tool-sweep",
             Tool::Component { .. } => "tool-component",
             Tool::Pipe { .. } => "tool-pipe",
             Tool::Conduit { .. } => "tool-conduit",
@@ -190,6 +195,7 @@ impl Tool {
             | Tool::Stair { type_id }
             | Tool::Ramp { type_id }
             | Tool::Railing { type_id }
+            | Tool::Sweep { type_id }
             | Tool::Component { type_id }
             | Tool::Pipe { type_id }
             | Tool::Conduit { type_id }
@@ -212,6 +218,7 @@ impl Tool {
             Tool::Stair { .. } => Some(Category::Stair),
             Tool::Ramp { .. } => Some(Category::Ramp),
             Tool::Railing { .. } => Some(Category::Railing),
+            Tool::Sweep { .. } => Some(Category::Sweep),
             Tool::Component { .. } => Some(Category::Component),
             Tool::Pipe { .. } => Some(Category::Pipe),
             Tool::Conduit { .. } => Some(Category::Conduit),
@@ -235,6 +242,7 @@ impl Tool {
             Tool::Stair { .. } => Tool::Stair { type_id: id },
             Tool::Ramp { .. } => Tool::Ramp { type_id: id },
             Tool::Railing { .. } => Tool::Railing { type_id: id },
+            Tool::Sweep { .. } => Tool::Sweep { type_id: id },
             Tool::Component { .. } => Tool::Component { type_id: id },
             Tool::Pipe { .. } => Tool::Pipe { type_id: id },
             Tool::Conduit { .. } => Tool::Conduit { type_id: id },
@@ -267,6 +275,7 @@ impl Tool {
             Category::Stair => Tool::Stair { type_id },
             Category::Ramp => Tool::Ramp { type_id },
             Category::Railing => Tool::Railing { type_id },
+            Category::Sweep => Tool::Sweep { type_id },
             Category::Component => Tool::Component { type_id },
             Category::Pipe => Tool::Pipe { type_id },
             Category::Conduit => Tool::Conduit { type_id },
@@ -443,7 +452,12 @@ fn chain_placed(state: &mut AppState, before: ChainAt, depth: usize) {
 fn chains(tool: &Tool) -> bool {
     matches!(
         tool,
-        Tool::Wall { .. } | Tool::Beam { .. } | Tool::Pipe { .. } | Tool::Conduit { .. } | Tool::Railing { .. }
+        Tool::Wall { .. }
+            | Tool::Beam { .. }
+            | Tool::Pipe { .. }
+            | Tool::Conduit { .. }
+            | Tool::Railing { .. }
+            | Tool::Sweep { .. }
     )
 }
 
@@ -720,6 +734,14 @@ fn snap_with(
         } else if let ElementKind::Railing(r) = &e.kind {
             ends.extend_from_slice(&r.path);
             lines.extend(r.path.windows(2).map(|w| (w[0], w[1])));
+        } else if let ElementKind::Sweep(sw) = &e.kind {
+            ends.extend_from_slice(&sw.path);
+            lines.extend(sw.path.windows(2).map(|w| (w[0], w[1])));
+            if sw.closed
+                && let (Some(a), Some(b)) = (sw.path.last(), sw.path.first())
+            {
+                lines.push((*a, *b));
+            }
         }
         // Outlines as the plan draws them: corners are endpoints, edges lines.
         let outlines: Vec<Vec<DVec2>> = match (&e.kind, project.element_type(e.type_id).map(|t| &t.data)) {
@@ -1149,7 +1171,13 @@ pub fn handle(
         (Tool::Truss { type_id }, Some(level)) => truss_tool(ui, resp, painter, state, level, *type_id, xf),
         (Tool::Stair { type_id }, Some(level)) => stair_tool(ui, resp, painter, state, level, *type_id, xf),
         (Tool::Ramp { type_id }, Some(level)) => ramp_tool(ui, resp, painter, state, level, *type_id, xf),
-        (Tool::Railing { type_id }, Some(level)) => railing_tool(ui, resp, painter, state, level, *type_id, xf),
+        (Tool::Railing { type_id }, Some(level)) => {
+            path_tool(ui, resp, painter, state, level, *type_id, xf, false, finish_railing);
+        }
+        (Tool::Sweep { type_id }, Some(level)) => {
+            let closed = state.sweep.closed;
+            path_tool(ui, resp, painter, state, level, *type_id, xf, closed, finish_sweep);
+        }
         (
             Tool::Move
             | Tool::Copy
@@ -1713,8 +1741,11 @@ fn ramp_tool(
     }
 }
 
-/// Click the points of the railing path; Enter, a double click or Finish ends it.
-fn railing_tool(
+/// Click the points of a railing's or swept profile's path; Enter, a double
+/// click or Finish ends it (`finish` makes the element). A `closed` path
+/// previews its way back to the first point.
+#[allow(clippy::too_many_arguments)]
+fn path_tool(
     ui: &Ui,
     resp: &Response,
     painter: &Painter,
@@ -1722,6 +1753,8 @@ fn railing_tool(
     level: LevelId,
     type_id: ElementTypeId,
     xf: &Xf,
+    closed: bool,
+    finish: fn(&mut AppState, LevelId, ElementTypeId),
 ) {
     let Some(raw) = resp.hover_pos().map(|p| xf.to_world(p)) else { return };
     let shift = ui.input(|i| i.modifiers.shift);
@@ -1730,15 +1763,46 @@ fn railing_tool(
     draw_snap(painter, xf, s);
     let pts: Vec<Pos2> =
         state.interaction.points.iter().map(|p| xf.to_screen(*p)).chain([xf.to_screen(s.point)]).collect();
-    if pts.len() >= 2 {
+    if pts.len() >= 3 && closed {
+        painter.add(egui::Shape::closed_line(pts, Stroke::new(1.5, PREVIEW)));
+    } else if pts.len() >= 2 {
         painter.add(egui::Shape::line(pts, Stroke::new(1.5, PREVIEW)));
     }
-    let finish = resp.double_clicked() || ui.input(|i| i.key_pressed(Key::Enter));
+    let done = resp.double_clicked() || ui.input(|i| i.key_pressed(Key::Enter));
     if resp.clicked() && !resp.double_clicked() {
         state.interaction.points.push(s.point);
     }
-    if finish {
-        finish_railing(state, level, type_id);
+    if done {
+        finish(state, level, type_id);
+    }
+}
+
+/// Options of the swept profile tool.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct SweepOptions {
+    /// Height of the path above the level.
+    pub base_offset: f64,
+    /// The path runs back to its first point.
+    pub closed: bool,
+    /// The profile on the right of the path.
+    pub flip: bool,
+}
+
+/// Create the swept profile from the points clicked so far.
+pub fn finish_sweep(state: &mut AppState, level: LevelId, type_id: ElementTypeId) {
+    let mut path = std::mem::take(&mut state.interaction.points);
+    path.dedup_by(|a, b| a.distance(*b) < 1e-3);
+    let o = state.sweep;
+    if path.len() >= if o.closed { 3 } else { 2 } {
+        let command = cc_engine::commands::sweep::SweepCreate {
+            path: path.iter().map(|p| p.to_array()).collect(),
+            closed: o.closed,
+            level: Some(Ref::Id(level.0)),
+            type_ref: Some(Ref::Id(type_id.0)),
+            base_offset: Some(o.base_offset),
+            flip: o.flip,
+        };
+        run_create(state, command);
     }
 }
 

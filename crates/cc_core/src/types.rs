@@ -30,10 +30,12 @@ pub enum Category {
     CadImport,
     /// Conceptual masses (massing studies).
     Mass,
+    /// Profiles swept along paths (baseboards, moldings, fascias, gutters).
+    Sweep,
 }
 
 impl Category {
-    pub const ALL: [Category; 22] = [
+    pub const ALL: [Category; 23] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -49,6 +51,7 @@ impl Category {
         Category::Stair,
         Category::Ramp,
         Category::Railing,
+        Category::Sweep,
         Category::Component,
         Category::Room,
         Category::Grid,
@@ -59,7 +62,7 @@ impl Category {
     ];
 
     /// Categories with physical elements (shown in legends and 3D).
-    pub const MODEL: [Category; 16] = [
+    pub const MODEL: [Category; 17] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -75,11 +78,12 @@ impl Category {
         Category::Stair,
         Category::Ramp,
         Category::Railing,
+        Category::Sweep,
         Category::Component,
     ];
 
     /// Categories that can be listed in a schedule.
-    pub const SCHEDULABLE: [Category; 18] = [
+    pub const SCHEDULABLE: [Category; 19] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -95,6 +99,7 @@ impl Category {
         Category::Stair,
         Category::Ramp,
         Category::Railing,
+        Category::Sweep,
         Category::Component,
         Category::Room,
         Category::Mass,
@@ -122,6 +127,7 @@ impl Category {
             Category::Stair => "category-stair",
             Category::Ramp => "category-ramp",
             Category::Railing => "category-railing",
+            Category::Sweep => "category-sweep",
             Category::Component => "category-component",
             Category::Foundation => "category-foundation",
             Category::Rebar => "category-rebar",
@@ -353,6 +359,12 @@ pub enum TypeData {
     Mass {
         material: String,
     },
+    /// Swept profiles: the closed `profile` (x across, to the left of the
+    /// path; y up), shown in `material`.
+    Sweep {
+        profile: Vec<glam::DVec2>,
+        material: String,
+    },
 }
 
 impl TypeData {
@@ -378,7 +390,8 @@ impl TypeData {
             | TypeData::Stair { material, .. }
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
-            | TypeData::Mass { material } => vec![material.as_str()],
+            | TypeData::Mass { material }
+            | TypeData::Sweep { material, .. } => vec![material.as_str()],
             TypeData::Component { def, .. } => def.items.iter().map(|i| i.material.as_str()).collect(),
             TypeData::Room {}
             | TypeData::Grid { .. }
@@ -432,7 +445,8 @@ impl TypeData {
             | TypeData::Stair { material, .. }
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
-            | TypeData::Mass { material } => fix(material),
+            | TypeData::Mass { material }
+            | TypeData::Sweep { material, .. } => fix(material),
             TypeData::Component { def, .. } => def.items.iter_mut().for_each(|i| fix(&mut i.material)),
             TypeData::Room {}
             | TypeData::Grid { .. }
@@ -580,6 +594,7 @@ impl ElementType {
             TypeData::Component { def, .. } => def.category(),
             TypeData::CadImport {} => Category::CadImport,
             TypeData::Mass { .. } => Category::Mass,
+            TypeData::Sweep { .. } => Category::Sweep,
         }
     }
 
@@ -675,7 +690,8 @@ impl ElementType {
             | TypeData::Stair { material, .. }
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
-            | TypeData::Mass { material } => material,
+            | TypeData::Mass { material }
+            | TypeData::Sweep { material, .. } => material,
             TypeData::Component { def, .. } => def.main_material(),
             TypeData::Floor { .. } => self
                 .layers()

@@ -51,6 +51,8 @@ pub enum ElementKind {
     CadImport(Box<crate::cad::CadImport>),
     /// A conceptual mass (massing studies).
     Mass(crate::mass::Mass),
+    /// A profile swept along a path (baseboards, moldings, fascias, gutters).
+    Sweep(crate::profile_sweep::Sweep),
 }
 
 impl Element {
@@ -78,6 +80,7 @@ impl Element {
             ElementKind::Conduit(_) => Category::Conduit,
             ElementKind::CadImport(_) => Category::CadImport,
             ElementKind::Mass(_) => Category::Mass,
+            ElementKind::Sweep(_) => Category::Sweep,
         }
     }
 
@@ -242,6 +245,7 @@ impl Element {
             ElementKind::Stair(s) => s.start += delta,
             ElementKind::Ramp(r) => r.start += delta,
             ElementKind::Railing(r) => r.path.iter_mut().for_each(|p| *p += delta),
+            ElementKind::Sweep(s) => s.path.iter_mut().for_each(|p| *p += delta),
             ElementKind::Component(c) => c.position += delta,
             ElementKind::Pipe(s) | ElementKind::Conduit(s) => {
                 s.start += delta;

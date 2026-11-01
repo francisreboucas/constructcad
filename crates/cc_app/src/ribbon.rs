@@ -42,6 +42,7 @@ pub fn category_icon(category: Category) -> Icon {
         Category::Text => Icon::Text,
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
+        Category::Sweep => Icon::Sweep,
     }
 }
 
@@ -608,6 +609,7 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
     group(ui, t!("group-model"), |ui| {
         command_button(ui, state, place(Component));
+        command_button(ui, state, place(Sweep));
         // Making, editing and loading components: one column of small buttons.
         stacks(ui, state, &[&[UiCommand::NewComponent, UiCommand::EditComponent, UiCommand::LoadComponent]]);
         command_button(ui, state, UiCommand::ComponentLibrary);
@@ -1128,6 +1130,24 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
             Tool::Mirror { draw } => {
                 ui.checkbox(&mut state.modify.mirror_copy, t!("opt-copy"));
                 ui.label(theme::muted(if draw { t!("hint-mirror-draw") } else { t!("hint-mirror-pick") }));
+            }
+            Tool::Sweep { type_id } => {
+                let o = &mut state.sweep;
+                ui.label(t!("prop-base-offset"));
+                ui.add(crate::properties::length_drag(&mut o.base_offset).range(-100.0..=100.0));
+                ui.checkbox(&mut o.closed, t!("opt-sweep-closed"));
+                ui.checkbox(&mut o.flip, t!("opt-sweep-flip"));
+                let n = state.interaction.points.len();
+                let needed = if state.sweep.closed { 3 } else { 2 };
+                if ui.add_enabled(n >= needed, Button::new(t!("sketch-finish"))).clicked()
+                    && let Some(level) = state.active_level()
+                {
+                    crate::tools::finish_sweep(state, level, type_id);
+                }
+                if ui.add_enabled(n > 0, Button::new(t!("action-cancel"))).clicked() {
+                    state.interaction.points.clear();
+                }
+                ui.label(theme::muted(t!("hint-sweep")));
             }
             Tool::Railing { type_id } => {
                 let n = state.interaction.points.len();

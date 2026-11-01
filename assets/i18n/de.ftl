@@ -2147,3 +2147,16 @@ sketch-apart = Eine Schleife liegt außerhalb des Umrisses: ein Umriss je Elemen
 sketch-nested = Eine Schleife liegt in einer Öffnung.
 sketch-openings = Dieses Element hat eine Schleife ohne Öffnungen.
 sketch-no-area = Eine Schleife umschließt keine Fläche.
+
+# Swept profiles
+category-sweep = Profilextrusionen
+tool-sweep = Profilextrusion
+cmd-desc-sweep = Führt ein Profil entlang eines Pfads: Sockelleisten, Gesimse, Stirnbretter, Dachrinnen, Abdeckungen.
+hint-sweep = Punkte des Pfads klicken; das Profil liegt links (Umkehren legt es nach rechts) · Enter, Doppelklick oder Fertig beendet · Rücktaste entfernt den letzten Punkt
+opt-sweep-closed = Geschlossener Pfad
+opt-sweep-flip = Seite umkehren
+prop-sweep-points = Profilpunkte
+hint-sweep-profile = Profil mit dem Befehl sweep_profile_set (Punkte oder Kurven) in der Befehlspalette neu zeichnen.
+tpl-type-baseboard = Sockelleiste 10 cm
+tx-create-sweep = Profilextrusion erstellen
+tx-create-sweep-type = Profilextrusionstyp erstellen

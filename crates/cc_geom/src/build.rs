@@ -417,7 +417,7 @@ impl ModelGeometry {
         }
     }
 
-    /// Columns, beams, stairs, ramps and railings.
+    /// Columns, beams, stairs, ramps, railings and swept profiles.
     fn build_structure(&mut self, project: &Project) {
         for e in project.elements.values() {
             let Some(ty) = project.element_type(e.type_id) else { continue };
@@ -442,6 +442,10 @@ impl ModelGeometry {
                     g.add_to(*thickness, &mut s);
                 }
                 (ElementKind::Railing(r), TypeData::Railing { .. }) => crate::add_railing(project, e, r, &mut s),
+                (ElementKind::Sweep(sw), TypeData::Sweep { .. }) => {
+                    let Some(faces) = crate::profile_sweep::sweep_faces(project, e, sw) else { continue };
+                    s.add_polygons(faces);
+                }
                 _ => continue,
             }
             if !s.faces.is_empty() {

@@ -158,6 +158,15 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 - **From the mass to the building**: with masses selected, *Massing → Walls by Face* puts a wall on each side of an extrusion (exterior face on the mass's face, as tall as the mass, joined at the corners), *Floors from Mass Floors* a floor on each mass floor (the mass's outline at that level, its top at the level) and *Roof by Face* a flat roof on the top. The walls, floors and roof are ordinary elements: change their types, heights and shapes as usual. A loft's slanted sides take no walls.
 - Moving, rotating, mirroring, copying and pasting work as for other elements. Deleting a level removes its mass floors. IFC export leaves masses out.
 
+## Swept profiles
+
+*Architecture → Model → Sweep* (`SW`) carries a profile along a path drawn in a plan: baseboards, crown moldings, fascia boards, gutters, copings. A project without a sweep type gets one the first time (a baseboard 1.5 × 10 cm).
+
+- **Drawing**: click the points of the path; Enter, a double click or *Finish* ends it, and Backspace removes the last point. The options bar sets the height of the path above the level, *Closed path* (it runs back to the first point, around a room, with no ends) and *Flip side*.
+- **Which side**: the profile is drawn in its own plane, square to the path: x across, to the left of the path walking along it, and y up from the path's height. *Flip side* puts it on the right; a mirrored copy keeps it on the same side of the wall it follows. Corners are mitered.
+- **Profiles**: the type holds the profile and the material. `sweep_type_create` makes a type from points `[x, y]` or from `curves` (lines, arcs, circles, rectangles… making one closed outline, so a cove or a half-round gutter is drawn with arcs), and `sweep_profile_set` redraws a type's profile; both are in the command palette. A profile must be a closed outline that does not cross itself.
+- **Views**: plans and ceiling plans draw what the cut plane cuts and what lies below (or above, in ceiling plans), elevations, sections and 3D views show the solid, legends show the profile's section, and schedules list the length and volume. IFC export writes them as coverings of type `MOLDING`.
+
 ## Imported CAD drawings
 
 - **Insert → Import CAD…** places a DWG or DXF drawing in the active floor plan, ceiling plan, elevation, section or legend (the button is greyed out in other views, and says why). You can also drop `.dwg` and `.dxf` files on the window. The file dialog starts in the *Projects folder*. The drawing keeps its origin at the view's origin, unless that leaves it more than 1 km from the model (a drawing in survey coordinates), then it is centered on what the view shows. The status bar says how many items and layers were read, how many entities were not drawn (3D solids, images, infinite lines…) and which units were assumed when the file has none.

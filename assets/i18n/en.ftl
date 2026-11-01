@@ -2147,3 +2147,16 @@ sketch-apart = A loop lies outside the outline: one outline per element.
 sketch-nested = A loop lies inside an opening.
 sketch-openings = This element takes one loop, without openings.
 sketch-no-area = A loop encloses no area.
+
+# Swept profiles
+category-sweep = Sweeps
+tool-sweep = Sweep
+cmd-desc-sweep = Carries a profile along a path: baseboards, moldings, fascias, gutters, copings.
+hint-sweep = Click the points of the path; the profile goes on the left (Flip puts it on the right) · Enter, a double click or Finish ends it · Backspace removes the last point
+opt-sweep-closed = Closed path
+opt-sweep-flip = Flip side
+prop-sweep-points = Profile points
+hint-sweep-profile = Redraw the profile with the sweep_profile_set command (points or curves) in the command palette.
+tpl-type-baseboard = Baseboard 10 cm
+tx-create-sweep = Create Sweep
+tx-create-sweep-type = Create Sweep Type

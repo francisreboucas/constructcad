@@ -2147,3 +2147,16 @@ sketch-apart = Un lazo queda fuera del contorno: un contorno por elemento.
 sketch-nested = Un lazo queda dentro de una abertura.
 sketch-openings = Este elemento admite un lazo, sin aberturas.
 sketch-no-area = Un lazo no encierra área.
+
+# Swept profiles
+category-sweep = Perfiles barridos
+tool-sweep = Perfil barrido
+cmd-desc-sweep = Lleva un perfil a lo largo de un recorrido: zócalos, molduras, frentes de alero, canalones, albardillas.
+hint-sweep = Haga clic en los puntos del recorrido; el perfil queda a la izquierda (Invertir lo pone a la derecha) · Enter, doble clic o Terminar acaba · Retroceso quita el último punto
+opt-sweep-closed = Recorrido cerrado
+opt-sweep-flip = Invertir lado
+prop-sweep-points = Puntos del perfil
+hint-sweep-profile = Redibuje el perfil con el comando sweep_profile_set (puntos o curvas) en la paleta de comandos.
+tpl-type-baseboard = Zócalo 10 cm
+tx-create-sweep = Crear perfil barrido
+tx-create-sweep-type = Crear tipo de perfil barrido

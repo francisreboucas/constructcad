@@ -215,6 +215,9 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
         ElementKind::Railing(r) => {
             derived.insert("length".into(), json!(cc_geom::railing_length(p, &e, r)));
         }
+        ElementKind::Sweep(sw) => {
+            derived.insert("length".into(), json!(sw.length()));
+        }
         ElementKind::Stair(st) => {
             if let Some(g) = cc_geom::stair_geom(p, &e, st) {
                 derived.insert("run".into(), json!(g.run()));

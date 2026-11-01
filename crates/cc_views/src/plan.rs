@@ -179,7 +179,8 @@ fn elevation_mark(d: &mut Drawing2D, lo: DVec2, hi: DVec2, look: DVec2, name: &s
 /// Columns, beams, stairs, ramps and railings of `level` as seen from the cut plane.
 /// Outlines of component pieces marked for plans: in floor plans the pieces
 /// starting below the cut (pieces above it dashed), in ceiling plans only
-/// the pieces above the cut (light fixtures and the like).
+/// the pieces above the cut (light fixtures and the like). Swept profiles
+/// are drawn the same way.
 fn draw_components(
     d: &mut Drawing2D,
     project: &Project,
@@ -190,6 +191,13 @@ fn draw_components(
     detail: DetailLevel,
 ) {
     for e in project.elements.values().filter(|e| e.level == level) {
+        // Swept profiles (baseboards, crown moldings) cut and show like mesh pieces.
+        if let ElementKind::Sweep(sw) = &e.kind {
+            if let Some(faces) = cc_geom::profile_sweep::sweep_faces(project, e, sw) {
+                draw_mesh(d, &faces, cut_z, ceiling, e.id);
+            }
+            continue;
+        }
         if !matches!(e.kind, ElementKind::Component(_)) {
             continue;
         }

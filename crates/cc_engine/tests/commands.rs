@@ -2876,3 +2876,85 @@ fn sketched_outlines_keep_their_curves() {
         json!({"boundary": [[0, 0], [1, 0], [1, 1]], "curves": [{"kind": "circle", "center": [0, 0], "radius": 1}]});
     assert_eq!(fails(&mut s, "floor_create", both), ErrorCode::InvalidArguments);
 }
+
+/// Swept profiles: a baseboard type comes with the first sweep; closed paths
+/// run around a room; profiles come from points or curves and are checked;
+/// a mirror keeps the profile on its wall's side; IFC writes moldings.
+#[test]
+fn sweeps_carry_a_profile_along_a_path() {
+    let mut s = Session::default();
+    let volume = |s: &mut Session, id: u64| run(s, "element_get", json!({"id": id}))["derived"]["volume"].as_f64();
+    // Around a 4 × 3 m room, counter-clockwise: the baseboard on the left is inside.
+    let room = json!({"path": [[0, 0], [4, 0], [4, 3], [0, 3]], "closed": true});
+    let board = run(&mut s, "sweep_create", room);
+    let bid = id(&board);
+    assert_eq!(board["category"], "sweep", "{board}");
+    let types = run(&mut s, "types_list", json!({"category": "sweep"}));
+    assert_eq!(types.as_array().map(Vec::len), Some(1), "{types}");
+    // (12 - 3.97 × 2.97) × 0.10 m³ of a 1.5 × 10 cm board.
+    let inside = (12.0 - 3.97 * 2.97) * 0.1;
+    assert!(volume(&mut s, bid).is_some_and(|v| (v - inside).abs() < 1e-9), "{:?}", volume(&mut s, bid));
+    let got = run(&mut s, "element_get", json!({"id": bid}));
+    assert!((got["derived"]["length"].as_f64().unwrap() - 14.0).abs() < 1e-9);
+    // Flipped, it runs outside: (4.03 × 3.03 - 12) × 0.10.
+    run(&mut s, "element_set", json!({"id": bid, "params": {"flip": true}}));
+    let outside = (4.03 * 3.03 - 12.0) * 0.1;
+    assert!(volume(&mut s, bid).is_some_and(|v| (v - outside).abs() < 1e-9));
+    // A mirrored copy keeps the profile on the same side of the path.
+    let mirrored =
+        run(&mut s, "elements_mirror", json!({"ids": [bid], "axis": [[10.0, 0.0], [10.0, 1.0]], "copy": true}));
+    let copy = mirrored["created"][0].as_u64().unwrap();
+    assert_eq!(run(&mut s, "element_get", json!({"id": copy}))["params"]["flip"], false);
+    assert!(volume(&mut s, copy).is_some_and(|v| (v - outside).abs() < 1e-9));
+
+    // A crown molding drawn with curves: a quarter-round cove of 6 cm, 2.7 m up, open path.
+    let cove = json!([
+        {"kind": "line", "start": [0, 0], "end": [0.06, 0]},
+        {"kind": "arc", "start": [0.06, 0], "end": [0, 0.06], "bulge": -0.41421356237},
+        {"kind": "line", "start": [0, 0.06], "end": [0, 0]}
+    ]);
+    let crown = run(&mut s, "sweep_type_create", json!({"name": "Crown", "curves": cove}));
+    let molding =
+        run(&mut s, "sweep_create", json!({"path": [[0, 0], [4, 0]], "type": crown["id"], "base_offset": 2.64}));
+    // 4 m of the corner square less the quarter circle: 4 × (0.06² - π 0.06² / 4).
+    let expected = 4.0 * (0.0036 - std::f64::consts::PI * 0.0036 / 4.0);
+    let v = volume(&mut s, id(&molding)).unwrap();
+    assert!((v - expected).abs() < 2e-5, "{v} vs {expected}");
+    // Redrawn by points: a fascia board 2.5 × 20 cm.
+    let fascia = json!([[0, 0], [0.025, 0], [0.025, 0.2], [0, 0.2]]);
+    run(&mut s, "sweep_profile_set", json!({"type": crown["id"], "profile": fascia}));
+    assert!(volume(&mut s, id(&molding)).is_some_and(|v| (v - 4.0 * 0.005).abs() < 1e-9));
+
+    // Refused: a crossing profile, both points and curves, a short path, a profile on a wall type.
+    let wall_type = run(&mut s, "types_list", json!({"category": "wall"}))[0]["id"].clone();
+    let depth = s.doc.undo_depth();
+    let bow = json!([[0, 0], [0.1, 0.1], [0.1, 0], [0, 0.1]]);
+    assert_eq!(fails(&mut s, "sweep_type_create", json!({"profile": bow})), ErrorCode::InvalidArguments);
+    let both = json!({"profile": fascia, "curves": cove});
+    assert_eq!(fails(&mut s, "sweep_type_create", both), ErrorCode::InvalidArguments);
+    assert_eq!(
+        fails(&mut s, "sweep_create", json!({"path": [[0, 0], [1, 0]], "closed": true})),
+        ErrorCode::InvalidArguments
+    );
+    assert_eq!(
+        fails(&mut s, "sweep_profile_set", json!({"type": wall_type, "profile": fascia})),
+        ErrorCode::InvalidArguments
+    );
+    assert!(
+        s.execute("type_set", json!({"type": crown["id"], "params": {"profile": [[0, 0], [1, 1]]}})).is_err(),
+        "a profile of two points is refused"
+    );
+    assert_eq!(s.doc.undo_depth(), depth);
+
+    // IFC: coverings typed as moldings; saved and loaded, they come back.
+    let ifc = scratch("sweeps.ifc");
+    run(&mut s, "ifc_export", json!({"path": ifc.to_string_lossy()}));
+    let text = std::fs::read_to_string(&ifc).unwrap();
+    assert!(text.contains("IFCCOVERINGTYPE") && text.matches(".MOLDING.").count() >= 4, "moldings");
+    assert_representation_types(&text);
+    let path = scratch("sweeps.ccad");
+    run(&mut s, "project_save", json!({"path": path}));
+    let mut t = Session::default();
+    run(&mut t, "project_open", json!({"path": path}));
+    assert!(volume(&mut t, bid).is_some_and(|v| (v - outside).abs() < 1e-9));
+}

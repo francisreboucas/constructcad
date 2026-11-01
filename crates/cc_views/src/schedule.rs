@@ -213,6 +213,7 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             },
             ElementKind::Railing(r) => Value::Length(cc_geom::railing_length(project, e, r)),
             ElementKind::Pipe(s) | ElementKind::Conduit(s) => Value::Length(s.length()),
+            ElementKind::Sweep(sw) => Value::Length(sw.length()),
             _ => Value::Missing,
         },
         F::Height => match (&e.kind, ty.map(|t| &t.data)) {

@@ -176,6 +176,23 @@ pub fn legend(project: &Project, types: &[ElementTypeId], scale: u32) -> Drawing
                     d.line(o + DVec2::new(x, 0.0), o + DVec2::new(x, *height), LineStyle::Thin, None);
                 }
             }
+            TypeData::Sweep { profile, material } => {
+                // The profile's section, enlarged to read at the legend's scale.
+                let (lo, hi) = profile
+                    .iter()
+                    .fold((DVec2::splat(f64::INFINITY), DVec2::splat(f64::NEG_INFINITY)), |(lo, hi), p| {
+                        (lo.min(*p), hi.max(*p))
+                    });
+                let size = (hi - lo).max_element();
+                if size.is_finite() && size > 1e-9 {
+                    let k = (10.0 * mm / size).max(1.0);
+                    let at = o - DVec2::new(0.0, (hi.y - lo.y) * k / 2.0);
+                    let pts: Vec<DVec2> = profile.iter().map(|p| at + (*p - lo) * k).collect();
+                    let c = project.material_color(material);
+                    d.fill(pts.clone(), [c[0], c[1], c[2], 255], None);
+                    d.polyline(&pts, true, LineStyle::Cut, None);
+                }
+            }
             TypeData::Component { .. } if device.is_some() => {
                 if let Some((kind, power)) = device {
                     // Wall devices with the wall along the top of the symbol; outlets low.

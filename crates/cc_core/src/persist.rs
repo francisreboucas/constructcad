@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Current file format version. Bump when the schema changes incompatibly.
-pub const FORMAT_VERSION: u32 = 15;
+pub const FORMAT_VERSION: u32 = 16;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PersistError {

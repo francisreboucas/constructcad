@@ -158,6 +158,7 @@ impl ScheduleField {
             Category::Stair => &[F::Width, F::Risers, F::RiserHeight, F::Run, F::Volume],
             Category::Ramp => &[F::Width, F::Slope, F::Run, F::Volume],
             Category::Railing => &[F::Length, F::Height],
+            Category::Sweep => &[F::Length, F::Volume],
             Category::Pipe => &[F::Diameter, F::Length, F::System, F::Slope, F::Material],
             Category::Conduit => &[F::Diameter, F::Length, F::System, F::Material],
             Category::Component => &[
@@ -219,6 +220,7 @@ impl ScheduleField {
             Category::Stair => vec![F::Mark, F::Type, F::Level, F::Risers, F::RiserHeight, F::Run, F::Volume],
             Category::Ramp => vec![F::Mark, F::Type, F::Level, F::Slope, F::Run, F::Volume],
             Category::Railing => vec![F::Mark, F::Type, F::Level, F::Length],
+            Category::Sweep => vec![F::Mark, F::Type, F::Level, F::Length, F::Volume],
             Category::Pipe => vec![F::Type, F::System, F::Level, F::Diameter, F::Length, F::Slope],
             Category::Conduit => vec![F::Type, F::System, F::Level, F::Diameter, F::Length],
             Category::Component => vec![F::Mark, F::ComponentName, F::Type, F::Level, F::Width, F::Depth, F::Height],

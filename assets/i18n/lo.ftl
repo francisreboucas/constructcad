@@ -2149,3 +2149,16 @@ sketch-apart = ມີວົງຢູ່ນອກຂອບເຂດ: ອົງປ
 sketch-nested = ມີວົງຢູ່ພາຍໃນຊ່ອງເປີດ.
 sketch-openings = ອົງປະກອບນີ້ຮັບວົງດຽວ, ບໍ່ມີຊ່ອງເປີດ.
 sketch-no-area = ມີວົງທີ່ບໍ່ມີເນື້ອທີ່.
+
+# Swept profiles
+category-sweep = ໂປຣໄຟລ໌ກວາດ
+tool-sweep = ໂປຣໄຟລ໌ກວາດ
+cmd-desc-sweep = ພາໂປຣໄຟລ໌ໄປຕາມເສັ້ນທາງ: ບົວພື້ນ, ບົວ, ໄມ້ປິດຂອບ, ຮາງນ້ຳ, ຝາປິດ.
+hint-sweep = ຄລິກຈຸດຂອງເສັ້ນທາງ; ໂປຣໄຟລ໌ຢູ່ເບື້ອງຊ້າຍ (ປີ້ນ ເອົາໄປເບື້ອງຂວາ) · Enter, ຄລິກສອງເທື່ອ ຫຼື ສຳເລັດ ເພື່ອຈົບ · Backspace ລຶບຈຸດສຸດທ້າຍ
+opt-sweep-closed = ເສັ້ນທາງປິດ
+opt-sweep-flip = ປີ້ນເບື້ອງ
+prop-sweep-points = ຈຸດຂອງໂປຣໄຟລ໌
+hint-sweep-profile = ແຕ້ມໂປຣໄຟລ໌ຄືນດ້ວຍຄຳສັ່ງ sweep_profile_set (ຈຸດ ຫຼື ເສັ້ນໂຄ້ງ) ໃນແຜງຄຳສັ່ງ.
+tpl-type-baseboard = ບົວພື້ນ 10 ຊມ
+tx-create-sweep = ສ້າງໂປຣໄຟລ໌ກວາດ
+tx-create-sweep-type = ສ້າງປະເພດໂປຣໄຟລ໌ກວາດ
