@@ -707,7 +707,7 @@ No parameters.
 
 ### `stair_create`
 
-*edit* — Create a stair starting at `start` (the middle of its first riser) and rising along `direction` up to the level above (or `height`). Risers and treads follow the type: the fewest risers within its maximum, and a fixed tread or one from Blondel's formula (`2 × riser + tread`). `shape` lays it out straight, with a landing, L- or U-shaped, or around a center.
+*edit* — Create a stair starting at `start` (the middle of its first riser) and rising along `direction` up to the level above (or `height`). Risers and treads follow the type (the fewest risers within its maximum, and a fixed tread or one from Blondel's formula `2 × riser + tread`) unless `risers` or `tread` set them: the riser height is then the height over the risers. `shape` lays it out straight, with a landing, L- or U-shaped, in three flights round two landings, or around a center. The top floor is the last step: a stair ends with a riser, not a tread.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -718,9 +718,12 @@ No parameters.
 | `inner_radius` | number | optional | Radius of the inner edge of a spiral stair, meters (default 0.15). |
 | `landing` | number | optional | Landing depth along the first flight, meters (default: the stair width). |
 | `level` | id or name | optional | Level id or name (default: the lowest level). |
-| `shape` | string | optional | Plan shape: `straight` (default), `straight_landing`, `l_shaped`, `u_shaped` or `spiral`. |
-| `split` | integer | optional | Risers of the first flight (default: half of them). |
+| `risers` | integer | optional | Riser count (default: the fewest within the type's maximum riser). |
+| `shape` | string | optional | Plan shape: `straight` (default), `straight_landing`, `l_shaped`, `u_shaped`, `three_flight` (up, across and back, with a landing at each corner) or `spiral`. |
+| `split` | integer | optional | Risers of the first flight (default: half of them; a third on a three-flight stair). |
+| `split2` | integer | optional | Risers of the middle flight of a three-flight stair (default: half of those left). |
 | `top_level` | id or name | optional | Level the stair rises to (default: the level above). |
+| `tread` | number | optional | Tread depth, meters (default: the type's). |
 | `turn` | string | optional | Side the stair turns to, walking up: `left` (default) or `right`. |
 | `type` | id or name | optional | Type id or name (default: the category's default type). |
 | `winders` | integer | optional | Winder treads in the corner of an L-shaped stair instead of a landing (2 to 6). |
