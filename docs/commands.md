@@ -12,7 +12,7 @@ Every command runs the same way from the desktop app, `ccad run` / `ccad script`
 - **Building services**: [`pipe_create`](#pipe_create), [`conduit_create`](#conduit_create), [`systems_list`](#systems_list), [`system_create`](#system_create), [`system_set`](#system_set), [`system_delete`](#system_delete), [`system_assign`](#system_assign), [`circuit_loads`](#circuit_loads), [`mep_fittings`](#mep_fittings), [`mep_connect`](#mep_connect), [`mep_sizing`](#mep_sizing), [`mep_size_apply`](#mep_size_apply)
 - **Modifying elements**: [`elements_delete`](#elements_delete), [`elements_move`](#elements_move), [`elements_copy`](#elements_copy), [`elements_rotate`](#elements_rotate), [`elements_mirror`](#elements_mirror), [`elements_pin`](#elements_pin), [`element_flip`](#element_flip), [`elements_turn`](#elements_turn), [`elements_export`](#elements_export), [`elements_paste`](#elements_paste), [`wall_join`](#wall_join), [`geometry_join`](#geometry_join), [`geometry_unjoin`](#geometry_unjoin), [`group_create`](#group_create), [`group_ungroup`](#group_ungroup), [`trim_corner`](#trim_corner), [`trim_extend`](#trim_extend), [`element_split`](#element_split), [`element_offset`](#element_offset), [`element_align`](#element_align), [`element_move_end`](#element_move_end), [`grids_align_ends`](#grids_align_ends), [`element_set`](#element_set), [`elements_set`](#elements_set), [`elements_set_type`](#elements_set_type)
 - **Dimensions and text**: [`dimension_create`](#dimension_create), [`tag_move`](#tag_move), [`dimension_chain_create`](#dimension_chain_create), [`dimension_ordinate_create`](#dimension_ordinate_create), [`dimension_set_value`](#dimension_set_value), [`text_create`](#text_create), [`text_add_leader`](#text_add_leader), [`text_remove_leader`](#text_remove_leader)
-- **Types, components, materials**: [`type_set`](#type_set), [`type_duplicate`](#type_duplicate), [`type_delete`](#type_delete), [`component_create`](#component_create), [`component_get`](#component_get), [`component_param_add`](#component_param_add), [`component_param_set`](#component_param_set), [`component_param_delete`](#component_param_delete), [`component_ref_plane_add`](#component_ref_plane_add), [`component_ref_plane_set`](#component_ref_plane_set), [`component_ref_plane_delete`](#component_ref_plane_delete), [`component_ref_line_add`](#component_ref_line_add), [`component_ref_line_delete`](#component_ref_line_delete), [`component_dimension_add`](#component_dimension_add), [`component_dimension_set`](#component_dimension_set), [`component_dimension_delete`](#component_dimension_delete), [`component_equal_add`](#component_equal_add), [`component_equal_delete`](#component_equal_delete), [`component_piece_add`](#component_piece_add), [`component_piece_set`](#component_piece_set), [`component_piece_delete`](#component_piece_delete), [`material_create`](#material_create), [`material_duplicate`](#material_duplicate), [`material_rename`](#material_rename), [`material_set`](#material_set), [`material_delete`](#material_delete)
+- **Types, components, materials**: [`type_set`](#type_set), [`type_duplicate`](#type_duplicate), [`type_delete`](#type_delete), [`component_create`](#component_create), [`component_get`](#component_get), [`component_param_add`](#component_param_add), [`component_param_set`](#component_param_set), [`component_param_delete`](#component_param_delete), [`component_ref_plane_add`](#component_ref_plane_add), [`component_ref_plane_set`](#component_ref_plane_set), [`component_ref_plane_delete`](#component_ref_plane_delete), [`component_ref_line_add`](#component_ref_line_add), [`component_ref_line_delete`](#component_ref_line_delete), [`component_dimension_add`](#component_dimension_add), [`component_dimension_set`](#component_dimension_set), [`component_dimension_delete`](#component_dimension_delete), [`component_equal_add`](#component_equal_add), [`component_equal_delete`](#component_equal_delete), [`component_piece_add`](#component_piece_add), [`component_piece_set`](#component_piece_set), [`component_piece_delete`](#component_piece_delete), [`component_connector_add`](#component_connector_add), [`component_connector_set`](#component_connector_set), [`component_connector_delete`](#component_connector_delete), [`material_create`](#material_create), [`material_duplicate`](#material_duplicate), [`material_rename`](#material_rename), [`material_set`](#material_set), [`material_delete`](#material_delete)
 - **Levels and views**: [`level_create`](#level_create), [`level_set`](#level_set), [`level_delete`](#level_delete), [`view_create`](#view_create), [`view_set`](#view_set), [`view_duplicate`](#view_duplicate), [`view_delete`](#view_delete), [`sheet_place_view`](#sheet_place_view), [`sheet_remove_viewport`](#sheet_remove_viewport)
 - **View graphics**: [`view_graphics_get`](#view_graphics_get), [`view_graphics_set`](#view_graphics_set), [`element_override_set`](#element_override_set), [`element_hide_in_view`](#element_hide_in_view), [`filters_list`](#filters_list), [`filter_create`](#filter_create), [`filter_set`](#filter_set), [`filter_delete`](#filter_delete), [`filter_elements`](#filter_elements), [`view_filter_add`](#view_filter_add), [`view_filter_set`](#view_filter_set), [`view_filter_remove`](#view_filter_remove), [`view_filter_move`](#view_filter_move), [`templates_list`](#templates_list), [`template_create`](#template_create), [`template_set`](#template_set), [`template_delete`](#template_delete), [`view_template_apply`](#view_template_apply), [`view_template_assign`](#view_template_assign), [`view_temporary`](#view_temporary), [`view_temporary_apply`](#view_temporary_apply)
 - **Phases**: [`phases_list`](#phases_list), [`phase_create`](#phase_create), [`phase_set`](#phase_set), [`phase_delete`](#phase_delete), [`elements_phase_set`](#elements_phase_set), [`elements_demolish`](#elements_demolish), [`phase_creation_set`](#phase_creation_set), [`phase_filters_list`](#phase_filters_list), [`phase_filter_create`](#phase_filter_create), [`phase_filter_set`](#phase_filter_set), [`phase_filter_delete`](#phase_filter_delete), [`phase_graphics_get`](#phase_graphics_get), [`phase_graphics_set`](#phase_graphics_set)
@@ -1417,7 +1417,7 @@ No parameters.
 
 ### `component_get`
 
-*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, the problems found, and the component's types with their parameter values.
+*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, where each connector is, the problems found, and the component's types with their parameter values.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -1614,6 +1614,46 @@ No parameters.
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `index` | integer | required | The piece's index. |
+| `type` | id or name | required | A type of the component: id or name. |
+
+### `component_connector_add`
+
+*edit* — Add a connector to a component: where a pipe or conduit of `system` joins it. `x`, `y` and `z` place it in the component's frame (numbers or expressions; a reference plane's name locks it to that plane), and `direction` is the way runs leave it.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `type` | id or name | required | A type of the component: id or name. |
+| `diameter` | number or string | optional | Outside diameter of the run it takes, meters (default: unset). |
+| `direction` | string | optional | Which way runs leave it: `down` (default), `up`, `front`, `back`, `left` or `right`. |
+| `name` | string | optional | Name (default `Connector1`, `Connector2`…). |
+| `system` | string | optional | Kind of system: `cold_water` (default), `hot_water`, `sanitary`, `vent`, `rainwater`, `power` or `lighting`. |
+| `x` | number or string | optional | Position across the component (default 0). |
+| `y` | number or string | optional | Position front to back (default 0). |
+| `z` | number or string | optional | Height (default 0). |
+
+### `component_connector_set`
+
+*edit* — Change a connector of a component: its name, kind of system, position (`x`, `y`, `z`, numbers or expressions; a reference plane's name locks it to that plane), direction or diameter (empty to clear it).
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `index` | integer | required | The connector's index (from `component_get`). |
+| `type` | id or name | required | A type of the component: id or name. |
+| `diameter` | number or string | optional | Outside diameter of the run it takes, meters (empty to clear it). |
+| `direction` | string | optional | Which way runs leave it: `down`, `up`, `front`, `back`, `left` or `right`. |
+| `name` | string | optional | New name. |
+| `system` | string | optional | Kind of system: `cold_water`, `hot_water`, `sanitary`, `vent`, `rainwater`, `power` or `lighting`. |
+| `x` | number or string | optional | Position across the component. |
+| `y` | number or string | optional | Position front to back. |
+| `z` | number or string | optional | Height. |
+
+### `component_connector_delete`
+
+*edit* — Remove a connector of a component.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `index` | integer | required | The connector's index. |
 | `type` | id or name | required | A type of the component: id or name. |
 
 ### `material_create`

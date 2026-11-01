@@ -2051,8 +2051,11 @@ comp-field-section = 斷面（u 在路徑左側，v 沿法線）
 comp-field-bottom = 底部輪廓
 comp-field-top = 頂部輪廓
 comp-env-equal = 等分 (EQ)
+comp-env-connector = 接頭
 cmd-desc-comp-equal = 使參考平面保持在兩個平行平面的正中間：它們移動時會跟著移動。
+cmd-desc-comp-connector = 標示管線與導管接入構件的位置：系統、位置、方向與直徑。
 comp-env-hint-equal = 點擊第 { $count } 個平面（共 3 個）：一個外側平面、保持居中的平面、另一個外側平面 · Esc 重新開始
+comp-env-hint-connector = 在平面、前視或側視圖中按一下以放置接頭；靠近參考平面時會鎖定於其上 · Esc 結束
 comp-env-points = 點
 
 # Sketch mode

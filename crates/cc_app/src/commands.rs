@@ -72,6 +72,7 @@ pub enum UiCommand {
     CompRefPlane,
     CompDimension,
     CompEqual,
+    CompConnector,
     CompSaveFile,
     CompFinish,
     CompCancel,
@@ -245,6 +246,7 @@ impl UiCommand {
             CompRefPlane,
             CompDimension,
             CompEqual,
+            CompConnector,
             CompSaveFile,
             CompFinish,
             CompCancel,
@@ -377,6 +379,7 @@ impl UiCommand {
             CompRefPlane => Icon::RefPlane,
             CompDimension => Icon::Dimension,
             CompEqual => Icon::Equal,
+            CompConnector => Icon::Connector,
             CompSaveFile => Icon::Save,
             CompFinish => Icon::Finish,
             CompCancel => Icon::Close,
@@ -531,6 +534,7 @@ impl UiCommand {
             CompRefPlane => t!("comp-env-ref-plane"),
             CompDimension => t!("comp-env-dimension"),
             CompEqual => t!("comp-env-equal"),
+            CompConnector => t!("comp-env-connector"),
             CompSaveFile => t!("action-save-component"),
             CompFinish => t!("comp-env-finish"),
             CompCancel => t!("comp-env-cancel"),
@@ -695,6 +699,7 @@ impl UiCommand {
             CompRefPlane => t!("cmd-desc-comp-ref-plane"),
             CompDimension => t!("cmd-desc-comp-dimension"),
             CompEqual => t!("cmd-desc-comp-equal"),
+            CompConnector => t!("cmd-desc-comp-connector"),
             CompSaveFile => t!("cmd-desc-comp-save"),
             CompFinish => t!("cmd-desc-comp-finish"),
             CompCancel => t!("cmd-desc-comp-cancel"),
@@ -975,6 +980,7 @@ impl UiCommand {
             CompRefPlane => "component_ref_plane_add",
             CompDimension => "component_dimension_add",
             CompEqual => "component_equal_add",
+            CompConnector => "component_connector_add",
             SketchFinish | EditBoundary => "sketch_set",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
@@ -1152,7 +1158,7 @@ impl UiCommand {
             MacroRun if state.session.is_recording() => Some(t!("why-recording")),
             EditComponent if crate::component_env::target_type(state).is_none() => Some(t!("why-select-component")),
             CompExtrusion | CompRevolution | CompSweep | CompBlend | CompRefPlane | CompDimension | CompEqual
-            | CompSaveFile | CompFinish | CompCancel
+            | CompConnector | CompSaveFile | CompFinish | CompCancel
                 if state.component_env.is_none() =>
             {
                 Some(t!("why-no-component-env"))
@@ -1203,6 +1209,9 @@ impl UiCommand {
                 .component_env
                 .as_ref()
                 .is_some_and(|e| matches!(e.tool, crate::component_env::EnvTool::RefPlane { .. })),
+            CompConnector => {
+                state.component_env.as_ref().is_some_and(|e| matches!(e.tool, crate::component_env::EnvTool::Connector))
+            }
             CompEqual => state
                 .component_env
                 .as_ref()
@@ -1426,6 +1435,7 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         CompDimension => {
             crate::component_env::set_tool(state, crate::component_env::EnvTool::Dimension { first: None });
         }
+        CompConnector => crate::component_env::set_tool(state, crate::component_env::EnvTool::Connector),
         CompEqual => crate::component_env::set_tool(
             state,
             crate::component_env::EnvTool::Equal { picked: Vec::new(), view: None },

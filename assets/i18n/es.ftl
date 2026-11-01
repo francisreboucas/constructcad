@@ -2051,8 +2051,11 @@ comp-field-section = Sección (u a la izquierda del camino, v en la normal)
 comp-field-bottom = Contorno de base
 comp-field-top = Contorno superior
 comp-env-equal = Igualdad (EQ)
+comp-env-connector = Conector
 cmd-desc-comp-equal = Mantiene un plano de referencia a medio camino entre otros dos paralelos: lo sigue cuando se mueven.
+cmd-desc-comp-connector = Marca dónde se unen tuberías y conductos al componente: sistema, posición, dirección y diámetro.
 comp-env-hint-equal = Haga clic en el plano { $count } de 3: uno exterior, el que queda en medio, el otro exterior · Esc empieza de nuevo
+comp-env-hint-connector = Haga clic en la planta, la vista frontal o lateral para colocar un conector; cerca de un plano de referencia queda fijado a él · Esc termina
 comp-env-points = Puntos
 
 # Sketch mode

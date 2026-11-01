@@ -2051,8 +2051,11 @@ comp-field-section = Section (u left of the path, v along the normal)
 comp-field-bottom = Bottom outline
 comp-field-top = Top outline
 comp-env-equal = Equality (EQ)
+comp-env-connector = Connector
 cmd-desc-comp-equal = Keeps a reference plane halfway between two parallel ones: it follows when they move.
+cmd-desc-comp-connector = Marks where pipes and conduits join the component: system, position, direction and diameter.
 comp-env-hint-equal = Click plane { $count } of 3: an outer one, the one kept halfway, the other outer one · Esc starts over
+comp-env-hint-connector = Click in the plan, front or side view to place a connector; near a reference plane it locks to it · Esc ends
 comp-env-points = Points
 
 # Sketch mode

@@ -415,3 +415,77 @@ fn pieces_take_parts_of_ellipses() {
         ErrorCode::InvalidArguments
     );
 }
+
+/// Connectors added, changed and removed by commands: locked to a plane
+/// they follow it, renaming the plane keeps the lock, and bad values are
+/// refused without an undo step.
+#[test]
+fn connectors_are_added_locked_to_planes_and_removed() {
+    let mut s = Session::default();
+    let ty = bench(&mut s)["id"].clone();
+    run(&mut s, "component_ref_plane_add", json!({"type": ty, "axis": "x", "at": "Width/2", "name": "Right"}));
+    let depth = s.doc.undo_depth();
+    let added = run(
+        &mut s,
+        "component_connector_add",
+        json!({"type": ty, "system": "cold_water", "x": "Right", "y": 0.1, "z": 0.3, "direction": "back",
+               "diameter": 0.02}),
+    );
+    assert_eq!((added["index"].as_u64(), added["name"].as_str()), (Some(0), Some("Connector1")));
+    assert_eq!(s.doc.undo_depth(), depth + 1, "one undo step");
+    let second = run(&mut s, "component_connector_add", json!({"type": ty, "name": "Drain", "system": "sanitary"}));
+    assert_eq!(second["index"], 1);
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    let k = &c["connectors"][0];
+    assert_eq!((k["system"].as_str(), k["direction"].as_str()), (Some("cold_water"), Some("back")));
+    assert_eq!(k["point"], json!([0.6, 0.1, 0.3]));
+    assert_eq!(k["diameter"], 0.02);
+    assert_eq!(c["connectors"][1]["point"], json!([0.0, 0.0, 0.0]));
+
+    // Locked to Right: a wider bench moves it, and a renamed plane keeps it.
+    run(&mut s, "component_param_set", json!({"type": ty, "name": "Width", "value": 2.0}));
+    run(&mut s, "component_ref_plane_set", json!({"type": ty, "name": "Right", "rename": "Edge"}));
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    assert_eq!(c["def"]["connectors"][0]["x"], "Edge");
+    assert!((f(&c["connectors"][0]["point"][0]) - 1.0).abs() < 1e-12, "{}", c["connectors"]);
+
+    // Changes: name, system, height, direction; an empty diameter clears it.
+    run(
+        &mut s,
+        "component_connector_set",
+        json!({"type": ty, "index": 0, "name": "Supply", "system": "hot_water", "z": "0.2 + 0.05",
+               "direction": "down", "diameter": ""}),
+    );
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    let k = &c["connectors"][0];
+    assert_eq!((k["name"].as_str(), k["system"].as_str()), (Some("Supply"), Some("hot_water")));
+    assert!((f(&k["point"][2]) - 0.25).abs() < 1e-12 && k["direction"] == "down" && k["diameter"].is_null());
+
+    // Refused: unknown names, a taken name, an expression that does not
+    // resolve, a missing connector; none leaves an undo step.
+    let depth = s.doc.undo_depth();
+    let bad = [
+        ("component_connector_add", json!({"type": ty, "system": "steam"})),
+        ("component_connector_add", json!({"type": ty, "direction": "sideways"})),
+        ("component_connector_add", json!({"type": ty, "name": "Drain"})),
+        ("component_connector_add", json!({"type": ty, "x": "Nowhere"})),
+        ("component_connector_set", json!({"type": ty, "index": 0, "name": "Drain"})),
+        ("component_connector_set", json!({"type": ty, "index": 9, "z": 1})),
+        ("component_connector_delete", json!({"type": ty, "index": 9})),
+    ];
+    for (name, args) in bad {
+        let code = fails(&mut s, name, args.clone());
+        assert!(matches!(code, ErrorCode::InvalidArguments | ErrorCode::NotFound), "{name} {args}: {code:?}");
+    }
+    assert_eq!(s.doc.undo_depth(), depth);
+    // Deleting the plane it is locked to is refused while the connector reads it.
+    assert_eq!(fails(&mut s, "component_ref_plane_delete", json!({"type": ty, "name": "Edge"})), ErrorCode::Rejected);
+
+    run(&mut s, "component_connector_delete", json!({"type": ty, "index": 0}));
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    assert_eq!(c["connectors"].as_array().map(Vec::len), Some(1));
+    assert_eq!(c["connectors"][0]["name"], "Drain");
+    run(&mut s, "undo", json!({}));
+    let c = run(&mut s, "component_get", json!({"type": ty}));
+    assert_eq!(c["connectors"].as_array().map(Vec::len), Some(2));
+}
