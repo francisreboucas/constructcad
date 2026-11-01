@@ -27,7 +27,7 @@ pub enum ExprArg {
 }
 
 impl ExprArg {
-    fn text(&self) -> Result<String> {
+    pub(crate) fn text(&self) -> Result<String> {
         match self {
             ExprArg::Number(v) => Ok(number(refs::finite(*v, "value")?)),
             ExprArg::Text(t) => check_expr(t),

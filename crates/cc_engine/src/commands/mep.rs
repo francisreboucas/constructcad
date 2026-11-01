@@ -19,7 +19,7 @@ fn kind_name(kind: SystemKind) -> String {
     kind.name().to_string()
 }
 
-fn parse_kind(name: &str) -> Result<SystemKind> {
+pub(crate) fn parse_kind(name: &str) -> Result<SystemKind> {
     let wanted = name.trim().to_ascii_lowercase();
     // Snake-case names, or the model's own variant names (`ColdWater`).
     let found = SystemKind::ALL

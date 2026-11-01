@@ -2053,8 +2053,11 @@ comp-field-section = Querschnitt (u links vom Pfad, v entlang der Normalen)
 comp-field-bottom = Unterer Umriss
 comp-field-top = Oberer Umriss
 comp-env-equal = Gleichheit (EQ)
+comp-env-connector = Anschluss
 cmd-desc-comp-equal = Hält eine Referenzebene mittig zwischen zwei parallelen: sie folgt, wenn diese sich bewegen.
+cmd-desc-comp-connector = Markiert, wo Rohre und Leerrohre an das Bauteil anschließen: System, Position, Richtung und Durchmesser.
 comp-env-hint-equal = Ebene { $count } von 3 klicken: eine äußere, die mittig gehaltene, die andere äußere · Esc beginnt neu
+comp-env-hint-connector = In Grundriss, Vorder- oder Seitenansicht klicken, um einen Anschluss zu setzen; nahe einer Referenzebene wird er an sie gebunden · Esc beendet
 comp-env-points = Punkte
 
 # Sketch mode

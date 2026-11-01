@@ -87,6 +87,21 @@ pub struct ViewDimension {
     pub label: Option<String>,
 }
 
+/// A connector as seen in a view: where it is and which way runs leave it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ViewConnector {
+    /// Its index in the definition.
+    pub index: usize,
+    pub point: DVec2,
+    /// The direction in the view (zero length when it points at or away from the viewer).
+    pub dir: DVec2,
+    /// Toward the viewer (+1), away (-1) or across the view (0).
+    pub facing: i8,
+    pub system: cc_core::SystemKind,
+    /// Radius of the run it takes, when it has a diameter.
+    pub radius: Option<f64>,
+}
+
 /// A view of a component: its drawing and what can be picked in it.
 #[derive(Debug, Clone, Default)]
 pub struct ComponentView {
@@ -95,6 +110,8 @@ pub struct ComponentView {
     pub dimensions: Vec<ViewDimension>,
     /// Equalities (EQ) drawn in this view, by index: where each "EQ" text sits.
     pub equals: Vec<ViewDimension>,
+    /// Connectors, drawn by the environment in their system's color.
+    pub connectors: Vec<ViewConnector>,
     /// Each piece's edges in this view (by index in the definition), for picking.
     pub pieces: Vec<(usize, Vec<(DVec2, DVec2)>)>,
     /// Box of the pieces and planes, for zoom to fit.
@@ -149,6 +166,28 @@ pub fn component_view(
             Some((_, e)) => e.extend(edges),
             None => out.pieces.push((item, edges)),
         }
+    }
+    // Connectors, in every view.
+    for k in def.resolve_connectors(overrides) {
+        let at = kind.project(k.point);
+        let d = kind.project(k.direction.vector());
+        let flat = d.truncate();
+        let point = at.truncate();
+        grow(&mut out.bounds, point);
+        out.connectors.push(ViewConnector {
+            index: k.index,
+            point,
+            dir: if flat.length() > 1e-6 { flat.normalize() } else { DVec2::ZERO },
+            facing: if flat.length() > 1e-6 {
+                0
+            } else if d.z > 0.0 {
+                1
+            } else {
+                -1
+            },
+            system: k.system,
+            radius: k.diameter.map(|d| d / 2.0),
+        });
     }
     let Some(view) = kind.plane() else {
         return out;
@@ -363,5 +402,37 @@ mod tests {
         def.params[0].instance = true;
         let plan = component_view(&def, &wide, ComponentViewKind::Plan, 20);
         assert!((plan.planes[3].a.x - 1.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn connectors_show_where_they_are_and_which_way_runs_leave() {
+        use cc_core::component::{ComponentConnector, ConnectorDirection};
+        let mut def = table();
+        let connector = |x: &str, direction| ComponentConnector {
+            name: "C".into(),
+            system: cc_core::SystemKind::Sanitary,
+            x: x.into(),
+            y: "0.1".into(),
+            z: "0.3".into(),
+            direction,
+            diameter: "0.1".into(),
+        };
+        def.connectors = vec![connector("Right", ConnectorDirection::Back), connector("0", ConnectorDirection::Down)];
+        let plan = component_view(&def, &BTreeMap::new(), ComponentViewKind::Plan, 20);
+        let [back, down] = [&plan.connectors[0], &plan.connectors[1]];
+        assert!((back.point - DVec2::new(0.6, 0.1)).length() < 1e-12);
+        assert_eq!((back.dir, back.facing, back.radius), (DVec2::Y, 0, Some(0.05)));
+        // Seen from above, a connector pointing down points away.
+        assert_eq!((down.dir, down.facing), (DVec2::ZERO, -1));
+        let front = component_view(&def, &BTreeMap::new(), ComponentViewKind::Front, 20);
+        assert!((front.connectors[0].point - DVec2::new(0.6, 0.3)).length() < 1e-12);
+        assert_eq!((front.connectors[0].facing, front.connectors[1].dir), (-1, -DVec2::Y));
+        // The 3D view shows them too, and they follow the planes.
+        let three = component_view(&def, &BTreeMap::new(), ComponentViewKind::ThreeD, 20);
+        assert_eq!(three.connectors.len(), 2);
+        let wide = BTreeMap::from([("Width".to_string(), 2.0)]);
+        def.params[0].instance = true;
+        let plan = component_view(&def, &wide, ComponentViewKind::Plan, 20);
+        assert!((plan.connectors[0].point.x - 1.0).abs() < 1e-12);
     }
 }
