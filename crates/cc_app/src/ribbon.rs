@@ -1150,6 +1150,13 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
                 ui.label(theme::muted(t!("hint-sweep")));
             }
             Tool::Railing { type_id } => {
+                ui.checkbox(&mut state.railing_host.on, t!("opt-railing-on-host"));
+                if state.railing_host.on {
+                    state.interaction.points.clear();
+                    ui.checkbox(&mut state.railing_host.both, t!("opt-railing-both-sides"));
+                    ui.label(theme::muted(t!("hint-railing-host")));
+                    return;
+                }
                 let n = state.interaction.points.len();
                 if ui.add_enabled(n >= 2, Button::new(t!("sketch-finish"))).clicked()
                     && let Some(level) = state.active_level()

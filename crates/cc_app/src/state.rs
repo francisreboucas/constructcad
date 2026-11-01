@@ -132,6 +132,8 @@ pub struct AppState {
     pub stair_layout: cc_core::StairLayout,
     /// Options for new swept profiles (height, closed path, side).
     pub sweep: crate::tools::SweepOptions,
+    /// Railings on a picked stair or ramp instead of a drawn path.
+    pub railing_host: crate::tools::RailingHostOptions,
     /// Plan layout for new ramps (shape, turn, slope, landing, radius).
     pub ramp_layout: cc_core::RampLayout,
     /// The wall tool draws arcs (start, end, then a point on the arc).
@@ -210,6 +212,7 @@ impl AppState {
             wall_location_line: Default::default(),
             stair_layout: Default::default(),
             sweep: Default::default(),
+            railing_host: Default::default(),
             ramp_layout: Default::default(),
             wall_arc: false,
             wall_top_level: None,

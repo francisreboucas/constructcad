@@ -1171,6 +1171,9 @@ pub fn handle(
         (Tool::Truss { type_id }, Some(level)) => truss_tool(ui, resp, painter, state, level, *type_id, xf),
         (Tool::Stair { type_id }, Some(level)) => stair_tool(ui, resp, painter, state, level, *type_id, xf),
         (Tool::Ramp { type_id }, Some(level)) => ramp_tool(ui, resp, painter, state, level, *type_id, xf),
+        (Tool::Railing { type_id }, _) if state.railing_host.on => {
+            host_railing_tool(resp, painter, state, *type_id, xf, drawing);
+        }
         (Tool::Railing { type_id }, Some(level)) => {
             path_tool(ui, resp, painter, state, level, *type_id, xf, false, finish_railing);
         }
@@ -1774,6 +1777,47 @@ fn path_tool(
     }
     if done {
         finish(state, level, type_id);
+    }
+}
+
+/// Options of the railing tool: put railings on a stair or ramp picked in
+/// the view instead of drawing a path.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct RailingHostOptions {
+    pub on: bool,
+    /// Both sides of the host, not only the side nearest the click.
+    pub both: bool,
+}
+
+/// Whether `id` is a stair or a ramp (an element railings can follow).
+pub fn railing_host(state: &AppState, id: ElementId) -> bool {
+    state.project().element(id).is_some_and(|e| matches!(e.kind, ElementKind::Stair(_) | ElementKind::Ramp(_)))
+}
+
+/// The railing tool picking a host: the stair or ramp under the pointer is
+/// highlighted, and a click puts a railing on its side nearest the click
+/// (or on both sides).
+fn host_railing_tool(
+    resp: &Response,
+    painter: &Painter,
+    state: &mut AppState,
+    type_id: ElementTypeId,
+    xf: &Xf,
+    drawing: &cc_views::Drawing2D,
+) {
+    let Some(raw) = resp.hover_pos().map(|p| xf.to_world(p)) else { return };
+    let Some(host) = drawing.hit_test(raw, 6.0 / xf.scale).filter(|id| railing_host(state, *id)) else { return };
+    let lit: std::collections::BTreeSet<ElementId> = [host].into_iter().collect();
+    crate::modify::paint_ghost(painter, xf, drawing, &lit, &cc_core::PlanTransform::IDENTITY);
+    if resp.clicked() {
+        let command = cc_engine::commands::stair::StairRailingsAdd {
+            id: host.0,
+            side: state.railing_host.both.then(|| "both".to_string()),
+            type_ref: Some(Ref::Id(type_id.0)),
+            inset: None,
+            near: Some(raw.to_array()),
+        };
+        crate::actions::run_command(state, command);
     }
 }
 

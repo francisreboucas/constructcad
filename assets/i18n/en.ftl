@@ -1823,6 +1823,12 @@ section-stair-build = Construction
 section-stair-rules = Step rules
 action-stair-railings = Add railings
 prop-railing-host = Host
+opt-railing-on-host = On a stair or ramp
+opt-railing-both-sides = Both sides
+hint-railing-host = Click a stair or ramp: the railing goes on the side nearest the click and follows it
+prop-railing-side = Side
+action-railing-detach = Detach from Host
+action-railing-detach-tip = The railing stops following the stair or ramp and keeps the path it has in plan
 
 ## Ramps
 category-ramp = Ramps

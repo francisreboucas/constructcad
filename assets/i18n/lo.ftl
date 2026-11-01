@@ -1825,6 +1825,12 @@ section-stair-build = ການກໍ່ສ້າງ
 section-stair-rules = ກົດຂອງຂັ້ນ
 action-stair-railings = ເພີ່ມຮາວກັ້ນ
 prop-railing-host = ບ່ອນຍຶດ
+opt-railing-on-host = ເທິງຂັ້ນໄດ ຫຼື ທາງລາດ
+opt-railing-both-sides = ທັງສອງເບື້ອງ
+hint-railing-host = ຄລິກຂັ້ນໄດ ຫຼື ທາງລາດ: ຮາວກັນຕົກຈະຢູ່ເບື້ອງທີ່ໃກ້ກັບບ່ອນຄລິກ ແລະ ຕິດຕາມມັນ
+prop-railing-side = ເບື້ອງ
+action-railing-detach = ແຍກອອກຈາກໂຮສ
+action-railing-detach-tip = ຮາວກັນຕົກຈະບໍ່ຕິດຕາມຂັ້ນໄດ ຫຼື ທາງລາດອີກ ແລະ ຮັກສາເສັ້ນທາງທີ່ມີໃນແຜນຜັງ
 
 ## ທາງລາດ
 category-ramp = ທາງລາດ

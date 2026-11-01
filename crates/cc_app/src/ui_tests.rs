@@ -1500,3 +1500,29 @@ fn a_views_visual_style_is_chosen_in_its_properties() {
     harness.state_mut().session.execute("undo", serde_json::json!({})).unwrap();
     assert_eq!(harness.state().project().view(view).unwrap().style(), cc_core::VisualStyle::Shaded);
 }
+
+/// A railing on a stair: the railing tool recognizes stairs and ramps as
+/// hosts, and the railing's properties take it off its host.
+#[test]
+fn a_hosted_railing_is_detached_from_its_properties() {
+    let mut state = sample_state();
+    let stair = state.session.execute("stair_create", serde_json::json!({"start": [70, 0]})).unwrap();
+    let stair = cc_core::ElementId(stair["id"].as_u64().unwrap());
+    assert!(crate::tools::railing_host(&state, stair));
+    let added =
+        state.session.execute("stair_railings_add", serde_json::json!({"id": stair.0, "near": [71.0, 5.0]})).unwrap();
+    let railing = cc_core::ElementId(added["ids"][0].as_u64().unwrap());
+    assert!(!crate::tools::railing_host(&state, railing));
+    state.selection = [railing].into_iter().collect();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1200.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    harness.get_by_role_and_label(Role::Button, &t!("action-railing-detach")).click();
+    harness.run();
+    let hosted = |h: &Harness<'_, AppState>| match &h.state().project().element(railing).unwrap().kind {
+        cc_core::ElementKind::Railing(r) => r.stair.is_some(),
+        _ => true,
+    };
+    assert!(!hosted(&harness));
+}

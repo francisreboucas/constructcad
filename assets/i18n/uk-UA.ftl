@@ -1824,6 +1824,12 @@ section-stair-build = Конструкція
 section-stair-rules = Правила сходинок
 action-stair-railings = Додати огорожі
 prop-railing-host = Основа
+opt-railing-on-host = На сходах або пандусі
+opt-railing-both-sides = З обох боків
+hint-railing-host = Клацніть сходи або пандус: огородження стане з боку, найближчого до клацання, і слідуватиме за ним
+prop-railing-side = Бік
+action-railing-detach = Від’єднати від основи
+action-railing-detach-tip = Огородження перестає слідувати за сходами чи пандусом і зберігає свою траєкторію на плані
 
 ## Пандуси
 category-ramp = Пандуси

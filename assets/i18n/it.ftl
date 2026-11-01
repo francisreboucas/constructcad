@@ -1823,6 +1823,12 @@ section-stair-build = Costruzione
 section-stair-rules = Regole dei gradini
 action-stair-railings = Aggiungi ringhiere
 prop-railing-host = Ospite
+opt-railing-on-host = Su una scala o rampa
+opt-railing-both-sides = Entrambi i lati
+hint-railing-host = Fai clic su una scala o rampa: il parapetto va sul lato più vicino al clic e la segue
+prop-railing-side = Lato
+action-railing-detach = Stacca dall’ospite
+action-railing-detach-tip = Il parapetto smette di seguire la scala o la rampa e mantiene il percorso che ha in pianta
 
 ## Rampe
 category-ramp = Rampe

@@ -1823,6 +1823,12 @@ section-stair-build = Construcción
 section-stair-rules = Reglas de los peldaños
 action-stair-railings = Añadir barandillas
 prop-railing-host = Anfitrión
+opt-railing-on-host = En una escalera o rampa
+opt-railing-both-sides = Ambos lados
+hint-railing-host = Haga clic en una escalera o rampa: la barandilla va en el lado más cercano al clic y la sigue
+prop-railing-side = Lado
+action-railing-detach = Separar del anfitrión
+action-railing-detach-tip = La barandilla deja de seguir la escalera o rampa y conserva el recorrido que tiene en planta
 
 ## Rampas
 category-ramp = Rampas

@@ -167,6 +167,7 @@ registry![
         stair::StairCreate,
         stair::StairCheck,
         stair::StairRailingsAdd,
+        stair::RailingHostSet,
         ramp::RampCreate,
         ramp::RampCheck,
         roofing::RoofCheck,

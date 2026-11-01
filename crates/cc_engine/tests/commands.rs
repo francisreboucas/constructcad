@@ -2996,3 +2996,60 @@ fn sweeps_carry_a_profile_along_a_path() {
     run(&mut t, "project_open", json!({"path": path}));
     assert!(volume(&mut t, bid).is_some_and(|v| (v - outside).abs() < 1e-9));
 }
+
+/// Railings put on stairs and ramps: on the side nearest a picked point, an
+/// existing railing attached to the side its path runs along, switched to
+/// the other side, and taken off again keeping its plan path.
+#[test]
+fn railings_take_and_leave_a_host() {
+    let mut s = Session::default();
+    let stair = id(&run(&mut s, "stair_create", json!({"start": [0, 0], "direction": 0})));
+    let host_of = |s: &mut Session, id: u64| run(s, "element_get", json!({"id": id}))["params"]["stair"].clone();
+    let length = |s: &mut Session, id: u64| run(s, "element_get", json!({"id": id}))["derived"]["length"].as_f64();
+    // A click below the stair (walking up +x, that is its right side) puts one railing there.
+    let added = run(&mut s, "stair_railings_add", json!({"id": stair, "near": [1.0, -3.0]}));
+    let ids = added["ids"].as_array().unwrap();
+    assert_eq!(ids.len(), 1);
+    assert_eq!(host_of(&mut s, ids[0].as_u64().unwrap())["side"], "Right");
+
+    // A railing drawn along the stair's left edge, then attached: it takes the left side and climbs.
+    let drawn = id(&run(&mut s, "railing_create", json!({"path": [[0.5, 0.6], [3.0, 0.6]]})));
+    assert!((length(&mut s, drawn).unwrap() - 2.5).abs() < 1e-9);
+    let set = run(&mut s, "railing_host_set", json!({"id": drawn, "host": stair}));
+    assert_eq!((set["side"].as_str(), set["host"].as_u64()), (Some("left"), Some(stair)), "{set}");
+    let climbing = length(&mut s, drawn).unwrap();
+    assert!(climbing > 3.0, "it follows the stair up: {climbing}");
+    // Switched to the right, closer in.
+    run(&mut s, "railing_host_set", json!({"id": drawn, "side": "right", "inset": 0.1}));
+    let h = host_of(&mut s, drawn);
+    assert_eq!(h["side"], "Right");
+    assert!((h["inset"].as_f64().unwrap() - 0.1).abs() < 1e-12);
+    // Taken off: flat, along the plan path it had.
+    run(&mut s, "railing_host_set", json!({"id": drawn, "detach": true}));
+    assert!(host_of(&mut s, drawn).is_null());
+    let flat = length(&mut s, drawn).unwrap();
+    assert!(flat > 2.0 && flat < climbing, "{flat} vs {climbing}");
+    run(&mut s, "undo", json!({}));
+    assert!(!host_of(&mut s, drawn).is_null());
+
+    // A ramp hosts too.
+    let ramp = id(&run(&mut s, "ramp_create", json!({"start": [0, 10], "direction": 0})));
+    let on_ramp = run(&mut s, "railing_host_set", json!({"id": drawn, "host": ramp, "side": "left"}));
+    assert_eq!(on_ramp["host"].as_u64(), Some(ramp));
+
+    // Refused without an undo step.
+    let wall = id(&run(&mut s, "wall_create", json!({"start": [20, 0], "end": [25, 0]})));
+    let depth = s.doc.undo_depth();
+    for args in [
+        json!({"id": drawn, "host": wall}),
+        json!({"id": drawn, "host": stair, "detach": true}),
+        json!({"id": drawn, "side": "up"}),
+        json!({"id": wall, "host": stair}),
+    ] {
+        let code = fails(&mut s, "railing_host_set", args.clone());
+        assert!(matches!(code, ErrorCode::InvalidArguments | ErrorCode::NotFound), "{args}: {code:?}");
+    }
+    run(&mut s, "railing_host_set", json!({"id": drawn, "detach": true}));
+    assert_eq!(fails(&mut s, "railing_host_set", json!({"id": drawn, "detach": true})), ErrorCode::InvalidArguments);
+    assert_eq!(s.doc.undo_depth(), depth + 1);
+}
