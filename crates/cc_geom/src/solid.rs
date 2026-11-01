@@ -79,6 +79,9 @@ pub struct Solid {
     pub secondary: bool,
     /// The detail levels of the views that draw it (a component's piece).
     pub detail: cc_core::component::DetailLevels,
+    /// The material's appearance color and surface pattern (the textures style).
+    pub appearance: [u8; 3],
+    pub surface: cc_core::PatternFill,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -97,14 +100,27 @@ impl Solid {
             faces: Vec::new(),
             secondary: false,
             detail: Default::default(),
+            appearance: color,
+            surface: Default::default(),
         }
     }
 
     /// An empty solid colored and made transparent like material `name`.
     pub fn of_material(element: ElementId, category: Category, project: &cc_core::Project, name: &str) -> Self {
-        Self {
+        let mut s = Self {
             transparency: project.material_transparency(name),
             ..Self::new(element, category, project.material_color(name))
+        };
+        s.set_appearance(project, name);
+        s
+    }
+
+    /// Take the appearance color and surface pattern of material `name`
+    /// (what the textures style shows).
+    pub fn set_appearance(&mut self, project: &cc_core::Project, name: &str) {
+        if let Some(m) = project.material(name) {
+            self.appearance = m.appearance.color;
+            self.surface = m.graphics.surface;
         }
     }
 

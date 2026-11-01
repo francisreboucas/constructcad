@@ -695,6 +695,38 @@ fn draw_shafts(d: &mut Drawing2D, project: &Project, level: LevelId, cut_z: f64)
         }
     }
 }
+/// The faces a plan sees beyond its cut plane at `cut_z`, filled in the
+/// view's visual style, to lie under the plan's linework: what is below the
+/// cut in floor plans, above it in ceiling plans (the shaded, consistent
+/// colors and textures styles). Only fills and surface patterns: the plan
+/// draws its own edges and cuts.
+pub fn style_underlay(geom: &ModelGeometry, cut_z: f64, ceiling: bool, look: crate::Look) -> Vec<crate::Prim> {
+    let forward = if ceiling { glam::DVec3::Z } else { -glam::DVec3::Z };
+    let mut frame = crate::projected::Frame::looking(glam::DVec3::new(0.0, 0.0, cut_z), forward);
+    frame.near = Some(0.0);
+    let d = crate::projected::render(geom, &frame, None, look);
+    // Looking up, the frame's up is -y: back to plan coordinates.
+    let flip = |p: DVec2| if ceiling { DVec2::new(p.x, -p.y) } else { p };
+    d.prims
+        .into_iter()
+        .filter(|p| match p {
+            crate::Prim::Fill { cut, .. } => !cut,
+            crate::Prim::Line { style, .. } => *style == LineStyle::Thin,
+            _ => false,
+        })
+        .map(|p| p.mapped(flip))
+        .collect()
+}
+
+/// The wireframe style of a plan: no fills (but the invisible room areas
+/// that make rooms pickable) and no hatches, only lines.
+pub fn strip_fills(d: &mut Drawing2D) {
+    d.prims.retain(|p| match p {
+        crate::Prim::Fill { color, .. } => color[3] == 0,
+        crate::Prim::Line { style, .. } => *style != LineStyle::Hatch,
+        _ => true,
+    });
+}
 
 #[cfg(test)]
 mod tests {

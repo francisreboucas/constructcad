@@ -261,3 +261,18 @@ pub fn detail_level(name: &str) -> Result<cc_core::DetailLevel> {
         other => Err(EngineError::invalid(format!("unknown detail level '{other}': use coarse, medium or fine"))),
     }
 }
+
+/// A visual style by name (`wireframe`, `hidden_line`, `shaded`,
+/// `consistent_colors`, `textures`), or `default` for the usual style of
+/// the view's kind (`None`).
+pub fn visual_style(name: &str) -> Result<Option<cc_core::VisualStyle>> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() || trimmed.eq_ignore_ascii_case("default") {
+        return Ok(None);
+    }
+    cc_core::VisualStyle::from_name(trimmed).map(Some).ok_or_else(|| {
+        EngineError::invalid(format!(
+            "unknown visual style '{trimmed}': use wireframe, hidden_line, shaded, consistent_colors, textures or default"
+        ))
+    })
+}

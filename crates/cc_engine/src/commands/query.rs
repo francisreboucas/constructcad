@@ -224,12 +224,8 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
             derived.insert("top".into(), json!(top));
             derived.insert("area".into(), json!(cc_geom::polygon::area(&sh.outline)));
             // The floors, ceilings and roofs it cuts.
-            let cuts: Vec<u64> = p
-                .elements
-                .values()
-                .filter(|o| o.shaft_cuts().contains(&sh.outline))
-                .map(|o| o.id.0)
-                .collect();
+            let cuts: Vec<u64> =
+                p.elements.values().filter(|o| o.shaft_cuts().contains(&sh.outline)).map(|o| o.id.0).collect();
             derived.insert("cuts".into(), json!(cuts));
         }
         ElementKind::Stair(st) => {
@@ -365,6 +361,7 @@ pub(crate) fn view_json(s: &Session, id: ViewId) -> Option<Value> {
         "category": snake(&format!("{:?}", v.category())),
         "scale": v.scale,
         "detail": v.detail.name(),
+        "visual_style": v.style().name(),
         "params": params,
         "template": v.template.map(|t| t.0),
         "phase": phase,

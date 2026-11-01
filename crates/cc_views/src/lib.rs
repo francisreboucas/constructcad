@@ -31,7 +31,7 @@ pub use component_view::{ComponentView, ComponentViewKind, ViewConnector, compon
 pub use drawing::{Anchor, Drawing2D, LineStyle, Pen, Prim, ResolvedPen, TagHandle, halftone};
 pub use legend::legend;
 pub use plan::{is_structural, plan, plan_of};
-pub use projected::{Frame, axonometric, elevation, section};
+pub use projected::{Frame, Look, axonometric, elevation, section};
 pub use schedule::{Cell, Row, Table, field_value, schedule, schedule_where, to_csv};
 pub use sheet::{MARGIN, PlacedViewport, Sheet, TITLE_H, TITLE_W, TitleLabels, compose as compose_sheet};
 
@@ -75,6 +75,14 @@ pub fn generate_temporary(
             };
             let mut d = plan_of(project, geom, *level, *cut_height, (ceiling, structural), view.scale, view.detail);
             joins::merge(project, &mut d);
+            let style = view.style();
+            if !style.fills() {
+                plan::strip_fills(&mut d);
+            } else if style.colored() {
+                let cut_z = project.level_elevation(*level) + cut_height;
+                let under = plan::style_underlay(geom, cut_z, ceiling, Look::of(view));
+                d.prims.splice(0..0, under);
+            }
             if let Some(discipline) = services {
                 // The architecture stays in the background of a services plan.
                 fade(&mut d);
@@ -86,15 +94,15 @@ pub fn generate_temporary(
             }
             d
         }
-        ViewKind::Elevation { direction } => elevation(project, geom, *direction, view.detail),
+        ViewKind::Elevation { direction } => elevation(project, geom, *direction, Look::of(view)),
         ViewKind::Section { start, end, depth } => {
-            let mut d = section(project, geom, (*start, *end), *depth, view.scale, view.detail);
+            let mut d = section(project, geom, (*start, *end), *depth, view.scale, Look::of(view));
             joins::merge(project, &mut d);
             d
         }
         ViewKind::ThreeD { camera, analytical: true, .. } => projected::analytical(project, geom, camera),
         ViewKind::ThreeD { camera, rebar: true, .. } => projected::rebar(geom, camera),
-        ViewKind::ThreeD { camera, .. } => axonometric(project, geom, camera, view.detail),
+        ViewKind::ThreeD { camera, .. } => axonometric(project, geom, camera, Look::of(view)),
         ViewKind::Legend { types } => legend(project, types, view.scale),
         ViewKind::Diagram { panel } => diagram::panel_diagram(project, geom, *panel, view.scale, label),
         ViewKind::Schedule { .. } | ViewKind::Sheet { .. } => return None,

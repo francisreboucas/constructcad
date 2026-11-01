@@ -1102,6 +1102,21 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
         }
         ui.end_row();
 
+        changed |= ui.checkbox(&mut include.visual_style, "").changed();
+        ui.label(t!("prop-visual-style"));
+        let mut style = t.visual_style;
+        let name = |s: Option<cc_core::VisualStyle>| s.map_or_else(|| t!("style-default"), |s| tr(s.key()));
+        egui::ComboBox::from_id_salt(("tpl-style", id)).selected_text(name(style)).show_ui(ui, |ui| {
+            ui.selectable_value(&mut style, None, name(None));
+            for s in cc_core::VisualStyle::ALL {
+                ui.selectable_value(&mut style, Some(s), name(Some(s)));
+            }
+        });
+        if style != t.visual_style {
+            set.visual_style = Some(style.map_or("default", |s| s.name()).to_string());
+        }
+        ui.end_row();
+
         changed |= ui.checkbox(&mut include.categories, "").changed();
         ui.label(t!("vg-categories-graphics"));
         if ui.button(t!("vg-edit")).clicked() {
@@ -1178,6 +1193,7 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
     }
     let any = set.scale.is_some()
         || set.detail.is_some()
+        || set.visual_style.is_some()
         || set.cut_height.is_some()
         || set.discipline.is_some()
         || set.structural.is_some()
@@ -1252,7 +1268,7 @@ pub fn view_rows(ui: &mut Ui, state: &mut AppState, view: ViewId) {
 }
 
 /// Whether the view's template controls `what` (`scale`, `detail`,
-/// `cut_height`, `discipline`, `structural`), for read-only rows.
+/// `visual_style`, `cut_height`, `discipline`, `structural`), for read-only rows.
 pub fn controlled(state: &AppState, view: ViewId, what: &str) -> bool {
     let Some(t) = state.project().view(view).and_then(|v| v.template).and_then(|t| state.project().template(t)) else {
         return false;
@@ -1260,6 +1276,7 @@ pub fn controlled(state: &AppState, view: ViewId, what: &str) -> bool {
     match what {
         "scale" => t.include.scale,
         "detail" => t.include.detail,
+        "visual_style" => t.include.visual_style,
         "cut_height" => t.include.cut_height,
         "discipline" => t.include.discipline,
         "structural" => t.include.structural,

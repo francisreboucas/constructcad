@@ -676,6 +676,7 @@ impl ModelGeometry {
                 g.set_openings(openings);
                 let material = ty.map_or("", |t| t.main_material());
                 let mut solid = g.to_solid(project.material_color(material));
+                solid.set_appearance(project, material);
                 solid.transparency = project.material_transparency(material);
                 self.solids.push(solid);
                 ids.push(e.id);
