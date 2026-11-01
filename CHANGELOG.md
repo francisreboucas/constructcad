@@ -26,6 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The app redrew itself without pause while idle, keeping a CPU core and the GPU busy (noticed on older computers): it set the window title every frame, and egui answers every window command with another frame. The title is now set only when it changes.
 - The component modeling environment's side panel drew its fields and buttons against the panel's border, cut.
 
 ## [0.8.0] - 2026-10-30
