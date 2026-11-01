@@ -101,6 +101,10 @@ A click picks the element under the pointer (Ctrl adds or removes it). A drag th
 
 Tags of doors, windows, beams, columns and footings can be dragged to another spot with the Select tool (the pointer turns into a hand over them). The tag keeps its text and gets a leader back to its element; each plan keeps its own tag positions (a duplicated plan starts with those of the original). *Reset Tag*, in the element's properties, puts it back where it sits by default.
 
+## Editing several elements
+
+With several elements of one category selected, the properties palette shows their *Type* and *Level* and the parameters they share (base and top offsets, the height where the top is free, sill height, overhang, rotation, *Structural*, *Room Bounding*, flips). A value that differs among them shows *‹varies›* (an indeterminate box for on/off ones); choosing or typing one sets it on all of them in one undo step (the command `elements_set`; types through `elements_set_type`). A mixed selection shows how many of each category and *Delete*.
+
 ## Selecting in 3D views
 
 With the Select tool, a click picks the element under the pointer (Ctrl adds or removes it). Shift+drag draws a selection box, as in plans: dragged to the right it is a window and takes the elements wholly inside it; dragged to the left it is a crossing and also takes those it touches. Elements behind others count too; hidden ones do not. Ctrl keeps the current selection and adds to it. With *Dragging in 3D views selects* on in *Preferences → Interface*, a plain left drag draws the box and Shift+drag orbits instead.
