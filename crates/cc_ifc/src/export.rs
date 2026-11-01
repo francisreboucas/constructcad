@@ -946,6 +946,7 @@ impl<'a> Exporter<'a> {
                         cc_core::StairShape::LShaped if winders => "QUARTER_WINDING_STAIR",
                         cc_core::StairShape::LShaped => "QUARTER_TURN_STAIR",
                         cc_core::StairShape::UShaped => "HALF_TURN_STAIR",
+                        cc_core::StairShape::ThreeFlight => "TWO_QUARTER_TURN_STAIR",
                         cc_core::StairShape::Spiral => "SPIRAL_STAIR",
                     };
                     StructureProduct {
