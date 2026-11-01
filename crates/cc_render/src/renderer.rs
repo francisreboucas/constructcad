@@ -13,6 +13,8 @@ const BACKGROUND: wgpu::Color = wgpu::Color { r: 0.84, g: 0.88, b: 0.93, a: 1.0 
 struct Uniforms {
     view_proj: [[f32; 4]; 4],
     light_dir: [f32; 4],
+    /// x: 1 for unlit faces.
+    style: [f32; 4],
 }
 
 struct Targets {
@@ -46,6 +48,8 @@ pub struct Renderer3D {
     /// Camera and size of the frame in the targets, while it is current:
     /// rendering it again is skipped.
     drawn: Option<(CameraState, [u32; 2])>,
+    /// The mesh's faces are drawn without light.
+    unlit: bool,
 }
 
 impl Renderer3D {
@@ -84,7 +88,8 @@ impl Renderer3D {
             entries: &[wgpu::BindGroupEntry { binding: 0, resource: uniforms.as_entire_binding() }],
         });
 
-        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4];
+        let attributes =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3, 2 => Float32x4, 3 => Float32x4, 4 => Float32x4];
         let vertex_layout = wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Vertex>() as u64,
             step_mode: wgpu::VertexStepMode::Vertex,
@@ -130,11 +135,12 @@ impl Renderer3D {
         let faces = pipeline("cc_render faces", tri, "fs_face", face_bias, None);
         let blended = pipeline("cc_render blended", tri, "fs_face", face_bias, Some(wgpu::BlendState::ALPHA_BLENDING));
         let edges = pipeline("cc_render edges", wgpu::PrimitiveTopology::LineList, "fs_edge", Default::default(), None);
-        Self { faces, blended, edges, uniforms, bind_group, buffers: None, targets: None, drawn: None }
+        Self { faces, blended, edges, uniforms, bind_group, buffers: None, targets: None, drawn: None, unlit: false }
     }
 
     pub fn upload(&mut self, device: &wgpu::Device, mesh: &SceneMesh) {
         self.drawn = None;
+        self.unlit = mesh.unlit;
         if mesh.indices.is_empty() && mesh.transparent_indices.is_empty() && mesh.edges.is_empty() {
             self.buffers = None;
             return;
@@ -158,7 +164,7 @@ impl Renderer3D {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some(label), contents, usage })
         };
         // Zero-length buffers are invalid; pad with a dummy vertex.
-        let pad = [Vertex { pos: [0.0; 3], normal: [0.0; 3], color: [0.0; 4] }];
+        let pad = [Vertex::plain([0.0; 3], [0.0; 3], [0.0; 4])];
         let verts: &[Vertex] = if mesh.vertices.is_empty() { &pad } else { &mesh.vertices };
         let edges: &[Vertex] = if mesh.edges.is_empty() { &pad } else { &mesh.edges };
         let indices: &[u32] = if mesh.indices.is_empty() { &[0, 0, 0] } else { &mesh.indices };
@@ -239,6 +245,7 @@ impl Renderer3D {
         let u = Uniforms {
             view_proj: view_proj(camera, aspect).to_cols_array_2d(),
             light_dir: [light.x, light.y, light.z, 0.0],
+            style: [if self.unlit { 1.0 } else { 0.0 }, 0.0, 0.0, 0.0],
         };
         queue.write_buffer(&self.uniforms, 0, bytemuck::bytes_of(&u));
 
@@ -358,5 +365,21 @@ mod tests {
         let limit = wgpu::Limits::default().max_buffer_size;
         assert!(fits(0, limit) && fits(1 << 20, limit));
         assert!(!fits(usize::try_from(limit).unwrap_or(usize::MAX).saturating_add(1), limit));
+    }
+}
+
+#[cfg(test)]
+mod shader_tests {
+    /// The shader parses and validates (as wgpu does when the pipelines are
+    /// made): derivatives in uniform control flow, attributes and bindings.
+    #[test]
+    fn the_shader_validates() {
+        let module = naga::front::wgsl::parse_str(include_str!("shader.wgsl")).unwrap();
+        let mut validator =
+            naga::valid::Validator::new(naga::valid::ValidationFlags::all(), naga::valid::Capabilities::empty());
+        validator.validate(&module).unwrap();
+        for entry in ["vs_main", "fs_face", "fs_edge"] {
+            assert!(module.entry_points.iter().any(|e| e.name == entry), "{entry}");
+        }
     }
 }

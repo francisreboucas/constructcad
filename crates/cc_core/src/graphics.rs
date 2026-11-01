@@ -507,6 +507,8 @@ pub struct TemplateIncludes {
     pub phase_filter: bool,
     /// The detail level.
     pub detail: bool,
+    /// The visual style.
+    pub visual_style: bool,
 }
 
 impl Default for TemplateIncludes {
@@ -520,6 +522,7 @@ impl Default for TemplateIncludes {
             structural: true,
             phase_filter: true,
             detail: true,
+            visual_style: true,
         }
     }
 }
@@ -547,6 +550,9 @@ pub struct ViewTemplate {
     pub phase_filter: Option<crate::PhaseFilterId>,
     #[serde(default, skip_serializing_if = "crate::DetailLevel::is_medium")]
     pub detail: crate::DetailLevel,
+    /// `None`: views keep the usual style of their kind.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visual_style: Option<crate::VisualStyle>,
 }
 
 fn default_cut() -> f64 {
@@ -571,6 +577,7 @@ impl ViewTemplate {
             structure_tags: false,
             phase_filter: view.phase_filter,
             detail: view.detail,
+            visual_style: view.visual_style,
         };
         match &view.kind {
             ViewKind::FloorPlan { cut_height, structural, structure_tags, mep, .. } => {
@@ -617,6 +624,9 @@ impl ViewTemplate {
         }
         if inc.detail {
             view.detail = self.detail;
+        }
+        if inc.visual_style {
+            view.visual_style = self.visual_style;
         }
         match &mut view.kind {
             ViewKind::FloorPlan { cut_height, structural, structure_tags, mep, .. } => {

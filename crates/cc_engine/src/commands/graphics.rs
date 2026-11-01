@@ -811,6 +811,7 @@ pub(crate) fn template_json(p: &Project, t: &ViewTemplate) -> Value {
         "structure_tags": t.structure_tags,
         "phase_filter": t.phase_filter.and_then(|f| p.phase_filter(f)).map(|f| json!({"id": f.id.0, "name": f.name})),
         "detail": t.detail.name(),
+        "visual_style": t.visual_style.map_or("default", |s| s.name()),
         "graphics": graphics_json(p, &t.graphics),
         "views": p.views.values().filter(|v| v.template == Some(t.id)).map(|v| v.id.0).collect::<Vec<_>>(),
     })
@@ -928,9 +929,13 @@ pub struct TemplateSet {
     /// Detail level: `coarse`, `medium` or `fine`.
     #[serde(default)]
     pub detail: Option<String>,
+    /// Visual style: `wireframe`, `hidden_line`, `shaded`,
+    /// `consistent_colors`, `textures`, or `default` (each view's usual style).
+    #[serde(default)]
+    pub visual_style: Option<String>,
     /// Which properties the template controls: `scale`, `categories`,
     /// `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`,
-    /// `detail` (true/false).
+    /// `detail`, `visual_style` (true/false).
     #[serde(default)]
     pub include: Option<Value>,
 }
@@ -967,6 +972,9 @@ impl Command for TemplateSet {
         }
         if let Some(d) = &self.detail {
             t.detail = refs::detail_level(d)?;
+        }
+        if let Some(st) = &self.visual_style {
+            t.visual_style = refs::visual_style(st)?;
         }
         match &self.phase_filter {
             Some(Some(r)) => t.phase_filter = Some(refs::phase_filter(p, r)?),
