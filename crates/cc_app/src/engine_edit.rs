@@ -26,6 +26,20 @@ fn json<T: serde::Serialize>(v: &T) -> serde_json::Value {
     serde_json::to_value(v).unwrap_or_default()
 }
 
+/// Change elements `ids` at once (`elements_set`): a new `level` and the
+/// same `params` merged into each, in one undo step per `key`.
+pub fn elements(
+    state: &mut AppState,
+    ids: &[ElementId],
+    key: Option<u64>,
+    level: Option<LevelId>,
+    params: Option<serde_json::Value>,
+) -> bool {
+    let command =
+        edit::ElementsSet { ids: ids.iter().map(|id| id.0).collect(), level: level.map(|l| Ref::Id(l.0)), params };
+    run(state, key, command)
+}
+
 /// Change element `id` as `f` changes a copy of it (`element_set`).
 pub fn element(state: &mut AppState, id: ElementId, key: Option<u64>, f: impl FnOnce(&mut Element)) -> bool {
     let Some(old) = state.project().element(id).cloned() else { return false };

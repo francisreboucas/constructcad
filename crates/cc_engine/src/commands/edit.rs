@@ -47,30 +47,7 @@ impl Command for ElementSet {
         let element = p.element(id).ok_or_else(|| EngineError::not_found("element"))?.clone();
         let level = self.level.as_ref().map(|l| refs::level(p, l)).transpose()?;
         let type_id = self.type_ref.as_ref().map(|t| refs::type_of(p, element.category(), Some(t))).transpose()?;
-        let kind = self
-            .params
-            .as_ref()
-            .map(|patch| match &element.kind {
-                // The drawing read from the file is not a parameter.
-                cc_core::ElementKind::CadImport(c) => super::cad::patch(c, patch),
-                kind => patch_variant(kind, patch),
-            })
-            .transpose()?;
-        if kind.as_ref().is_some_and(|k| std::mem::discriminant(k) != std::mem::discriminant(&element.kind)) {
-            return Err(EngineError::invalid("params cannot change the element's category"));
-        }
-        if let Some(cc_core::ElementKind::Wall(w)) = kind.as_ref() {
-            if w.bulge.abs() > cc_core::arc::MAX_BULGE || !w.bulge.is_finite() {
-                return Err(EngineError::invalid("the bulge must be between -10 and 10"));
-            }
-            super::create::check_arc(p, type_id.unwrap_or(element.type_id), w)?;
-        }
-        if let Some(cc_core::ElementKind::Roof(r)) = kind.as_ref() {
-            super::create::check_roof_holes(r)?;
-        }
-        if let Some(cc_core::ElementKind::Floor(f)) = kind.as_ref() {
-            super::create::check_openings(&f.boundary, &f.openings)?;
-        }
+        let kind = self.params.as_ref().map(|patch| patched(p, &element, patch, type_id)).transpose()?;
         let hosted: Vec<_> = p.hosted_by(id).map(|h| h.id).collect();
         edit(s, t!("tx-modify"), |e| {
             if let Some(level) = level {
@@ -96,6 +73,96 @@ impl Command for ElementSet {
             Ok(())
         })?;
         Ok(created(s, id))
+    }
+}
+
+/// `element`'s kind with `patch` merged into its parameters, checked (with
+/// its type, or `type_id` when it changes too).
+fn patched(
+    p: &cc_core::Project,
+    element: &cc_core::Element,
+    patch: &Value,
+    type_id: Option<cc_core::ElementTypeId>,
+) -> Result<cc_core::ElementKind> {
+    let kind = match &element.kind {
+        // The drawing read from the file is not a parameter.
+        cc_core::ElementKind::CadImport(c) => super::cad::patch(c, patch)?,
+        kind => patch_variant(kind, patch)?,
+    };
+    if std::mem::discriminant(&kind) != std::mem::discriminant(&element.kind) {
+        return Err(EngineError::invalid("params cannot change the element's category"));
+    }
+    match &kind {
+        cc_core::ElementKind::Wall(w) => {
+            if w.bulge.abs() > cc_core::arc::MAX_BULGE || !w.bulge.is_finite() {
+                return Err(EngineError::invalid("the bulge must be between -10 and 10"));
+            }
+            super::create::check_arc(p, type_id.unwrap_or(element.type_id), w)?;
+        }
+        cc_core::ElementKind::Roof(r) => super::create::check_roof_holes(r)?,
+        cc_core::ElementKind::Floor(f) => super::create::check_openings(&f.boundary, &f.openings)?,
+        _ => {}
+    }
+    Ok(kind)
+}
+
+/// Change several elements at once, in one undo step: a new level (doors
+/// and windows of a wall follow it) and the same `params` merged into each
+/// (as `element_set` takes them, e.g. `{"base_offset": -1.5}` for columns).
+/// Every element must take the change, or none changes.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct ElementsSet {
+    /// Element ids.
+    pub ids: Vec<u64>,
+    /// New level id or name.
+    #[serde(default)]
+    pub level: Option<Ref>,
+    /// Fields of the elements' parameters to change.
+    #[serde(default)]
+    pub params: Option<Value>,
+}
+
+impl Command for ElementsSet {
+    const NAME: &'static str = "elements_set";
+    const KIND: CommandKind = CommandKind::Edit;
+    fn run(self, s: &mut Session) -> Result<Value> {
+        let p = s.project();
+        let ids = refs::elements(p, &self.ids)?;
+        if ids.is_empty() {
+            return Err(EngineError::invalid("no elements given"));
+        }
+        let level = self.level.as_ref().map(|l| refs::level(p, l)).transpose()?;
+        let mut kinds = Vec::new();
+        if let Some(patch) = &self.params {
+            for id in &ids {
+                let element = p.element(*id).ok_or_else(|| EngineError::not_found("element"))?;
+                let kind = patched(p, element, patch, None)
+                    .map_err(|e| EngineError { message: format!("element {}: {}", id.0, e.message), ..e })?;
+                kinds.push((*id, kind));
+            }
+        }
+        let hosted: Vec<cc_core::ElementId> = if level.is_some() {
+            ids.iter().flat_map(|id| p.hosted_by(*id).map(|h| h.id)).collect()
+        } else {
+            Vec::new()
+        };
+        edit(s, t!("tx-modify"), |e| {
+            if let Some(level) = level {
+                for id in hosted.iter().chain(&ids) {
+                    if let Some(x) = e.element_mut(*id) {
+                        x.level = level;
+                    }
+                }
+            }
+            for (id, kind) in kinds {
+                if let Some(x) = e.element_mut(id) {
+                    x.kind = kind;
+                }
+            }
+            Ok(())
+        })?;
+        Ok(json!({ "changed": ids_json(&ids) }))
     }
 }
 

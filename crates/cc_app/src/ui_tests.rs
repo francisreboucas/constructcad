@@ -1403,3 +1403,40 @@ fn component_panel_is_inset() {
         assert!(inset >= 6.0, "{label} starts {inset} from the panel's border");
     }
 }
+
+/// Issues #47 and #69: several elements of one category show their type,
+/// level and shared parameters, a differing value marked; a change goes to
+/// all of them in one step.
+#[test]
+fn several_elements_are_edited_together() {
+    let mut state = sample_state();
+    let columns: Vec<cc_core::ElementId> =
+        state.project().elements.values().filter(|e| e.category() == cc_core::Category::Column).map(|e| e.id).collect();
+    assert!(columns.len() >= 2, "the sample has columns");
+    // One column lower than the others: the base offset differs.
+    crate::engine_edit::element(&mut state, columns[0], None, |e| {
+        if let cc_core::ElementKind::Column(c) = &mut e.kind {
+            c.base_offset = -0.5;
+        }
+    });
+    state.selection = columns.iter().copied().collect();
+    let mut harness = themed_harness(state, egui::vec2(320.0, 700.0), egui::Theme::Light, |ui, state| {
+        egui::Panel::left("left").default_size(300.0).show(ui, |ui| crate::properties::show(ui, state));
+    });
+    harness.run();
+    if let Some(path) = std::env::var_os("CC_RENDER_MULTI") {
+        harness.render().unwrap().save(path).unwrap();
+    }
+    assert!(harness.query_by_label(&t!("section-type")).is_some(), "the shared type and level");
+    assert!(harness.query_by_label(&t!("section-constraints")).is_some(), "the shared parameters");
+    // Down to the footings: every column, one undo step.
+    let state = harness.state_mut();
+    let depth = state.session.doc.undo_depth();
+    let patch = serde_json::json!({"base_offset": -1.5});
+    assert!(crate::engine_edit::elements(state, &columns, None, None, Some(patch)));
+    assert_eq!(state.session.doc.undo_depth(), depth + 1);
+    for id in &columns {
+        let Some(cc_core::ElementKind::Column(c)) = state.project().element(*id).map(|e| &e.kind) else { panic!() };
+        assert_eq!(c.base_offset, -1.5);
+    }
+}

@@ -138,23 +138,185 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
 }
 
 fn multi_props(ui: &mut Ui, state: &mut AppState, n: usize) {
+    let mut counts = std::collections::BTreeMap::new();
+    for id in &state.selection {
+        if let Some(e) = state.project().element(*id) {
+            *counts.entry(e.category()).or_insert(0) += 1;
+        }
+    }
+    let single = (counts.len() == 1).then(|| counts.keys().next().copied()).flatten();
     padded(ui, |ui| {
         header_block(ui, Icon::Select, &t!("props-multi", "count" => n), "");
-        let mut counts = std::collections::BTreeMap::new();
-        for id in &state.selection {
-            if let Some(e) = state.project().element(*id) {
-                *counts.entry(e.category()).or_insert(0) += 1;
-            }
-        }
-        for (c, k) in counts {
+        for (c, k) in &counts {
             ui.horizontal(|ui| {
                 let (r, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
-                icons::paint(ui.painter(), r, crate::ribbon::category_icon(c), PALETTE.text_muted);
-                ui.label(format!("{}: {k}", actions::t_category(c)));
+                icons::paint(ui.painter(), r, crate::ribbon::category_icon(*c), PALETTE.text_muted);
+                ui.label(format!("{}: {k}", actions::t_category(*c)));
             });
         }
         if ui.button(t!("action-delete")).clicked() {
             state.delete_selection();
+        }
+    });
+    if let Some(category) = single {
+        multi_edit(ui, state, category);
+    }
+}
+
+/// How a parameter shared by the selection is edited.
+#[derive(Clone, Copy, PartialEq)]
+enum Shared {
+    Length,
+    Angle,
+    Flag,
+}
+
+/// The parameters several elements of one category are changed together by:
+/// their path in `element_get`'s `params`, label and kind.
+const SHARED: [(&[&str], &str, Shared); 12] = [
+    (&["base_offset"], "prop-base-offset", Shared::Length),
+    (&["height"], "prop-height", Shared::Length),
+    (&["top", "Level", "offset"], "prop-top-offset", Shared::Length),
+    (&["top_offset"], "prop-top-offset", Shared::Length),
+    (&["height_offset"], "prop-height-offset", Shared::Length),
+    (&["sill_height"], "prop-sill", Shared::Length),
+    (&["overhang"], "prop-overhang", Shared::Length),
+    (&["rotation_deg"], "prop-rotation", Shared::Angle),
+    (&["structural"], "prop-structural", Shared::Flag),
+    (&["room_bounding"], "prop-room-bounding", Shared::Flag),
+    (&["flip_facing"], "prop-flip-facing", Shared::Flag),
+    (&["flip_hand"], "prop-flip-hand", Shared::Flag),
+];
+
+/// The value at `path` of a JSON object.
+fn at_path<'a>(v: &'a serde_json::Value, path: &[&str]) -> Option<&'a serde_json::Value> {
+    path.iter().try_fold(v, |v, k| v.get(*k))
+}
+
+/// The patch that sets `path` to `value`.
+fn patch_at(path: &[&str], value: serde_json::Value) -> serde_json::Value {
+    path.iter().rev().fold(value, |v, k| serde_json::json!({ *k: v }))
+}
+
+/// The type, level and shared parameters of several elements of one
+/// category, changed on all of them at once; a value that differs among
+/// them is marked, and typing one sets it on every element.
+fn multi_edit(ui: &mut Ui, state: &mut AppState, category: Category) {
+    let ids: Vec<ElementId> = state.selection.iter().copied().collect();
+    let elements: Vec<cc_core::Element> = ids.iter().filter_map(|id| state.project().element(*id).cloned()).collect();
+    if elements.len() != ids.len() {
+        return;
+    }
+    let params: Vec<serde_json::Value> = elements.iter().map(|e| cc_engine::element_params(&e.kind)).collect();
+    let common = |values: Vec<String>| values.windows(2).all(|w| w[0] == w[1]);
+    let key_of = |field: &str| key(("multi", field, ids.first().map_or(0, |id| id.0)));
+
+    section(ui, "multi-type", t!("section-type"), |ui| {
+        // The type: one of the category's, or marked when they differ.
+        let types: Vec<_> = state.project().types_of(category).map(|t| (t.id, t.name.clone())).collect();
+        let first = elements[0].type_id;
+        let same_type = elements.iter().all(|e| e.type_id == first);
+        let mut type_id = same_type.then_some(first);
+        row(ui, &t!("prop-type"), |ui| {
+            let shown = type_id.map_or_else(|| t!("props-varies"), |t| state.project().type_name(t).to_string());
+            egui::ComboBox::from_id_salt("multi-type").selected_text(shown).show_ui(ui, |ui| {
+                for (tid, name) in &types {
+                    ui.selectable_value(&mut type_id, Some(*tid), name);
+                }
+            });
+        });
+        if let Some(t) = type_id.filter(|t| !same_type || *t != first) {
+            let command = cc_engine::commands::edit::ElementsSetType {
+                ids: ids.iter().map(|id| id.0).collect(),
+                type_ref: cc_engine::Ref::Id(t.0),
+            };
+            actions::run_command(state, command);
+        }
+        // The level, for elements that stand on one (doors and windows follow their walls).
+        if !matches!(category, Category::Door | Category::Window) {
+            let level0 = elements[0].level;
+            let same_level = elements.iter().all(|e| e.level == level0);
+            let mut level = same_level.then_some(level0);
+            let levels: Vec<_> = state.project().levels.iter().map(|l| (l.id, l.name.clone())).collect();
+            row(ui, &t!("prop-level"), |ui| {
+                let shown = level.map_or_else(|| t!("props-varies"), |l| state.project().level_name(l).to_string());
+                egui::ComboBox::from_id_salt("multi-level").selected_text(shown).show_ui(ui, |ui| {
+                    for (lid, name) in &levels {
+                        ui.selectable_value(&mut level, Some(*lid), name);
+                    }
+                });
+            });
+            if let Some(l) = level.filter(|l| !same_level || *l != level0) {
+                crate::engine_edit::elements(state, &ids, None, Some(l), None);
+            }
+        }
+    });
+
+    // The shared parameters every selected element has (a height only where
+    // the top is not attached to a level).
+    let attached = params.iter().any(|p| at_path(p, &["top", "Level"]).is_some());
+    let fields: Vec<_> = SHARED
+        .iter()
+        .filter(|(path, _, kind)| {
+            if *path == ["height"] && attached {
+                return false;
+            }
+            params.iter().all(|p| match (at_path(p, path), kind) {
+                (Some(v), Shared::Flag) => v.is_boolean(),
+                (Some(v), _) => v.is_number(),
+                (None, _) => false,
+            })
+        })
+        .collect();
+    if fields.is_empty() {
+        return;
+    }
+    section(ui, "multi-params", t!("section-constraints"), |ui| {
+        for (path, label, kind) in fields {
+            let values: Vec<&serde_json::Value> = params.iter().filter_map(|p| at_path(p, path)).collect();
+            let same = common(values.iter().map(|v| v.to_string()).collect());
+            let field = path.join(".");
+            match kind {
+                Shared::Flag => {
+                    let mut on = values.first().and_then(|v| v.as_bool()).unwrap_or(false);
+                    // Differing values show as an indeterminate box.
+                    let r = row(ui, &crate::i18n::tr(label), |ui| {
+                        ui.add(egui::Checkbox::without_text(&mut on).indeterminate(!same))
+                    });
+                    if r.changed() {
+                        crate::engine_edit::elements(state, &ids, None, None, Some(patch_at(path, on.into())));
+                    }
+                }
+                Shared::Length | Shared::Angle => {
+                    let mut v = values.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                    let r = row(ui, &crate::i18n::tr(label), |ui| {
+                        let drag = match (kind, same) {
+                            (Shared::Angle, true) => DragValue::new(&mut v).speed(1.0).suffix("°"),
+                            (_, true) => length_drag(&mut v),
+                            // Differing values show as such until one is typed or dragged.
+                            (Shared::Angle, false) => {
+                                let varies = t!("props-varies");
+                                DragValue::new(&mut v).speed(1.0).custom_formatter(move |_, _| varies.clone())
+                            }
+                            (_, false) => {
+                                let varies = t!("props-varies");
+                                let (units, _) = format::current();
+                                DragValue::new(&mut v)
+                                    .speed(0.005)
+                                    .custom_formatter(move |_, _| varies.clone())
+                                    .custom_parser(move |s| format::parse_length_with(&units, s))
+                            }
+                        };
+                        ui.add(drag)
+                    });
+                    if r.changed() && v.is_finite() {
+                        let v = if *kind == Shared::Angle { v.rem_euclid(360.0) } else { v };
+                        let k = Some(key_of(&field));
+                        crate::engine_edit::elements(state, &ids, k, None, Some(patch_at(path, v.into())));
+                    }
+                    finish(state, &r);
+                }
+            }
         }
     });
 }

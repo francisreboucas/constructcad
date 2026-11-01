@@ -222,6 +222,7 @@ registry![
         modify::ElementMoveEnd,
         modify::GridsAlignEnds,
         edit::ElementSet,
+        edit::ElementsSet,
         edit::ElementsSetType,
     ],
     "Dimensions and text" => [
