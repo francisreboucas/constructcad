@@ -237,7 +237,7 @@ impl Command for SketchGet {
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SketchSet {
-    /// Element id (a floor, ceiling, roof or mass).
+    /// Element id (a floor, ceiling, roof, mass or shaft).
     pub id: u64,
     /// The curves, closed into loops.
     pub curves: Vec<CurveArg>,
@@ -275,7 +275,15 @@ impl Command for SketchSet {
                 m.outline = outline(&sketch)?;
                 m.sketch = Some(sketch);
             }
-            _ => return Err(EngineError::invalid("only floors, ceilings, roofs and masses have a sketched outline")),
+            ElementKind::Shaft(sh) => {
+                sh.outline = outline(&sketch)?;
+                sh.sketch = Some(sketch);
+            }
+            _ => {
+                return Err(EngineError::invalid(
+                    "only floors, ceilings, roofs, masses and shafts have a sketched outline",
+                ));
+            }
         }
         edit(s, t!("tx-modify"), |e| {
             let el = e.element_mut(id).ok_or_else(|| EngineError::not_found("element"))?;

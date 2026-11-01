@@ -2171,3 +2171,11 @@ hint-sweep-profile = Redesenhe o perfil com o comando sweep_profile_set (pontos 
 tpl-type-baseboard = Rodapé 10 cm
 tx-create-sweep = Criar perfil varrido
 tx-create-sweep-type = Criar tipo de perfil varrido
+
+# Shafts
+category-shaft = Shafts
+tool-shaft = Shaft
+cmd-desc-shaft = Desenha uma abertura vertical (poço, duto, vazio de escada) que corta os pisos, forros e telhados por onde passa.
+tpl-type-shaft = Shaft
+tx-create-shaft = Criar shaft
+tx-create-shaft-type = Criar tipo de shaft

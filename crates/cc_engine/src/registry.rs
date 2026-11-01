@@ -180,6 +180,8 @@ registry![
         sweep::SweepCreate,
         sweep::SweepTypeCreate,
         sweep::SweepProfileSet,
+        shaft::ShaftCreate,
+        shaft::ShaftTypeCreate,
         mass::MassFaceMove,
         mass::MassWallsCreate,
         mass::MassSlabsCreate,

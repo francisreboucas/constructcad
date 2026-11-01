@@ -166,6 +166,14 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 - **Lado e hospedeiro**: as propriedades de um guarda-corpo hospedado mostram o hospedeiro e o *Lado* (subindo), que pode ser trocado. *Soltar do hospedeiro* o torna um guarda-corpo comum, que mantém o caminho que tem em planta.
 - Pela linha de comando ou MCP: `stair_railings_add` (com `near`, para o lado mais próximo de um ponto) e `railing_host_set` (põe um guarda-corpo existente numa escada ou rampa, no lado por onde seu caminho passa se `side` não for dado; troca o lado ou o recuo; ou o solta com `detach`).
 
+## Shafts
+
+*Arquitetura → Pisos e coberturas → Shaft* (`SF`) esboça em planta o contorno de uma abertura vertical (um shaft de instalações, um poço de elevador ou de escada, um vazio de iluminação), como o contorno de um piso; ela sobe do seu nível até o nível mais alto acima (ou até um nível ou altura definidos nas propriedades). Um projeto sem tipo de shaft ganha um na primeira vez.
+
+- **O que ele corta**: todo piso, forro e telhado por onde passa, onde seu contorno fica dentro do deles e afastado das aberturas que eles já têm. Os cortes acompanham o shaft quando ele se move, muda ou é excluído, no mesmo passo de desfazer; plantas, áreas nas tabelas, vistas 3D e exportação IFC os mostram como qualquer abertura. Um shaft que cruza a borda de uma laje não a corta.
+- **Em planta**: o contorno cruzado por duas diagonais, na planta do seu nível e em toda planta cujo plano de corte passa por ele.
+- **Propriedades**: o deslocamento da base, o topo (um nível mais um deslocamento, ou sem vínculo com uma altura), a altura e a área. *Editar contorno* reabre o contorno. `element_get` lista os elementos que ele corta (`derived.cuts`).
+
 ## Perfis varridos
 
 *Arquitetura → Modelo → Perfil varrido* (`SW`) leva um perfil ao longo de um caminho desenhado em planta: rodapés, molduras de teto, testeiras, calhas, rufos. Um projeto sem tipo de perfil varrido ganha um na primeira vez (um rodapé de 1,5 × 10 cm).

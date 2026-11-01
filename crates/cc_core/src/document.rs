@@ -495,6 +495,33 @@ impl<'a> EditCtx<'a> {
         &mut self.project.phase_graphics
     }
 
+    /// Floors, ceilings and roofs take the cuts of the shafts that pass
+    /// through them (see [`crate::shaft`]), in the same undo step as the
+    /// edit that moved a shaft or them; unchanged cuts are left alone.
+    fn sync_shafts(&mut self) {
+        let p = &*self.project;
+        let shafts = p.elements.values().any(|e| matches!(e.kind, crate::ElementKind::Shaft(_)));
+        let changed: Vec<(ElementId, Vec<Vec<glam::DVec2>>)> = p
+            .elements
+            .values()
+            .filter(|e| {
+                matches!(
+                    e.kind,
+                    crate::ElementKind::Floor(_) | crate::ElementKind::Ceiling(_) | crate::ElementKind::Roof(_)
+                )
+            })
+            .filter_map(|e| {
+                let want = if shafts { p.shaft_cuts(e) } else { Vec::new() };
+                (want.as_slice() != e.shaft_cuts()).then_some((e.id, want))
+            })
+            .collect();
+        for (id, cuts) in changed {
+            if let Some(slot) = self.element_mut(id).and_then(|e| e.shaft_cuts_mut()) {
+                *slot = cuts;
+            }
+        }
+    }
+
     /// Elements whose outline this edit changed without their sketch drop it
     /// (see [`crate::sketch`]).
     fn sync_sketches(&mut self) {
@@ -559,6 +586,7 @@ impl<'a> EditCtx<'a> {
     /// Fill in "after" states and drop no-op entries.
     fn finish(mut self) -> Transaction {
         // Associative dimensions follow what this edit changed (elements or levels).
+        self.sync_shafts();
         self.sync_dimensions();
         self.sync_phases();
         self.sync_sketches();

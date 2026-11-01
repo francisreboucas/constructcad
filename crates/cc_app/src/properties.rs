@@ -635,6 +635,22 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                 actions::run_command(state, command);
             }
         }
+        ElementKind::Shaft(sh) => {
+            section(ui, "constraints", t!("section-constraints"), |ui| {
+                level_row(ui, state, &el);
+                length_row(ui, state, &t!("prop-base-offset"), id, "base", sh.base_offset, |e, v| {
+                    if let ElementKind::Shaft(s) = &mut e.kind {
+                        s.base_offset = v;
+                    }
+                });
+                top_rows(ui, state, &el, sh.top, sh.height);
+            });
+            section(ui, "dimensions", t!("section-dimensions"), |ui| {
+                let (bottom, top) = state.project().shaft_span(&el, sh);
+                readonly_row(ui, &t!("col-height"), format::length(top - bottom));
+                readonly_row(ui, &t!("col-area"), format::area(cc_geom::polygon::area(&sh.outline)));
+            });
+        }
         ElementKind::Sweep(sw) => {
             section(ui, "constraints", t!("section-constraints"), |ui| {
                 level_row(ui, state, &el);
@@ -889,6 +905,12 @@ fn top_rows(ui: &mut Ui, state: &mut AppState, el: &Element, top: cc_core::WallT
                     r.height = h;
                 }
             }
+            ElementKind::Shaft(sh) => {
+                sh.top = top;
+                if let Some(h) = height {
+                    sh.height = h;
+                }
+            }
             _ => {}
         });
     };
@@ -922,6 +944,7 @@ fn top_rows(ui: &mut Ui, state: &mut AppState, el: &Element, top: cc_core::WallT
                 ElementKind::Column(c) => c.top = WallTop::Level { level, offset: v },
                 ElementKind::Stair(s) => s.top = WallTop::Level { level, offset: v },
                 ElementKind::Ramp(r) => r.top = WallTop::Level { level, offset: v },
+                ElementKind::Shaft(sh) => sh.top = WallTop::Level { level, offset: v },
                 _ => {}
             });
         }
@@ -930,6 +953,7 @@ fn top_rows(ui: &mut Ui, state: &mut AppState, el: &Element, top: cc_core::WallT
                 ElementKind::Column(c) => c.height = v.max(0.1),
                 ElementKind::Stair(s) => s.height = v.max(0.1),
                 ElementKind::Ramp(r) => r.height = v.max(0.01),
+                ElementKind::Shaft(sh) => sh.height = v.max(0.01),
                 _ => {}
             });
         }

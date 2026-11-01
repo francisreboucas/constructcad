@@ -2172,3 +2172,11 @@ hint-sweep-profile = Перемалюйте профіль командою swee
 tpl-type-baseboard = Плінтус 10 см
 tx-create-sweep = Створити протягнутий профіль
 tx-create-sweep-type = Створити тип протягнутого профілю
+
+# Shafts
+category-shaft = Шахти
+tool-shaft = Шахта
+cmd-desc-shaft = Креслить вертикальний отвір (шахта, канал, сходова клітка), що прорізає перекриття, стелі й дахи, крізь які проходить.
+tpl-type-shaft = Шахта
+tx-create-shaft = Створити шахту
+tx-create-shaft-type = Створити тип шахти

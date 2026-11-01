@@ -78,13 +78,16 @@ pub fn plan_of(
         match &e.kind {
             ElementKind::Floor(f) if !ceiling => {
                 d.polyline(&f.boundary, true, LineStyle::Projection, id);
-                for o in &f.openings {
+                for o in f.all_openings() {
                     d.polyline(o, true, LineStyle::Projection, id);
                 }
             }
             ElementKind::Ceiling(c) if ceiling => {
                 d.polyline(&c.boundary, true, LineStyle::Projection, id);
                 ceiling_grid(&mut d, &c.boundary, e.id);
+                for cut in &c.cuts {
+                    d.polyline(cut, true, LineStyle::Projection, id);
+                }
             }
             ElementKind::Roof(r) => {
                 let outline = polygon::offset(&r.footprint, r.overhang);
@@ -98,6 +101,9 @@ pub fn plan_of(
                     if r.overhang > 0.0 {
                         d.polyline(hole, true, LineStyle::Hidden, id);
                     }
+                }
+                for cut in &r.cuts {
+                    d.polyline(cut, true, LineStyle::Projection, id);
                 }
                 for &(a, b) in geom.roof_ridges.get(&e.id).into_iter().flatten() {
                     d.line(a, b, LineStyle::Projection, id);
@@ -115,6 +121,7 @@ pub fn plan_of(
     if !structural && !ceiling {
         draw_masses(&mut d, project, geom, level, cut_z);
     }
+    draw_shafts(&mut d, project, level, cut_z);
 
     for (e, _) in project.walls().filter(|(e, _)| e.level == level && shown(e)) {
         if let Some(g) = geom.walls.get(&e.id) {
@@ -650,6 +657,43 @@ fn section_mark(d: &mut Drawing2D, start: DVec2, end: DVec2, depth: f64, name: &
     // Far clip extent, dashed.
     d.line(start + look * depth, end + look * depth, LineStyle::Hidden, None);
     d.text(start - dir * 0.4 + DVec2::new(0.0, 0.1), name, 2.5);
+}
+
+/// Shafts in a plan: those on its level and those its cut plane passes
+/// through, as their outline crossed by its two diagonals (the usual
+/// symbol of an opening through the floors).
+fn draw_shafts(d: &mut Drawing2D, project: &Project, level: LevelId, cut_z: f64) {
+    for e in project.elements.values() {
+        let ElementKind::Shaft(s) = &e.kind else { continue };
+        let (base, top) = project.shaft_span(e, s);
+        if e.level != level && !(base <= cut_z && cut_z <= top) {
+            continue;
+        }
+        let id = Some(e.id);
+        d.polyline(&s.outline, true, LineStyle::Projection, id);
+        // Corner to opposite corner: the points farthest apart, then the
+        // two farthest from that line on either side.
+        let n = s.outline.len();
+        let pairs = (0..n).flat_map(|i| (i + 1..n).map(move |j| (i, j)));
+        let Some((i, j)) = pairs.max_by(|a, b| {
+            let da = s.outline[a.0].distance(s.outline[a.1]);
+            let db = s.outline[b.0].distance(s.outline[b.1]);
+            da.total_cmp(&db)
+        }) else {
+            continue;
+        };
+        let (a, b) = (s.outline[i], s.outline[j]);
+        d.line(a, b, LineStyle::Thin, id);
+        let side = |p: DVec2| (b - a).perp_dot(p - a);
+        let left = s.outline.iter().copied().max_by(|p, q| side(*p).total_cmp(&side(*q)));
+        let right = s.outline.iter().copied().min_by(|p, q| side(*p).total_cmp(&side(*q)));
+        if let (Some(l), Some(r)) = (left, right)
+            && side(l) > 1e-9
+            && side(r) < -1e-9
+        {
+            d.line(l, r, LineStyle::Thin, id);
+        }
+    }
 }
 
 #[cfg(test)]

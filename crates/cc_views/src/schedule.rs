@@ -224,6 +224,10 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             }
             (ElementKind::Room(r), _) => Value::Length(r.height),
             (ElementKind::Mass(m), _) => Value::Length(m.height),
+            (ElementKind::Shaft(s), _) => {
+                let (base, top) = project.shaft_span(e, s);
+                Value::Length(top - base)
+            }
             (ElementKind::Door(_) | ElementKind::Window(_), _) => {
                 ty.and_then(|t| t.opening_size()).map_or(Value::Missing, |(_, h)| Value::Length(h))
             }
@@ -264,6 +268,7 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             }
             ElementKind::Roof(r) => Value::Area(r.area()),
             ElementKind::Floor(f) => Value::Area(f.area()),
+            ElementKind::Shaft(s) => Value::Area(polygon::area(&s.outline)),
             _ => e.sketch().map_or(Value::Missing, |s| Value::Area(polygon::area(s))),
         },
         F::Perimeter => match &e.kind {

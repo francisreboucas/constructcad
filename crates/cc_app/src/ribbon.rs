@@ -42,6 +42,7 @@ pub fn category_icon(category: Category) -> Icon {
         Category::Text => Icon::Text,
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
+        Category::Shaft => Icon::Shaft,
         Category::Sweep => Icon::Sweep,
     }
 }
@@ -604,7 +605,7 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
         stacks(ui, state, &[&[UiCommand::MassWalls, UiCommand::MassSlabs, UiCommand::MassRoof]]);
     });
     group(ui, t!("group-build"), |ui| command_buttons(ui, state, &buttons(&[Wall, Door, Window])));
-    group(ui, t!("group-horizontal"), |ui| command_buttons(ui, state, &buttons(&[Floor, Ceiling, Roof])));
+    group(ui, t!("group-horizontal"), |ui| command_buttons(ui, state, &buttons(&[Floor, Ceiling, Roof, Shaft])));
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
     group(ui, t!("group-model"), |ui| {

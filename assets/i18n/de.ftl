@@ -2171,3 +2171,11 @@ hint-sweep-profile = Profil mit dem Befehl sweep_profile_set (Punkte oder Kurven
 tpl-type-baseboard = Sockelleiste 10 cm
 tx-create-sweep = Profilextrusion erstellen
 tx-create-sweep-type = Profilextrusionstyp erstellen
+
+# Shafts
+category-shaft = Schächte
+tool-shaft = Schacht
+cmd-desc-shaft = Zeichnet eine vertikale Öffnung (Schacht, Durchbruch, Treppenauge), die die durchlaufenen Decken, Unterdecken und Dächer schneidet.
+tpl-type-shaft = Schacht
+tx-create-shaft = Schacht erstellen
+tx-create-shaft-type = Schachttyp erstellen

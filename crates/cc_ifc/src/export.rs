@@ -1399,7 +1399,8 @@ impl<'a> Exporter<'a> {
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
             | TypeData::CadImport {}
-            | TypeData::Mass { .. } => {
+            | TypeData::Mass { .. }
+            | TypeData::Shaft {} => {
                 return None;
             }
             TypeData::Component { ref def, .. } => {
@@ -1805,7 +1806,9 @@ impl<'a> Exporter<'a> {
             }
             // Pitched roofs, and any roof with openings, as their computed solid.
             ElementKind::Roof(r)
-                if matches!(r.shape, RoofShape::Gable { .. } | RoofShape::Hip { .. }) || !r.holes.is_empty() =>
+                if matches!(r.shape, RoofShape::Gable { .. } | RoofShape::Hip { .. })
+                    || !r.holes.is_empty()
+                    || !r.cuts.is_empty() =>
             {
                 self.write_pitched_roof(e, r, storey);
                 return;
@@ -1856,11 +1859,15 @@ impl<'a> Exporter<'a> {
         } else {
             let placement = self.local_placement(Some(storey), frame);
             let dir = self.direction(dir);
-            // Floor openings: voids of the profile, clockwise.
+            // Floor openings and shaft cuts: voids of the profile, clockwise.
+            let holes: Vec<&Vec<DVec2>> = match &e.kind {
+                ElementKind::Floor(f) => f.all_openings().collect(),
+                ElementKind::Ceiling(c) => c.cuts.iter().collect(),
+                _ => Vec::new(),
+            };
             let voids: Vec<Vec<DVec2>> = match &e.kind {
-                ElementKind::Floor(f) => f
-                    .openings
-                    .iter()
+                ElementKind::Floor(_) | ElementKind::Ceiling(_) => holes
+                    .into_iter()
                     .map(|o| {
                         let mut o = polygon::ccw(o);
                         o.reverse();
@@ -1899,7 +1906,7 @@ impl<'a> Exporter<'a> {
                 );
             }
             ElementKind::Ceiling(c) => {
-                let area = polygon::area(&c.boundary);
+                let area = (polygon::area(&c.boundary) - c.cuts.iter().map(|h| polygon::area(h)).sum::<f64>()).max(0.0);
                 self.quantities(
                     e,
                     "Qto_CoveringBaseQuantities",

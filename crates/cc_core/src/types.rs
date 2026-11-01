@@ -32,10 +32,12 @@ pub enum Category {
     Mass,
     /// Profiles swept along paths (baseboards, moldings, fascias, gutters).
     Sweep,
+    /// Shaft openings through floors, ceilings and roofs.
+    Shaft,
 }
 
 impl Category {
-    pub const ALL: [Category; 23] = [
+    pub const ALL: [Category; 24] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -59,6 +61,7 @@ impl Category {
         Category::Text,
         Category::CadImport,
         Category::Mass,
+        Category::Shaft,
     ];
 
     /// Categories with physical elements (shown in legends and 3D).
@@ -128,6 +131,7 @@ impl Category {
             Category::Ramp => "category-ramp",
             Category::Railing => "category-railing",
             Category::Sweep => "category-sweep",
+            Category::Shaft => "category-shaft",
             Category::Component => "category-component",
             Category::Foundation => "category-foundation",
             Category::Rebar => "category-rebar",
@@ -365,6 +369,8 @@ pub enum TypeData {
         profile: Vec<glam::DVec2>,
         material: String,
     },
+    /// Shaft openings (no properties of their own).
+    Shaft {},
 }
 
 impl TypeData {
@@ -397,7 +403,8 @@ impl TypeData {
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
-            | TypeData::CadImport {} => Vec::new(),
+            | TypeData::CadImport {}
+            | TypeData::Shaft {} => Vec::new(),
         }
     }
 
@@ -452,7 +459,8 @@ impl TypeData {
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
-            | TypeData::CadImport {} => {}
+            | TypeData::CadImport {}
+            | TypeData::Shaft {} => {}
         }
     }
 }
@@ -595,6 +603,7 @@ impl ElementType {
             TypeData::CadImport {} => Category::CadImport,
             TypeData::Mass { .. } => Category::Mass,
             TypeData::Sweep { .. } => Category::Sweep,
+            TypeData::Shaft {} => Category::Shaft,
         }
     }
 
@@ -680,7 +689,8 @@ impl ElementType {
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
-            | TypeData::CadImport {} => "",
+            | TypeData::CadImport {}
+            | TypeData::Shaft {} => "",
             TypeData::Column { material, .. }
             | TypeData::Beam { material, .. }
             | TypeData::Foundation { material, .. }

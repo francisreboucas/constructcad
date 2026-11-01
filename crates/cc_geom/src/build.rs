@@ -747,8 +747,7 @@ impl ModelGeometry {
                     let top = level_z + f.height_offset;
                     // Openings clockwise inside the counter-clockwise boundary.
                     let holes: Vec<Vec<DVec2>> = f
-                        .openings
-                        .iter()
+                        .all_openings()
                         .map(|o| {
                             let mut o = polygon::ccw(o);
                             o.reverse();
@@ -764,7 +763,22 @@ impl ModelGeometry {
                 }
                 ElementKind::Ceiling(c) => {
                     let bottom = level_z + c.height_offset;
-                    s.add_prism(&c.boundary, |_| bottom, |_| bottom + thk);
+                    // Shafts cut through, clockwise inside the counter-clockwise outline.
+                    let holes: Vec<Vec<DVec2>> = c
+                        .cuts
+                        .iter()
+                        .map(|o| {
+                            let mut o = polygon::ccw(o);
+                            o.reverse();
+                            o
+                        })
+                        .filter(|o| o.len() >= 3)
+                        .collect();
+                    if holes.is_empty() {
+                        s.add_prism(&c.boundary, |_| bottom, |_| bottom + thk);
+                    } else {
+                        s.add_prism_with_holes(&polygon::ccw(&c.boundary), &holes, |_| bottom, |_| bottom + thk);
+                    }
                 }
                 ElementKind::Roof(r) => {
                     let fp = polygon::ccw(&polygon::offset(&r.footprint, r.overhang));
@@ -778,6 +792,12 @@ impl ModelGeometry {
                             h
                         })
                         .filter(|h| h.len() >= 3 && polygon::signed_area(h) < 0.0)
+                        // Shafts cut their own outline: no eaves reach over them.
+                        .chain(r.cuts.iter().map(|c| {
+                            let mut c = polygon::ccw(c);
+                            c.reverse();
+                            c
+                        }))
                         .collect();
                     let base = level_z + r.base_offset;
                     match r.shape {

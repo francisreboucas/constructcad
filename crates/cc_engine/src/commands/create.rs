@@ -395,7 +395,7 @@ impl Command for CeilingCreate {
             return Err(super::sketch::sketch_error(cc_core::sketch::SketchError::Openings(*at)));
         }
         let height_offset = finite(self.sketch.offset.unwrap_or(2.6), "offset")?;
-        let ceiling = Ceiling { boundary: profile.outline, height_offset, sketch: drawn };
+        let ceiling = Ceiling { boundary: profile.outline, height_offset, cuts: Vec::new(), sketch: drawn };
         let kind = ElementKind::Ceiling(ceiling);
         create(s, t!("tx-create-ceiling"), level, Category::Ceiling, self.sketch.type_ref.as_ref(), kind)
     }

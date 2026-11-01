@@ -166,6 +166,14 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 - **Side and host**: a hosted railing's properties show its host and its *Side* (walking up), which can be switched. *Detach from Host* makes it an ordinary railing that keeps the path it has in plan.
 - From the command line or MCP: `stair_railings_add` (with `near` for the side nearest a point) and `railing_host_set` (put an existing railing on a stair or ramp, on the side its path runs along unless `side` is given; change its side or inset; or `detach` it).
 
+## Shafts
+
+*Architecture → Floors & Roofs → Shaft* (`SF`) sketches the outline of a vertical opening (a duct chase, a lift or stair shaft, a light well) in a plan, like a floor's outline; it rises from its level to the highest level above (or a level or height set in its properties). A project without a shaft type gets one the first time.
+
+- **What it cuts**: every floor, ceiling and roof it passes through, where its outline lies inside theirs and clear of their own openings. The cuts follow the shaft when it moves, changes or is deleted, in the same undo step; plans, areas in schedules, 3D views and IFC export show them like any opening. A shaft across the edge of a slab does not cut it.
+- **In plans**: its outline crossed by two diagonals, in the plan of its level and in every plan whose cut plane it passes through.
+- **Properties**: the base offset, the top (a level plus an offset, or unconnected with a height), its height and area. *Edit Boundary* opens its outline again. `element_get` lists the elements it cuts (`derived.cuts`).
+
 ## Swept profiles
 
 *Architecture → Model → Sweep* (`SW`) carries a profile along a path drawn in a plan: baseboards, crown moldings, fascia boards, gutters, copings. A project without a sweep type gets one the first time (a baseboard 1.5 × 10 cm).

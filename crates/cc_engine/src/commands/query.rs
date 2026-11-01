@@ -218,6 +218,20 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
         ElementKind::Sweep(sw) => {
             derived.insert("length".into(), json!(sw.length()));
         }
+        ElementKind::Shaft(sh) => {
+            let (bottom, top) = p.shaft_span(&e, sh);
+            derived.insert("bottom".into(), json!(bottom));
+            derived.insert("top".into(), json!(top));
+            derived.insert("area".into(), json!(cc_geom::polygon::area(&sh.outline)));
+            // The floors, ceilings and roofs it cuts.
+            let cuts: Vec<u64> = p
+                .elements
+                .values()
+                .filter(|o| o.shaft_cuts().contains(&sh.outline))
+                .map(|o| o.id.0)
+                .collect();
+            derived.insert("cuts".into(), json!(cuts));
+        }
         ElementKind::Stair(st) => {
             if let Some(g) = cc_geom::stair_geom(p, &e, st) {
                 derived.insert("run".into(), json!(g.run()));
