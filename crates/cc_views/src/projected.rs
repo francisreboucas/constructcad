@@ -6,7 +6,7 @@
 //! overlap; sorting by centroid depth alone fails for large faces such as roofs.
 
 use crate::{Drawing2D, LineStyle, cut::POCHE, format};
-use cc_core::{CameraState, DetailLevel, Direction, ElementId, Project, TypeData};
+use cc_core::{CameraState, DetailLevel, Direction, ElementId, Project, TypeData, VisualStyle};
 use cc_geom::polygon::signed_area;
 use cc_geom::{ModelGeometry, clip_polygon, face_plane_segments};
 use glam::{DVec2, DVec3};
@@ -78,6 +78,62 @@ fn shade(color: [u8; 3], normal: DVec3, frame: &Frame) -> [u8; 4] {
     [c(color[0]), c(color[1]), c(color[2]), 255]
 }
 
+/// How a view draws the model: its detail level, its visual style and the
+/// spacing of patterns (cut and surface hatches) in drawing units.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Look {
+    pub detail: DetailLevel,
+    pub style: VisualStyle,
+    pub spacing: f64,
+}
+
+impl Look {
+    /// The look of `view`.
+    pub fn of(view: &cc_core::View) -> Self {
+        Self { detail: view.detail, style: view.style(), spacing: crate::cut::spacing(view.scale) }
+    }
+
+    /// Shaded, at the medium detail level, patterns as at 1:100.
+    pub fn plain() -> Self {
+        Self { detail: DetailLevel::Medium, style: VisualStyle::Shaded, spacing: crate::cut::spacing(100) }
+    }
+}
+
+/// The fill of a face of `solid` in `style` (none for the wireframe).
+fn face_color(solid: &cc_geom::Solid, normal: DVec3, frame: &Frame, style: VisualStyle) -> Option<[u8; 4]> {
+    let mut c = match style {
+        VisualStyle::Wireframe => return None,
+        VisualStyle::HiddenLine => [255, 255, 255, 255],
+        VisualStyle::Shaded => shade(solid.color, normal, frame),
+        VisualStyle::ConsistentColors => [solid.color[0], solid.color[1], solid.color[2], 255],
+        VisualStyle::Textures => shade(solid.appearance, normal, frame),
+    };
+    // Transparent materials let what is behind show through (never fully: alpha 0 means "no hit").
+    c[3] = ((1.0 - solid.transparency.clamp(0.0, 1.0)) * 255.0).round().clamp(40.0, 255.0) as u8;
+    Some(c)
+}
+
+/// The surface pattern of `solid` over a face outline `pts` (the textures
+/// style), each line with the pattern's color.
+fn surface_lines(d: &mut Drawing2D, solid: &cc_geom::Solid, pts: &[DVec2], spacing: f64) {
+    let fill = solid.surface;
+    for (pattern, color) in [(fill.background, fill.background_color), (fill.foreground, fill.foreground_color)] {
+        if matches!(pattern, cc_core::Pattern::Solid | cc_core::Pattern::None) {
+            continue;
+        }
+        let pen = crate::Pen { color: Some(color), ..Default::default() };
+        for (a, b) in crate::hatch::hatch(pattern, pts, spacing) {
+            d.prims.push(crate::Prim::Line {
+                a,
+                b,
+                style: LineStyle::Thin,
+                element: Some(solid.element),
+                pen: Some(pen),
+            });
+        }
+    }
+}
+
 struct ProjectedFace {
     /// Mean depth of the vertices, used to order unrelated faces and break cycles.
     depth: f64,
@@ -85,8 +141,10 @@ struct ProjectedFace {
     normal: DVec3,
     point: DVec3,
     pts: Vec<DVec2>,
-    color: [u8; 4],
+    color: Option<[u8; 4]>,
     element: ElementId,
+    /// Index of its solid in the geometry (its surface pattern).
+    solid: usize,
     edges: Vec<(DVec2, DVec2)>,
 }
 
@@ -97,18 +155,21 @@ pub struct CutStyle<'a> {
     pub spacing: f64,
 }
 
-/// Render the solids a view at `detail` shows through `frame`; section cuts
-/// use `cut` (else, and at the coarse level, the neutral poche).
-pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>, detail: DetailLevel) -> Drawing2D {
+/// Render the solids a view shows through `frame`, at its detail level and
+/// in its visual style; section cuts use `cut` (else, and at the coarse
+/// level, the neutral poche; in the wireframe, only their outline).
+pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>, look: Look) -> Drawing2D {
+    let (detail, style) = (look.detail, look.style);
     let planes = frame.planes();
     let mut faces = Vec::new();
     let shown = |s: &&cc_geom::Solid| s.detail.shows(detail);
     let cut = cut.filter(|_| detail.shows_layers());
-    for solid in geom.solids.iter().filter(shown) {
+    for (index, solid) in geom.solids.iter().enumerate().filter(|(_, s)| shown(s)) {
         let edges = solid.feature_edges();
         let seams = solid.smooth_edges();
         for ((face, mut face_edges), seams) in solid.faces.iter().zip(edges).zip(seams) {
-            if face.normal.dot(frame.forward) > -1e-6 {
+            // The wireframe sees through: faces turned away show their edges too.
+            if face.normal.dot(frame.forward) > -1e-6 && style.fills() {
                 continue;
             }
             // Where a curved surface turns away, the edge to the hidden facet is its silhouette.
@@ -131,25 +192,38 @@ pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>, detail
                 normal: face.normal,
                 point: verts[0],
                 pts: verts.iter().map(|v| frame.project(*v)).collect(),
-                color: {
-                    // Transparent materials let what is behind show through (never fully: alpha 0 means "no hit").
-                    let mut c = shade(solid.color, face.normal, frame);
-                    c[3] = ((1.0 - solid.transparency.clamp(0.0, 1.0)) * 255.0).round().clamp(40.0, 255.0) as u8;
-                    c
-                },
+                color: face_color(solid, face.normal, frame, style),
                 element: solid.element,
+                solid: index,
                 edges,
             });
         }
     }
-    let order = paint_order(frame, &faces);
-    let mut slots: Vec<Option<ProjectedFace>> = faces.into_iter().map(Some).collect();
-
     let mut d = Drawing2D::default();
-    for f in order.into_iter().filter_map(|i| slots[i].take()) {
-        d.fill(f.pts, f.color, Some(f.element));
-        for (a, b) in f.edges {
-            d.line(a, b, LineStyle::Projection, Some(f.element));
+    if style.fills() {
+        let order = paint_order(frame, &faces);
+        let mut slots: Vec<Option<ProjectedFace>> = faces.into_iter().map(Some).collect();
+        for f in order.into_iter().filter_map(|i| slots[i].take()) {
+            if let Some(color) = f.color {
+                if style == VisualStyle::Textures
+                    && let Some(solid) = geom.solids.get(f.solid)
+                {
+                    d.fill(f.pts.clone(), color, Some(f.element));
+                    surface_lines(&mut d, solid, &f.pts, look.spacing);
+                } else {
+                    d.fill(f.pts, color, Some(f.element));
+                }
+            }
+            for (a, b) in f.edges {
+                d.line(a, b, LineStyle::Projection, Some(f.element));
+            }
+        }
+    } else {
+        // Every edge, in no particular order: nothing hides anything.
+        for f in faces {
+            for (a, b) in f.edges {
+                d.line(a, b, LineStyle::Projection, Some(f.element));
+            }
         }
     }
 
@@ -164,7 +238,7 @@ pub fn render(geom: &ModelGeometry, frame: &Frame, cut: Option<CutStyle>, detail
                 .filter_map(|(a, b)| planes.iter().skip(1).try_fold((a, b), |(a, b), &(p, n)| clip_segment(a, b, p, n)))
                 .map(|(a, b)| (frame.project(a), frame.project(b)))
                 .collect();
-            for pts in chain_loops(&segs) {
+            for pts in chain_loops(&segs).into_iter().filter(|_| style.fills()) {
                 match cut {
                     Some(c) => {
                         let ty = c.project.element(solid.element).and_then(|e| c.project.element_type(e.type_id));
@@ -356,10 +430,10 @@ fn level_lines(d: &mut Drawing2D, project: &Project, frame: &Frame) {
     }
 }
 
-pub fn elevation(project: &Project, geom: &ModelGeometry, direction: Direction, detail: DetailLevel) -> Drawing2D {
-    let look = direction.look();
-    let frame = Frame::looking(DVec3::ZERO, DVec3::new(look.x, look.y, 0.0));
-    let mut d = render(geom, &frame, None, detail);
+pub fn elevation(project: &Project, geom: &ModelGeometry, direction: Direction, look: Look) -> Drawing2D {
+    let toward = direction.look();
+    let frame = Frame::looking(DVec3::ZERO, DVec3::new(toward.x, toward.y, 0.0));
+    let mut d = render(geom, &frame, None, look);
     level_lines(&mut d, project, &frame);
     d
 }
@@ -370,23 +444,23 @@ pub fn section(
     (start, end): (DVec2, DVec2),
     depth: f64,
     scale: u32,
-    detail: DetailLevel,
+    look: Look,
 ) -> Drawing2D {
     let dir = (end - start).normalize_or_zero();
-    let look = -dir.perp();
-    let mut frame = Frame::looking(DVec3::new(start.x, start.y, 0.0), DVec3::new(look.x, look.y, 0.0));
+    let toward = -dir.perp();
+    let mut frame = Frame::looking(DVec3::new(start.x, start.y, 0.0), DVec3::new(toward.x, toward.y, 0.0));
     let xe = frame.project(DVec3::new(end.x, end.y, 0.0)).x;
     frame.near = Some(0.0);
     frame.far = Some(depth.max(0.01));
     frame.crop_x = Some((xe.min(0.0), xe.max(0.0)));
     let cut = CutStyle { project, spacing: crate::cut::spacing(scale) };
-    let mut d = render(geom, &frame, Some(cut), detail);
+    let mut d = render(geom, &frame, Some(cut), look);
     level_lines(&mut d, project, &frame);
     d
 }
 
-pub fn axonometric(_project: &Project, geom: &ModelGeometry, camera: &CameraState, detail: DetailLevel) -> Drawing2D {
-    render(geom, &Frame::looking(DVec3::ZERO, camera.forward()), None, detail)
+pub fn axonometric(_project: &Project, geom: &ModelGeometry, camera: &CameraState, look: Look) -> Drawing2D {
+    render(geom, &Frame::looking(DVec3::ZERO, camera.forward()), None, look)
 }
 
 /// The analytical model seen along the camera: member lines (columns and
@@ -468,7 +542,7 @@ mod tests {
     fn empty_elevation_shows_the_levels() {
         let project = Project::from_template();
         let geom = ModelGeometry::build(&project);
-        let d = elevation(&project, &geom, Direction::South, DetailLevel::Medium);
+        let d = elevation(&project, &geom, Direction::South, Look::plain());
         for level in &project.levels {
             assert!(
                 d.prims.iter().any(|p| matches!(p, Prim::Text { text, .. } if *text == level.name)),
@@ -477,11 +551,62 @@ mod tests {
             );
         }
     }
+    /// Each visual style draws the same wall differently: the wireframe
+    /// only lines (the far face's edges too), hidden line white faces,
+    /// consistent colors the material's color unlit, textures the
+    /// material's appearance with its surface pattern in the pattern's color.
+    #[test]
+    fn visual_styles_fill_faces_their_own_way() {
+        use cc_core::VisualStyle as V;
+        let (mut doc, id) = one_wall();
+        let material = doc
+            .project
+            .element(id)
+            .and_then(|e| doc.project.element_type(e.type_id))
+            .map(|t| t.main_material().to_string())
+            .unwrap();
+        let m = doc.project.materials.iter_mut().find(|m| m.name == material).unwrap();
+        m.appearance.color = [180, 60, 40];
+        m.graphics.surface.foreground = cc_core::Pattern::Brick;
+        m.graphics.surface.foreground_color = [90, 20, 10];
+        let geom = ModelGeometry::build(&doc.project);
+        let draw = |style| elevation(&doc.project, &geom, Direction::South, Look { style, ..Look::plain() });
+        let fills = |d: &Drawing2D| -> Vec<[u8; 4]> {
+            d.prims
+                .iter()
+                .filter_map(|p| match p {
+                    Prim::Fill { color, cut: false, .. } => Some(*color),
+                    _ => None,
+                })
+                .collect()
+        };
+        let lines = |d: &Drawing2D| d.prims.iter().filter(|p| matches!(p, Prim::Line { .. })).count();
+        let (wire, hidden) = (draw(V::Wireframe), draw(V::HiddenLine));
+        assert!(fills(&wire).is_empty());
+        assert!(lines(&wire) > lines(&hidden), "the far face's edges show through");
+        assert!(!fills(&hidden).is_empty() && fills(&hidden).iter().all(|c| c[..3] == [255, 255, 255]));
+        let color = doc.project.material_color(&material);
+        let consistent = fills(&draw(V::ConsistentColors));
+        assert!(consistent.iter().all(|c| c[..3] == color), "{consistent:?} vs {color:?}");
+        let shaded = fills(&draw(V::Shaded));
+        assert!(shaded.iter().all(|c| c[..3] != color), "shading washes the color");
+        let textures = draw(V::Textures);
+        let bricks = textures
+            .prims
+            .iter()
+            .filter(|p| matches!(p, Prim::Line { pen: Some(pen), .. } if pen.color == Some([90, 20, 10])))
+            .count();
+        assert!(bricks > 10, "{bricks} brick lines");
+        assert!(fills(&textures).iter().all(|c| c[0] > c[1]), "the reddish appearance color");
+        // The wireframe is still picked by its lines.
+        assert_eq!(wire.hit_test(DVec2::new(0.0, 1.5), 0.05), Some(id));
+    }
+
     #[test]
     fn south_elevation_shows_wall_face() {
         let (doc, id) = one_wall();
         let geom = ModelGeometry::build(&doc.project);
-        let d = elevation(&doc.project, &geom, Direction::South, DetailLevel::Medium);
+        let d = elevation(&doc.project, &geom, Direction::South, Look::plain());
         assert_eq!(d.hit_test(DVec2::new(2.0, 1.5), 0.0), Some(id));
         assert_eq!(d.hit_test(DVec2::new(2.0, 3.5), 0.0), None);
     }
@@ -500,7 +625,7 @@ mod tests {
         wall.add_box(DVec2::ZERO, DVec2::X, DVec2::Y, 4.0, 4.2, 0.0, 10.0, 0.0, 3.0);
         let geom = ModelGeometry { solids: vec![roof, wall], ..Default::default() };
         let frame = Frame::looking(DVec3::ZERO, DVec3::new(1.0, 1.0, -1.0));
-        let d = render(&geom, &frame, None, DetailLevel::Medium);
+        let d = render(&geom, &frame, None, Look::plain());
         let fills: Vec<(usize, ElementId, f64)> = d
             .prims
             .iter()
@@ -528,8 +653,9 @@ mod tests {
                 normal,
                 point: verts[0],
                 pts: verts.iter().map(|v| frame.project(*v)).collect(),
-                color: [0; 4],
+                color: Some([0; 4]),
                 element: ElementId(1),
+                solid: 0,
                 edges: Vec::new(),
             }
         };
@@ -567,8 +693,7 @@ mod tests {
         let (doc, id) = one_wall();
         let geom = ModelGeometry::build(&doc.project);
         // Section line along X at x = 2, looking -Y... crossing the wall north to south.
-        let d =
-            section(&doc.project, &geom, (DVec2::new(2.0, 2.0), DVec2::new(2.0, -2.0)), 5.0, 50, DetailLevel::Medium);
+        let d = section(&doc.project, &geom, (DVec2::new(2.0, 2.0), DVec2::new(2.0, -2.0)), 5.0, 50, Look::plain());
         let cut = d.prims.iter().filter(|p| matches!(p, Prim::Line { style: LineStyle::Cut, .. })).count();
         assert_eq!(cut, 4);
         // The cut is filled with the core material's pattern (the template's masonry hatch).

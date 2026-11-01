@@ -238,6 +238,12 @@ pub struct ViewSet {
     /// component pieces set for it), `medium` or `fine`.
     #[serde(default)]
     pub detail: Option<String>,
+    /// Visual style: `wireframe` (every edge, no faces), `hidden_line` (white
+    /// faces), `shaded`, `consistent_colors` (material colors, unlit),
+    /// `textures` (appearance colors and surface patterns), or `default`
+    /// (plans hidden line, other views shaded).
+    #[serde(default)]
+    pub visual_style: Option<String>,
     /// Phase filter (id or name), or `null` for none (every status by category).
     #[serde(default, deserialize_with = "refs::nullable", skip_serializing_if = "Option::is_none")]
     pub phase_filter: Option<Option<Ref>>,
@@ -261,6 +267,10 @@ impl Command for ViewSet {
         }
         let phase = self.phase.as_ref().map(|r| refs::phase(p, r)).transpose()?;
         let detail = self.detail.as_deref().map(refs::detail_level).transpose()?;
+        let visual_style = self.visual_style.as_deref().map(refs::visual_style).transpose()?;
+        if visual_style.is_some() && !cc_core::ViewTemplate::applies_to(&view.kind) {
+            return Err(EngineError::invalid("this view does not show the model"));
+        }
         let phase_filter = match &self.phase_filter {
             Some(Some(r)) => Some(Some(refs::phase_filter(p, r)?)),
             Some(None) => Some(None),
@@ -284,6 +294,9 @@ impl Command for ViewSet {
             if let Some(d) = detail {
                 new.detail = d;
             }
+            if let Some(st) = visual_style {
+                new.visual_style = st;
+            }
             let mut kept = new.clone();
             t.apply(&mut kept);
             if kept != new {
@@ -306,6 +319,9 @@ impl Command for ViewSet {
             }
             if let Some(d) = detail {
                 v.detail = d;
+            }
+            if let Some(st) = visual_style {
+                v.visual_style = st;
             }
             if let Some(f) = phase_filter {
                 v.phase_filter = f;

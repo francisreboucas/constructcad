@@ -400,7 +400,7 @@ pub fn show(ui: &mut Ui, state: &mut AppState, view_id: ViewId, render_state: Op
                     let temporary = state.session.temporary(view_id);
                     let mut resolver = cc_views::graphics::Resolver::new(project, geom, view, temporary);
                     let style = &mut |e| resolver.style(e).map(|g| solid_style(&g));
-                    SceneMesh::build_at(tess, &state.selection, style, view.detail)
+                    SceneMesh::build_styled(tess, &state.selection, style, view.detail, view.style())
                 }
                 None => SceneMesh::build_plain(tess, &state.selection),
             }

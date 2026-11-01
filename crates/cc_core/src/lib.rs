@@ -80,6 +80,8 @@ pub use types::{
     WallFunction, stair_layout,
 };
 pub use units::{AreaUnit, LengthUnit, NumberStyle, SlopeUnit, Units, VolumeUnit};
-pub use view::{CameraState, DetailLevel, Direction, MepDiscipline, SheetSize, View, ViewCategory, ViewKind, Viewport};
+pub use view::{
+    CameraState, DetailLevel, Direction, MepDiscipline, SheetSize, View, ViewCategory, ViewKind, Viewport, VisualStyle,
+};
 
 pub use glam::{DVec2, DVec3};

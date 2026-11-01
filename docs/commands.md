@@ -1797,6 +1797,7 @@ No parameters.
 | `phase` | id or name | optional | Phase the view shows (id or name; plans, elevations, sections, 3D views, schedules). |
 | `phase_filter` | id or name | optional | Phase filter (id or name), or `null` for none (every status by category). |
 | `scale` | integer | optional | Scale denominator (e.g. 100 for 1:100). |
+| `visual_style` | string | optional | Visual style: `wireframe` (every edge, no faces), `hidden_line` (white faces), `shaded`, `consistent_colors` (material colors, unlit), `textures` (appearance colors and surface patterns), or `default` (plans hidden line, other views shaded). |
 
 ### `view_duplicate`
 
@@ -1997,12 +1998,13 @@ No parameters.
 | `cut_height` | number | optional | Plans: cut plane height, meters. |
 | `detail` | string | optional | Detail level: `coarse`, `medium` or `fine`. |
 | `discipline` | string | optional | Floor plans: `none`, `plumbing` or `electrical` (services over a faint architecture). |
-| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail` (true/false). |
+| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail`, `visual_style` (true/false). |
 | `name` | string | optional | New name. |
 | `phase_filter` | id or name | optional | Phase filter (id or name), or `null` for none. |
 | `scale` | integer | optional | Scale denominator. |
 | `structural` | boolean | optional | Floor plans: structural (formwork) display. |
 | `structure_tags` | boolean | optional | Floor plans: tag beams and columns. |
+| `visual_style` | string | optional | Visual style: `wireframe`, `hidden_line`, `shaded`, `consistent_colors`, `textures`, or `default` (each view's usual style). |
 
 ### `template_delete`
 

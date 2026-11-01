@@ -221,6 +221,83 @@ pub struct View {
     /// How much of the elements the view draws (see [`DetailLevel`]).
     #[serde(default, skip_serializing_if = "DetailLevel::is_medium")]
     pub detail: DetailLevel,
+    /// How the view shows the model's surfaces (`None`: the usual style of
+    /// its kind, see [`View::style`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub visual_style: Option<VisualStyle>,
+}
+
+/// How a view shows the model's surfaces.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum VisualStyle {
+    /// Every edge, seen through the model; no faces.
+    Wireframe,
+    /// Faces in the paper's color hide what is behind them; only edges show.
+    HiddenLine,
+    /// Faces in their material's color, lit by a light from the viewer's side.
+    #[default]
+    Shaded,
+    /// Faces in their material's color, the same on every side (no light).
+    ConsistentColors,
+    /// Faces in their material's appearance color with its surface pattern, lit.
+    Textures,
+}
+
+impl VisualStyle {
+    pub const ALL: [VisualStyle; 5] = [
+        VisualStyle::Wireframe,
+        VisualStyle::HiddenLine,
+        VisualStyle::Shaded,
+        VisualStyle::ConsistentColors,
+        VisualStyle::Textures,
+    ];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            VisualStyle::Wireframe => "style-wireframe",
+            VisualStyle::HiddenLine => "style-hidden-line",
+            VisualStyle::Shaded => "style-shaded",
+            VisualStyle::ConsistentColors => "style-consistent-colors",
+            VisualStyle::Textures => "style-textures",
+        }
+    }
+
+    /// The name commands use: `wireframe`, `hidden_line`, `shaded`, `consistent_colors` or `textures`.
+    pub fn name(self) -> &'static str {
+        match self {
+            VisualStyle::Wireframe => "wireframe",
+            VisualStyle::HiddenLine => "hidden_line",
+            VisualStyle::Shaded => "shaded",
+            VisualStyle::ConsistentColors => "consistent_colors",
+            VisualStyle::Textures => "textures",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<VisualStyle> {
+        let name = name.trim().to_ascii_lowercase().replace([' ', '-'], "_");
+        VisualStyle::ALL.into_iter().find(|s| s.name() == name)
+    }
+
+    /// Faces are filled (every style but the wireframe).
+    pub fn fills(self) -> bool {
+        self != VisualStyle::Wireframe
+    }
+
+    /// Faces carry their material's color (shaded, consistent colors, textures).
+    pub fn colored(self) -> bool {
+        matches!(self, VisualStyle::Shaded | VisualStyle::ConsistentColors | VisualStyle::Textures)
+    }
+}
+
+impl View {
+    /// The style the view is drawn in: its own, else plans in hidden line
+    /// (as drawn before styles existed) and other views shaded.
+    pub fn style(&self) -> VisualStyle {
+        self.visual_style.unwrap_or(match self.kind {
+            ViewKind::FloorPlan { .. } | ViewKind::CeilingPlan { .. } => VisualStyle::HiddenLine,
+            _ => VisualStyle::Shaded,
+        })
+    }
 }
 
 /// How much a view draws of elements: at `Coarse`, layered walls, floors
@@ -320,6 +397,7 @@ impl View {
             phase_filter: None,
             tag_offsets: Default::default(),
             detail: DetailLevel::Medium,
+            visual_style: None,
         }
     }
 

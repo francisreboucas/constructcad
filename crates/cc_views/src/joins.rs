@@ -202,7 +202,7 @@ mod tests {
             (DVec2::new(4.0, 7.0), DVec2::new(4.0, -1.0)),
             2.0,
             50,
-            cc_core::DetailLevel::Medium,
+            crate::Look::plain(),
         );
         merge(&doc.project, &mut d);
         let slab = geom.volume(floor) / 48.0;

@@ -1873,6 +1873,26 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
                 if detail != view.detail {
                     crate::engine_edit::view(state, id, None, |v| v.detail = detail);
                 }
+                // And in a visual style.
+                let current = view.style();
+                let mut style = current;
+                if crate::graphics_dialog::controlled(state, id, "visual_style") {
+                    readonly_row(ui, &t!("prop-visual-style"), tr(style.key()));
+                } else {
+                    row(ui, &t!("prop-visual-style"), |ui| {
+                        egui::ComboBox::from_id_salt(("visual-style", id.0)).selected_text(tr(style.key())).show_ui(
+                            ui,
+                            |ui| {
+                                for s in cc_core::VisualStyle::ALL {
+                                    ui.selectable_value(&mut style, s, tr(s.key()));
+                                }
+                            },
+                        );
+                    });
+                }
+                if style != current {
+                    crate::engine_edit::view(state, id, None, |v| v.visual_style = Some(style));
+                }
             }
             if let ViewKind::ThreeD { analytical, .. } = view.kind {
                 let mut on = analytical;

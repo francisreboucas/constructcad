@@ -8,6 +8,17 @@ pub struct Vertex {
     pub pos: [f32; 3],
     pub normal: [f32; 3],
     pub color: [f32; 4],
+    /// The surface pattern drawn over a face (textures style): its color
+    /// (linear) and, in `w`, its kind (the order of `cc_core::Pattern`, 0 for none).
+    pub fg: [f32; 4],
+    pub bg: [f32; 4],
+}
+
+impl Vertex {
+    /// A vertex with no surface pattern.
+    pub fn plain(pos: [f32; 3], normal: [f32; 3], color: [f32; 4]) -> Self {
+        Self { pos, normal, color, fg: [0.0; 4], bg: [0.0; 4] }
+    }
 }
 
 /// GPU-ready triangles and edge lines.
@@ -18,6 +29,8 @@ pub struct SceneMesh {
     /// Triangles of transparent solids, drawn last with blending.
     pub transparent_indices: Vec<u32>,
     pub edges: Vec<Vertex>,
+    /// Faces drawn without light (hidden line, consistent colors).
+    pub unlit: bool,
 }
 
 /// The triangles and outline edges of a model's solids, without colors:
@@ -32,6 +45,9 @@ pub struct Tessellation {
 struct SolidTess {
     element: ElementId,
     color: [u8; 3],
+    /// The material's appearance color and surface pattern (textures style).
+    appearance: [u8; 3],
+    surface: cc_core::PatternFill,
     transparency: f64,
     /// The detail levels of the views that show it (a component's piece).
     detail: cc_core::component::DetailLevels,
@@ -52,6 +68,8 @@ impl Tessellation {
                 let mut s = SolidTess {
                     element: solid.element,
                     color: solid.color,
+                    appearance: solid.appearance,
+                    surface: solid.surface,
                     transparency: solid.transparency,
                     detail: solid.detail,
                     vertices: Vec::new(),
@@ -81,10 +99,20 @@ impl Tessellation {
 }
 
 impl SceneMesh {
-    /// Append `solid`'s triangles in `color`, to the blended pass when transparent.
-    fn add_faces(&mut self, solid: &SolidTess, color: [f32; 4]) {
+    /// Append `solid`'s triangles in `color` (with its surface pattern when
+    /// `textured`), to the blended pass when transparent.
+    fn add_faces(&mut self, solid: &SolidTess, color: [f32; 4], textured: bool) {
         let start = self.vertices.len() as u32;
-        self.vertices.extend(solid.vertices.iter().map(|&(pos, normal)| Vertex { pos, normal, color }));
+        let layer = |pattern: cc_core::Pattern, c: [u8; 3]| -> [f32; 4] {
+            let kind = cc_core::Pattern::ALL.iter().position(|p| *p == pattern).unwrap_or(0);
+            if !textured || kind == 0 {
+                return [0.0; 4];
+            }
+            [srgb_to_linear(c[0]), srgb_to_linear(c[1]), srgb_to_linear(c[2]), kind as f32]
+        };
+        let fg = layer(solid.surface.foreground, solid.surface.foreground_color);
+        let bg = layer(solid.surface.background, solid.surface.background_color);
+        self.vertices.extend(solid.vertices.iter().map(|&(pos, normal)| Vertex { pos, normal, color, fg, bg }));
         let target = if color[3] < 0.999 { &mut self.transparent_indices } else { &mut self.indices };
         target.extend(solid.triangles.iter().map(|i| start + i));
     }
@@ -128,12 +156,32 @@ impl SceneMesh {
         style: &mut dyn FnMut(ElementId) -> Option<SolidStyle>,
         detail: cc_core::DetailLevel,
     ) -> Self {
-        let mut mesh = Self::default();
+        Self::build_styled(tess, selected, style, detail, cc_core::VisualStyle::Shaded)
+    }
+
+    /// [`SceneMesh::build_at`] in a visual style: the wireframe has only
+    /// edges, hidden line white unlit faces, consistent colors the faces'
+    /// colors unlit, textures the materials' appearance colors with their
+    /// surface patterns (view graphics' color overrides win over both).
+    pub fn build_styled(
+        tess: &Tessellation,
+        selected: &BTreeSet<ElementId>,
+        style: &mut dyn FnMut(ElementId) -> Option<SolidStyle>,
+        detail: cc_core::DetailLevel,
+        visual: cc_core::VisualStyle,
+    ) -> Self {
+        use cc_core::VisualStyle as V;
+        let mut mesh = Self { unlit: matches!(visual, V::HiddenLine | V::ConsistentColors), ..Self::default() };
         let mut styles: std::collections::HashMap<ElementId, Option<SolidStyle>> = Default::default();
         for solid in tess.solids.iter().filter(|s| s.detail.shows(detail)) {
             let Some(st) = *styles.entry(solid.element).or_insert_with(|| style(solid.element)) else { continue };
             let sel = selected.contains(&solid.element);
-            let mut base = st.color.unwrap_or(solid.color);
+            let own = match visual {
+                V::HiddenLine => [255, 255, 255],
+                V::Textures => solid.appearance,
+                _ => solid.color,
+            };
+            let mut base = st.color.unwrap_or(own);
             if st.halftone {
                 base = base.map(|v| (f32::from(v) + (255.0 - f32::from(v)) * 0.66).round() as u8);
             }
@@ -148,8 +196,10 @@ impl SceneMesh {
                 (false, None) if st.halftone => [0.45, 0.45, 0.46, 1.0],
                 (false, None) => [0.02, 0.02, 0.025, 1.0],
             };
-            mesh.add_faces(solid, color);
-            mesh.edges.extend(solid.edges.iter().map(|&(pos, normal)| Vertex { pos, normal, color: edge_color }));
+            if visual.fills() {
+                mesh.add_faces(solid, color, visual == V::Textures && st.color.is_none() && !sel);
+            }
+            mesh.edges.extend(solid.edges.iter().map(|&(pos, normal)| Vertex::plain(pos, normal, edge_color)));
         }
         mesh
     }
@@ -172,8 +222,8 @@ impl SceneMesh {
                 for i in 0..segments {
                     let (a, b) = (bar.points[i], bar.points[(i + 1) % n]);
                     let normal = [0.0, 0.0, 1.0];
-                    mesh.edges.push(Vertex { pos: a.as_vec3().to_array(), normal, color });
-                    mesh.edges.push(Vertex { pos: b.as_vec3().to_array(), normal, color });
+                    mesh.edges.push(Vertex::plain(a.as_vec3().to_array(), normal, color));
+                    mesh.edges.push(Vertex::plain(b.as_vec3().to_array(), normal, color));
                 }
             }
         }
@@ -185,7 +235,11 @@ impl SceneMesh {
         let mut mesh = Self::default();
         for solid in &tess.solids {
             let base = solid.color;
-            mesh.add_faces(solid, [srgb_to_linear(base[0]), srgb_to_linear(base[1]), srgb_to_linear(base[2]), 0.12]);
+            mesh.add_faces(
+                solid,
+                [srgb_to_linear(base[0]), srgb_to_linear(base[1]), srgb_to_linear(base[2]), 0.12],
+                false,
+            );
         }
         mesh
     }
@@ -201,8 +255,8 @@ impl SceneMesh {
         let mut mesh = Self::faint(tess);
         let mut line = |a: glam::DVec3, b: glam::DVec3, color: [f32; 4]| {
             let normal = [0.0, 0.0, 1.0];
-            mesh.edges.push(Vertex { pos: a.as_vec3().to_array(), normal, color });
-            mesh.edges.push(Vertex { pos: b.as_vec3().to_array(), normal, color });
+            mesh.edges.push(Vertex::plain(a.as_vec3().to_array(), normal, color));
+            mesh.edges.push(Vertex::plain(b.as_vec3().to_array(), normal, color));
         };
         for m in &model.members {
             let Some((a, b)) = model.line(m) else { continue };
@@ -254,5 +308,42 @@ mod tests {
         });
         assert!(solid.transparent_indices.len() < mesh.transparent_indices.len());
         assert!(solid.vertices.iter().any(|v| v.color == [1.0, 0.0, 0.0, 1.0]));
+    }
+
+    #[test]
+    fn visual_styles_shape_the_mesh() {
+        use cc_core::VisualStyle as V;
+        let mut project = cc_core::from_ron(include_str!("../../../examples/casa_simples.ccad")).unwrap();
+        for m in &mut project.materials {
+            m.graphics.surface.foreground = cc_core::Pattern::Brick;
+            m.graphics.surface.foreground_color = [90, 20, 10];
+        }
+        let tess = Tessellation::new(&ModelGeometry::build(&project));
+        let build = |visual| {
+            SceneMesh::build_styled(
+                &tess,
+                &BTreeSet::new(),
+                &mut |_| Some(SolidStyle::default()),
+                cc_core::DetailLevel::Medium,
+                visual,
+            )
+        };
+        let shaded = build(V::Shaded);
+        assert!(!shaded.unlit && shaded.vertices.iter().all(|v| v.fg[3] == 0.0));
+        // The wireframe: the same edges, no faces.
+        let wire = build(V::Wireframe);
+        assert!(wire.indices.is_empty() && wire.transparent_indices.is_empty());
+        assert_eq!(wire.edges.len(), shaded.edges.len());
+        // Hidden line: white, unlit faces.
+        let hidden = build(V::HiddenLine);
+        assert!(hidden.unlit && hidden.vertices.iter().all(|v| v.color[..3] == [1.0, 1.0, 1.0]));
+        assert!(build(V::ConsistentColors).unlit);
+        // Textures: lit, the brick pattern (kind 8) in its color on the faces of
+        // solids made of a material (most of them; door frames are not).
+        let textured = build(V::Textures);
+        let brick = cc_core::Pattern::ALL.iter().position(|p| *p == cc_core::Pattern::Brick).unwrap() as f32;
+        let bricked: Vec<&Vertex> = textured.vertices.iter().filter(|v| v.fg[3] == brick).collect();
+        assert!(!textured.unlit && bricked.len() * 2 > textured.vertices.len(), "{}", bricked.len());
+        assert!(bricked.iter().all(|v| (v.fg[0] - srgb_to_linear(90)).abs() < 1e-6));
     }
 }

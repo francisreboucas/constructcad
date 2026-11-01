@@ -1477,3 +1477,26 @@ fn the_sweep_tool_draws_a_baseboard_around_a_room() {
     }
     assert!(harness.query_all_by_role(Role::CheckBox).count() >= 2);
 }
+
+/// A view's visual style in its properties: the active view with nothing
+/// selected shows a combo box with its style, and a change made through the
+/// app is an engine edit (one undo step).
+#[test]
+fn a_views_visual_style_is_chosen_in_its_properties() {
+    let mut state = sample_state();
+    let view = state.project().views.values().find(|v| matches!(v.kind, cc_core::ViewKind::ThreeD { .. })).unwrap().id;
+    state.active_view = Some(view);
+    state.selection.clear();
+    assert_eq!(state.project().view(view).unwrap().style(), cc_core::VisualStyle::Shaded);
+    crate::engine_edit::view(&mut state, view, None, |v| v.visual_style = Some(cc_core::VisualStyle::Textures));
+    assert_eq!(state.project().view(view).unwrap().style(), cc_core::VisualStyle::Textures);
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1400.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    let shown = t!("style-textures");
+    let combo = harness.query_all_by_role(Role::ComboBox).find(|n| n.value().as_deref() == Some(shown.as_str()));
+    assert!(combo.is_some(), "the combo shows the style");
+    harness.state_mut().session.execute("undo", serde_json::json!({})).unwrap();
+    assert_eq!(harness.state().project().view(view).unwrap().style(), cc_core::VisualStyle::Shaded);
+}
