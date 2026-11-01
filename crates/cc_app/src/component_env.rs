@@ -37,6 +37,8 @@ pub enum Pick {
     Piece(usize),
     /// An equality (EQ), by its index.
     Equal(usize),
+    /// A connector, by its index.
+    Connector(usize),
 }
 
 /// The tool of the environment.
@@ -50,6 +52,8 @@ pub enum EnvTool {
     Dimension { first: Option<(ComponentViewKind, String)> },
     /// Three parallel planes: an outer one, the one kept halfway, the other.
     Equal { picked: Vec<String>, view: Option<ComponentViewKind> },
+    /// A click in the plan, front or side view places a connector.
+    Connector,
 }
 
 /// Pan and zoom of one view.
@@ -198,6 +202,81 @@ pub fn piece_at(view: &ComponentView, p: DVec2, tol: f64) -> Option<usize> {
         .map(|(_, i)| i)
 }
 
+/// The connector whose marker is within `tol` of `p`.
+pub fn connector_at(view: &ComponentView, p: DVec2, tol: f64) -> Option<usize> {
+    view.connectors
+        .iter()
+        .map(|k| (k.point.distance(p), k.index))
+        .filter(|(d, _)| *d <= tol)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, i)| i)
+}
+
+/// Where a click at `p` in view `kind` places a connector: `x`, `y` and `z`
+/// as expressions, each coordinate of the view locked to a plane seen
+/// edge-on within `tol` (else to the millimeter), the depth at 0; and the
+/// way runs leave it (down in plan, back elsewhere).
+pub fn connector_from_click(
+    view: &ComponentView,
+    kind: ComponentViewKind,
+    p: DVec2,
+    tol: f64,
+) -> Option<([String; 3], cc_core::component::ConnectorDirection)> {
+    use cc_core::component::ConnectorDirection;
+    let snap = |vertical: bool, at: f64| -> String {
+        let near = view
+            .planes
+            .iter()
+            .filter(|pl| ((pl.b - pl.a).x.abs() < 1e-9) == vertical)
+            .map(|pl| ((if vertical { pl.a.x } else { pl.a.y } - at).abs(), &pl.name))
+            .filter(|(d, _)| *d <= tol)
+            .min_by(|a, b| a.0.total_cmp(&b.0));
+        match near {
+            Some((_, name)) => name.clone(),
+            None => format!("{}", (at * 1000.0).round() / 1000.0),
+        }
+    };
+    let (u, v) = (snap(true, p.x), snap(false, p.y));
+    let zero = || "0".to_string();
+    match kind {
+        ComponentViewKind::Plan => Some(([u, v, zero()], ConnectorDirection::Down)),
+        ComponentViewKind::Front => Some(([u, zero(), v], ConnectorDirection::Back)),
+        ComponentViewKind::Side => Some(([zero(), u, v], ConnectorDirection::Back)),
+        ComponentViewKind::ThreeD => None,
+    }
+}
+
+/// Paint the connectors of a view: a ring in their system's color, an arrow
+/// the way runs leave, a dot when that is toward the viewer and a cross
+/// when it is away; the picked one ringed in the accent color.
+fn paint_connectors(painter: &egui::Painter, view: &ComponentView, xf: &Xf, picked: Option<usize>) {
+    for k in &view.connectors {
+        let [r, g, b] = k.system.default_color();
+        let color = Color32::from_rgb(r, g, b);
+        let at = xf.to_screen(k.point);
+        let radius = k.radius.map_or(5.0, |r| (r * xf.scale) as f32).clamp(5.0, 40.0);
+        painter.circle(at, radius, color.gamma_multiply(0.25), Stroke::new(1.5, color));
+        match k.facing {
+            1 => {
+                painter.circle_filled(at, 2.0, color);
+            }
+            -1 => {
+                let d = radius * 0.6;
+                painter.line_segment([at + vec2(-d, -d), at + vec2(d, d)], Stroke::new(1.2, color));
+                painter.line_segment([at + vec2(-d, d), at + vec2(d, -d)], Stroke::new(1.2, color));
+            }
+            _ => {
+                let dir = vec2(k.dir.x as f32, -k.dir.y as f32);
+                let tip = at + dir * (radius + 14.0);
+                painter.arrow(at + dir * radius, tip - (at + dir * radius), Stroke::new(1.5, color));
+            }
+        }
+        if picked == Some(k.index) {
+            painter.circle_stroke(at, radius + 4.0, Stroke::new(1.5, PALETTE.accent));
+        }
+    }
+}
+
 /// The dimension whose text is within `tol` of `p`.
 pub fn dimension_at(view: &ComponentView, p: DVec2, tol: f64) -> Option<usize> {
     view.dimensions
@@ -236,6 +315,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             &[CompExtrusion, CompRevolution, CompSweep, CompBlend],
         );
         crate::ribbon::env_group(ui, state, t!("comp-env-group-datum"), &[CompRefPlane, CompDimension, CompEqual]);
+        crate::ribbon::env_group(ui, state, t!("comp-connectors"), &[CompConnector]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-component"), &[CompSaveFile]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-editor"), &[CompFinish, CompCancel]);
     });
@@ -251,6 +331,7 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         EnvTool::Dimension { first: None } => t!("comp-env-hint-dimension"),
         EnvTool::Dimension { first: Some(_) } => t!("comp-env-hint-dimension-second"),
         EnvTool::Equal { picked, .. } => t!("comp-env-hint-equal", "count" => picked.len() + 1),
+        EnvTool::Connector => t!("comp-env-hint-connector"),
     };
     ui.label(theme::muted(hint));
 }
@@ -368,6 +449,11 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
     if let Some(name) = &hovered_plane {
         highlight(name, PALETTE.accent.gamma_multiply(0.5));
     }
+    let picked_connector = match pick {
+        Some(Pick::Connector(i)) => Some(i),
+        _ => None,
+    };
+    paint_connectors(&painter, &view, &xf, picked_connector);
     // A piece being sketched takes the clicks.
     if state.sketch.is_some() {
         crate::component_sketch::canvas(ui, &resp, &painter, state, &view, kind, &xf, tol);
@@ -385,7 +471,9 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                     .filter(|(dist, _)| *dist <= tol * 2.0)
                     .min_by(|a, b| a.0.total_cmp(&b.0))
                     .map(|(_, i)| Pick::Equal(i));
-                let picked = equal
+                let picked = connector_at(&view, p, tol * 2.0)
+                    .map(Pick::Connector)
+                    .or(equal)
                     .or(dimension_at(&view, p, tol * 2.0).map(Pick::Dimension))
                     .or(hovered_plane.map(Pick::Plane))
                     .or_else(|| piece_at(&view, p, tol).map(Pick::Piece));
@@ -427,6 +515,31 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                 set_tool(state, EnvTool::Equal { picked: Vec::new(), view: None });
             } else {
                 set_tool(state, EnvTool::Equal { picked, view: Some(kind) });
+            }
+        }
+        EnvTool::Connector => {
+            let (true, Some(p)) = (clicked, hover) else { return };
+            let Some(([x, y, z], direction)) = connector_from_click(&view, kind, p, tol) else { return };
+            let (_, def) = component(state).unzip();
+            // An electrical device takes power; anything else, water.
+            let system = match def.and_then(|d| d.mep).and_then(|m| m.device()) {
+                Some(_) => "power",
+                None => "cold_water",
+            };
+            let command = cc_engine::commands::component_connector::ComponentConnectorAdd {
+                type_ref: type_ref(state),
+                name: None,
+                system: Some(system.into()),
+                x: Some(cc_engine::commands::component_piece::ExprArg::Text(x)),
+                y: Some(cc_engine::commands::component_piece::ExprArg::Text(y)),
+                z: Some(cc_engine::commands::component_piece::ExprArg::Text(z)),
+                direction: Some(cc_engine::commands::component_connector::direction_name(direction).into()),
+                diameter: None,
+            };
+            if let Some(out) = crate::actions::run_command(state, command)
+                && let Some(env) = state.component_env.as_mut()
+            {
+                env.pick = out["index"].as_u64().map(|i| Pick::Connector(i as usize));
             }
         }
         EnvTool::RefPlane { first } => {
@@ -540,6 +653,10 @@ pub fn delete_pick(state: &mut AppState) {
             crate::actions::run_command(state, cmd::ComponentDimensionDelete { type_ref: t, index })
         }
         Pick::Equal(index) => crate::actions::run_command(state, cmd::ComponentEqualDelete { type_ref: t, index }),
+        Pick::Connector(index) => crate::actions::run_command(
+            state,
+            cc_engine::commands::component_connector::ComponentConnectorDelete { type_ref: t, index },
+        ),
         Pick::Piece(index) => crate::actions::run_command(
             state,
             cc_engine::commands::component_piece::ComponentPieceDelete { type_ref: t, index },
@@ -626,6 +743,11 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
         Some(Pick::Piece(index)) => {
             crate::table::section(ui, "comp-env-piece", t!("comp-env-piece"), |ui| {
                 crate::component_env::piece_props(ui, state, def, index);
+            });
+        }
+        Some(Pick::Connector(index)) => {
+            crate::table::section(ui, "comp-env-connector", t!("comp-connector"), |ui| {
+                connector_props(ui, state, def, index);
             });
         }
         None => {}
@@ -896,6 +1018,77 @@ fn expr_row(
     out
 }
 
+/// A connector: name, kind of system, position (each coordinate an
+/// expression lockable to a plane square to its axis), direction and diameter.
+fn connector_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef, index: usize) {
+    use cc_engine::commands::component_connector::{ComponentConnectorSet, direction_name};
+    use cc_engine::commands::component_piece::ExprArg;
+    let Some(c) = def.connectors.get(index).cloned() else { return };
+    let mut set = ComponentConnectorSet {
+        type_ref: type_ref(state),
+        index,
+        name: None,
+        system: None,
+        x: None,
+        y: None,
+        z: None,
+        direction: None,
+        diameter: None,
+    };
+    crate::table::row(ui, &t!("prop-name"), |ui| {
+        set.name = draft_field(ui, state, &format!("conn-name:{index}"), &c.name, 150.0)
+    });
+    let mut system = c.system;
+    crate::table::row(ui, &t!("col-system"), |ui| {
+        egui::ComboBox::from_id_salt(("comp-env-conn-system", index))
+            .selected_text(crate::i18n::tr(system.key()))
+            .show_ui(ui, |ui| {
+                for k in cc_core::SystemKind::ALL {
+                    ui.selectable_value(&mut system, k, crate::i18n::tr(k.key()));
+                }
+            });
+    });
+    if system != c.system {
+        set.system = Some(system.name().to_string());
+    }
+    for (label, axis, current, field) in [
+        ("X", PlaneAxis::X, &c.x, &mut set.x),
+        ("Y", PlaneAxis::Y, &c.y, &mut set.y),
+        ("Z", PlaneAxis::Z, &c.z, &mut set.z),
+    ] {
+        let planes = planes_on(def, axis);
+        *field = expr_row(ui, state, label, &format!("conn-{label}:{index}"), current, &planes).map(ExprArg::Text);
+    }
+    let mut direction = c.direction;
+    crate::table::row(ui, &t!("prop-direction"), |ui| {
+        egui::ComboBox::from_id_salt(("comp-env-conn-dir", index))
+            .selected_text(crate::i18n::tr(direction.key()))
+            .show_ui(ui, |ui| {
+                for d in cc_core::component::ConnectorDirection::ALL {
+                    ui.selectable_value(&mut direction, d, crate::i18n::tr(d.key()));
+                }
+            });
+    });
+    if direction != c.direction {
+        set.direction = Some(direction_name(direction).to_string());
+    }
+    set.diameter = expr_row(ui, state, &t!("prop-diameter"), &format!("conn-diameter:{index}"), &c.diameter, &[])
+        .map(ExprArg::Text);
+    let changed = set.name.is_some()
+        || set.system.is_some()
+        || set.x.is_some()
+        || set.y.is_some()
+        || set.z.is_some()
+        || set.direction.is_some()
+        || set.diameter.is_some();
+    if changed {
+        crate::actions::run_command(state, set);
+    }
+    if ui.button(t!("action-delete")).clicked() {
+        delete_pick(state);
+    }
+}
+
 /// A piece: name, solid or void, material, shown in plans, and where a
 /// sketched one starts and ends (or its axis and angle).
 pub fn piece_props(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef, index: usize) {
@@ -1078,6 +1271,60 @@ mod tests {
         assert_eq!(plane_from_line(Plan, a, b), Some((PlaneAxis::Y, 0.75)));
         assert_eq!(plane_from_line(ThreeD, a, b), None);
         assert_eq!(plane_from_line(Plan, a, a), None);
+    }
+
+    #[test]
+    fn connectors_are_placed_locked_to_planes_picked_and_deleted() {
+        use cc_core::component::ConnectorDirection;
+        let (mut state, table) = table_state();
+        open(&mut state, table);
+        add_plane(&mut state, PlaneAxis::X, 0.4);
+        // A click near Plane1 in the front view locks x to it; z is rounded, y left at 0.
+        let front = view(&state, ComponentViewKind::Front).unwrap();
+        let placed = connector_from_click(&front, ComponentViewKind::Front, DVec2::new(0.402, 0.30049), 0.005);
+        let ([x, y, z], direction) = placed.unwrap();
+        assert_eq!((x.as_str(), y.as_str(), z.as_str(), direction), ("Plane1", "0", "0.3", ConnectorDirection::Back));
+        // In plan, near CenterX and CenterY: both locked, pointing down.
+        let plan = view(&state, ComponentViewKind::Plan).unwrap();
+        let ([x, y, _], direction) =
+            connector_from_click(&plan, ComponentViewKind::Plan, DVec2::new(0.001, -0.002), 0.005).unwrap();
+        assert_eq!((x.as_str(), y.as_str(), direction), ("CenterX", "CenterY", ConnectorDirection::Down));
+        assert!(connector_from_click(&plan, ComponentViewKind::ThreeD, DVec2::ZERO, 0.005).is_none());
+
+        // The tool's click adds it and picks it; it shows in every view, follows its plane.
+        set_tool(&mut state, EnvTool::Connector);
+        let command = cc_engine::commands::component_connector::ComponentConnectorAdd {
+            type_ref: type_ref(&state),
+            name: None,
+            system: Some("sanitary".into()),
+            x: Some(cc_engine::commands::component_piece::ExprArg::Text("Plane1".into())),
+            y: None,
+            z: Some(cc_engine::commands::component_piece::ExprArg::Number(0.3)),
+            direction: Some("back".into()),
+            diameter: None,
+        };
+        crate::actions::run_command(&mut state, command).unwrap();
+        for kind in ComponentViewKind::ALL {
+            assert_eq!(view(&state, kind).unwrap().connectors.len(), 1, "{kind:?}");
+        }
+        let front = view(&state, ComponentViewKind::Front).unwrap();
+        assert_eq!(connector_at(&front, DVec2::new(0.401, 0.301), 0.01), Some(0));
+        assert_eq!(connector_at(&front, DVec2::new(0.5, 0.3), 0.01), None);
+        let command = cmd::ComponentRefPlaneSet {
+            type_ref: type_ref(&state),
+            name: "Plane1".into(),
+            at: Some("0.5".into()),
+            rename: None,
+        };
+        crate::actions::run_command(&mut state, command).unwrap();
+        let front = view(&state, ComponentViewKind::Front).unwrap();
+        assert!((front.connectors[0].point.x - 0.5).abs() < 1e-12);
+        // Delete takes the picked connector away; Esc leaves the tool.
+        state.component_env.as_mut().unwrap().pick = Some(Pick::Connector(0));
+        delete_pick(&mut state);
+        assert!(component(&state).unwrap().1.connectors.is_empty());
+        escape(&mut state);
+        assert_eq!(state.component_env.as_ref().unwrap().tool, EnvTool::Select);
     }
 
     #[test]

@@ -27,7 +27,7 @@ mod schedule;
 mod sheet;
 
 pub use annotate::{DimensionLayout, HIGHLIGHT_ONLY, dimension_layout};
-pub use component_view::{ComponentView, ComponentViewKind, component_view};
+pub use component_view::{ComponentView, ComponentViewKind, ViewConnector, component_view};
 pub use drawing::{Anchor, Drawing2D, LineStyle, Pen, Prim, ResolvedPen, TagHandle, halftone};
 pub use legend::legend;
 pub use plan::{is_structural, plan, plan_of};
