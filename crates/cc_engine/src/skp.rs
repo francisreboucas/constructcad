@@ -254,6 +254,7 @@ impl<'a> Converter<'a> {
                     in_plan: true,
                     void: false,
                     plan_only: false,
+                    detail: Default::default(),
                 }
             })
             .collect();

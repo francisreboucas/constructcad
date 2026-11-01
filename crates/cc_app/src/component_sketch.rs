@@ -428,6 +428,7 @@ fn create(
                 end: None,
                 axis: None,
                 angle: None,
+                detail: None,
             };
             crate::actions::run_command(state, command).map(|_| index)
         }

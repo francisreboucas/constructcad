@@ -82,6 +82,7 @@ pub fn view(state: &mut AppState, id: ViewId, key: Option<u64>, f: impl FnOnce(&
         scale: (new.scale != old.scale).then_some(new.scale),
         params: (new.kind != old.kind).then(|| cc_engine::params_of(&new.kind)),
         phase: (new.phase != old.phase).then_some(Ref::Id(new.phase.0)),
+        detail: (new.detail != old.detail).then(|| new.detail.name().to_string()),
         phase_filter: (new.phase_filter != old.phase_filter).then(|| new.phase_filter.map(|f| Ref::Id(f.0))),
     };
     run(state, key, command)

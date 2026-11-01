@@ -196,8 +196,14 @@ mod tests {
             }
         });
         let geom = cc_geom::ModelGeometry::build(&doc.project);
-        let mut d =
-            crate::projected::section(&doc.project, &geom, DVec2::new(4.0, 7.0), DVec2::new(4.0, -1.0), 2.0, 50);
+        let mut d = crate::projected::section(
+            &doc.project,
+            &geom,
+            (DVec2::new(4.0, 7.0), DVec2::new(4.0, -1.0)),
+            2.0,
+            50,
+            cc_core::DetailLevel::Medium,
+        );
         merge(&doc.project, &mut d);
         let slab = geom.volume(floor) / 48.0;
         (d, floor, beam, slab)

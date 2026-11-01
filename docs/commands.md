@@ -131,24 +131,24 @@ No parameters.
 
 ### `sheet_export`
 
-*file* — Export a sheet as vector PDF or SVG (by `format`, else by the file extension).
+*file* — Export a sheet as vector PDF or SVG, or as DXF in paper millimeters (by `format`, else by the file extension).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `path` | string | required | Path of the file to write (.pdf or .svg). |
+| `path` | string | required | Path of the file to write (.pdf, .svg or .dxf). |
 | `sheet` | id or name | required | Sheet id or name. |
-| `format` | string | optional | `pdf` or `svg`. |
+| `format` | string | optional | `pdf`, `svg` or `dxf`. |
 
 ### `view_export`
 
-*file* — Export any view with a drawing (plan, elevation, section, 3D view as a hidden-line axonometric, legend, drafting view, diagram or sheet) as a PNG image, or as vector SVG or PDF (by `format`, else by the file extension). The view is drawn at its scale as printed, without temporary hiding, on a page that fits it; sheets keep their paper size.
+*file* — Export any view with a drawing (plan, elevation, section, 3D view as a hidden-line axonometric, legend, drafting view, diagram or sheet) as a PNG image, as vector SVG or PDF, or as DXF for other CAD programs (by `format`, else by the file extension). The view is drawn at its scale as printed, without temporary hiding, on a page that fits it; sheets keep their paper size. A DXF holds the view at full size in millimeters (a sheet in paper millimeters), each element on the layer of its category, colors as the nearest color index and line patterns as line types.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `path` | string | required | Path of the file to write (.png, .svg or .pdf). |
+| `path` | string | required | Path of the file to write (.png, .svg, .pdf or .dxf). |
 | `view` | id or name | required | View id or name. |
 | `dpi` | number | optional | Resolution of a PNG, in dots per inch (default 150). |
-| `format` | string | optional | `png`, `svg` or `pdf`. |
+| `format` | string | optional | `png`, `svg`, `pdf` or `dxf`. |
 
 ### `schedule_export_csv`
 
@@ -1586,6 +1586,7 @@ No parameters.
 | `type` | id or name | required | A type of the component: id or name. |
 | `angle` | number or string | optional | Revolutions: degrees turned. |
 | `axis` | number or string | optional | Revolutions: the axis, u = `axis` in the sketch plane. |
+| `detail` | [string, …] | optional | The detail levels of the views that show the piece: any of `coarse`, `medium` and `fine` (all three by default). |
 | `end` | number or string | optional | Extrusions: where they end along the normal. |
 | `in_plan` | boolean | optional | Drawn in plans. |
 | `material` | string | optional | Project material name (empty for the default color). |
@@ -1703,6 +1704,7 @@ No parameters.
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `view` | id or name | required | A level, type, view or material: its numeric id or its name. |
+| `detail` | string | optional | Detail level: `coarse` (layered elements cut as one plain region; component pieces set for it), `medium` or `fine`. |
 | `name` | string | optional | New name. |
 | `params` | JSON | optional | Fields of the view's parameters to change, shaped like `params` in `view_get`. |
 | `phase` | id or name | optional | Phase the view shows (id or name; plans, elevations, sections, 3D views, schedules). |
@@ -1906,8 +1908,9 @@ No parameters.
 |---|---|---|---|
 | `template` | id or name | required | Template id or name. |
 | `cut_height` | number | optional | Plans: cut plane height, meters. |
+| `detail` | string | optional | Detail level: `coarse`, `medium` or `fine`. |
 | `discipline` | string | optional | Floor plans: `none`, `plumbing` or `electrical` (services over a faint architecture). |
-| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter` (true/false). |
+| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail` (true/false). |
 | `name` | string | optional | New name. |
 | `phase_filter` | id or name | optional | Phase filter (id or name), or `null` for none. |
 | `scale` | integer | optional | Scale denominator. |

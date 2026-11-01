@@ -53,6 +53,7 @@ pub fn opening_parts(
                 in_plan: false,
                 void: false,
                 plan_only: false,
+                detail: Default::default(),
                 faces: Vec::new(),
             })
             .collect();
@@ -387,6 +388,7 @@ impl ModelGeometry {
             let parts = place_parts(project, e, c, local);
             for part in parts.iter().filter(|p| !p.plan_only) {
                 let mut s = Solid::of_material(e.id, e.category(), project, &part.material);
+                s.detail = part.detail;
                 if part.faces.is_empty() {
                     s.add_prism(&part.footprint, |_| part.z0, |_| part.z1);
                 } else {
@@ -718,6 +720,7 @@ impl ModelGeometry {
                     } else {
                         s.add_polygons(p.faces.clone());
                     }
+                    s.detail = p.detail;
                     if !s.faces.is_empty() {
                         self.solids.push(s);
                     }

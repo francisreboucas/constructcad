@@ -50,6 +50,7 @@ pub enum UiCommand {
     ExportPdf,
     ExportSvg,
     ExportImage,
+    ExportDxf,
     About,
     CheckUpdates,
     Preferences,
@@ -226,6 +227,7 @@ impl UiCommand {
             ExportPdf,
             ExportSvg,
             ExportImage,
+            ExportDxf,
             About,
             CheckUpdates,
             Preferences,
@@ -357,6 +359,7 @@ impl UiCommand {
             ExportIfc => Icon::Export,
             ExportPdf | ExportSvg | Sheet => Icon::Sheet,
             ExportImage => Icon::Image,
+            ExportDxf => Icon::CadImport,
             ImportCad => Icon::CadImport,
             ImportImage => Icon::Image,
             About => Icon::About,
@@ -487,7 +490,7 @@ impl UiCommand {
                 Some(Badge::New)
             }
             ImportIfc | ImportCad | ImportImage | ImportSkp | LoadComponent => Some(Badge::Import),
-            ExportPdf | ExportSvg | ExportImage | AnalyticalExport => Some(Badge::Export),
+            ExportPdf | ExportSvg | ExportImage | ExportDxf | AnalyticalExport => Some(Badge::Export),
             Delete => Some(Badge::Remove),
             _ => None,
         }
@@ -511,6 +514,7 @@ impl UiCommand {
             ExportPdf => t!("action-export-pdf"),
             ExportSvg => t!("action-export-svg"),
             ExportImage => t!("action-export-image"),
+            ExportDxf => t!("action-export-dxf"),
             About => t!("dlg-about"),
             CheckUpdates => t!("action-check-updates"),
             Preferences => t!("action-preferences"),
@@ -674,6 +678,7 @@ impl UiCommand {
             ExportPdf => t!("cmd-desc-export-pdf"),
             ExportSvg => t!("cmd-desc-export-svg"),
             ExportImage => t!("cmd-desc-export-image"),
+            ExportDxf => t!("cmd-desc-export-dxf"),
             About => t!("cmd-desc-about"),
             CheckUpdates => t!("cmd-desc-check-updates"),
             Preferences => t!("cmd-desc-preferences"),
@@ -920,7 +925,7 @@ impl UiCommand {
             ImportSkp => "skp_import",
             ExportIfc => "ifc_export",
             ExportPdf | ExportSvg => "sheet_export",
-            ExportImage => "view_export",
+            ExportImage | ExportDxf => "view_export",
             Undo => "undo",
             SelectInstances => "elements_list",
             ColumnsAtGrids => "columns_at_grids",
@@ -1064,6 +1069,7 @@ impl UiCommand {
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
+            ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
             ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
             // A project without a ramp or mass type gets one when the tool starts.
             Place(category)
@@ -1378,6 +1384,7 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         ExportPdf => actions::export_sheet(state, actions::SheetFormat::Pdf),
         ExportSvg => actions::export_sheet(state, actions::SheetFormat::Svg),
         ExportImage => actions::export_image(state),
+        ExportDxf => actions::export_dxf(state),
         About => state.dialogs.about = true,
         CheckUpdates => state.updates.start(ctx, true),
         Preferences => crate::preferences::open(state, crate::preferences::Section::General),
