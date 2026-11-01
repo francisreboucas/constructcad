@@ -1,6 +1,7 @@
 //! Painting [`Drawing2D`]s with egui.
 
 use cc_core::ElementId;
+use cc_core::raster::RasterImage;
 use cc_views::{Drawing2D, LineStyle, Prim};
 use egui::{Color32, Painter, Pos2, Shape, Stroke};
 use glam::DVec2;
@@ -167,6 +168,17 @@ pub fn paint_drawing(painter: &Painter, d: &Drawing2D, xf: &Xf, opts: &PaintOpti
                     painter.line_segment([pa, pb], stroke);
                 }
             }
+            Prim::Image { origin, u, v, image, element, faded } => {
+                if opts.only.is_some() || opts.mono.is_some() {
+                    continue;
+                }
+                let corners = cc_views::Prim::image_corners(*origin, *u, *v).map(|p| xf.to_screen(p));
+                if !egui::Rect::from_points(&corners).intersects(clip) {
+                    continue;
+                }
+                let hl = element.is_some_and(|e| opts.highlight.contains(&e));
+                paint_image(painter, image, *faded, corners, hl);
+            }
             Prim::Text { pos, text, size, anchor, angle, .. } => {
                 if opts.only.is_some() {
                     continue;
@@ -177,6 +189,64 @@ pub fn paint_drawing(painter: &Painter, d: &Drawing2D, xf: &Xf, opts: &PaintOpti
                 }
             }
         }
+    }
+}
+
+/// Longest side of a picture's texture, pixels (larger pictures are reduced).
+const IMAGE_TEXTURE_SIDE: u32 = 4096;
+
+/// Textures of the pictures shown, by picture (held weakly, so a picture
+/// no longer in any drawing drops its texture) and faded or not.
+#[derive(Clone, Default)]
+struct ImageTextures(Vec<(std::sync::Weak<RasterImage>, bool, Option<egui::TextureHandle>)>);
+
+/// The texture of `image`, decoded the first time it is shown; `None` when
+/// it cannot be decoded.
+fn image_texture(ctx: &egui::Context, image: &std::sync::Arc<RasterImage>, faded: bool) -> Option<egui::TextureHandle> {
+    let id = egui::Id::new("image-textures");
+    let mut cache: ImageTextures = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
+    cache.0.retain(|(w, _, _)| w.strong_count() > 0);
+    let found = cache.0.iter().find(|(w, f, _)| *f == faded && std::ptr::eq(w.as_ptr(), std::sync::Arc::as_ptr(image)));
+    let texture = match found {
+        Some((_, _, t)) => t.clone(),
+        None => {
+            let side = ctx.input(|i| i.max_texture_side).min(IMAGE_TEXTURE_SIDE as usize) as u32;
+            let texture = cc_views::raster::decode(image, side).map(|mut rgba| {
+                if faded {
+                    cc_views::raster::fade(&mut rgba.pixels);
+                }
+                let size = [rgba.width as usize, rgba.height as usize];
+                let color = egui::ColorImage::from_rgba_unmultiplied(size, &rgba.pixels);
+                ctx.load_texture("imported-image", color, egui::TextureOptions::LINEAR)
+            });
+            cache.0.push((std::sync::Arc::downgrade(image), faded, texture.clone()));
+            texture
+        }
+    };
+    ctx.data_mut(|d| d.insert_temp(id, cache));
+    texture
+}
+
+/// A picture on the parallelogram `corners` (bottom-left first, on screen),
+/// tinted and outlined when highlighted; a grey box when it cannot be decoded.
+fn paint_image(painter: &Painter, image: &std::sync::Arc<RasterImage>, faded: bool, corners: [Pos2; 4], hl: bool) {
+    match image_texture(painter.ctx(), image, faded) {
+        Some(texture) => {
+            let mut mesh = egui::Mesh::with_texture(texture.id());
+            let tint = if hl { Color32::from_rgb(190, 215, 255) } else { Color32::WHITE };
+            // Texture rows run from the top: the bottom-left corner is uv (0, 1).
+            let uvs = [egui::pos2(0.0, 1.0), egui::pos2(1.0, 1.0), egui::pos2(1.0, 0.0), egui::pos2(0.0, 0.0)];
+            for (pos, uv) in corners.iter().zip(uvs) {
+                mesh.vertices.push(egui::epaint::Vertex { pos: *pos, uv, color: tint });
+            }
+            mesh.add_triangle(0, 1, 2);
+            mesh.add_triangle(0, 2, 3);
+            painter.add(Shape::mesh(mesh));
+        }
+        None => fill_polygon(painter, corners.to_vec(), Color32::from_gray(225)),
+    }
+    if hl {
+        painter.add(Shape::closed_line(corners.to_vec(), Stroke::new(1.5, HIGHLIGHT)));
     }
 }
 

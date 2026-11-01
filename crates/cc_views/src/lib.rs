@@ -22,6 +22,7 @@ mod mep;
 pub mod notes;
 mod plan;
 mod projected;
+pub mod raster;
 mod schedule;
 mod sheet;
 
@@ -131,6 +132,7 @@ fn fade(d: &mut Drawing2D) {
             {
                 *style = LineStyle::Faint;
             }
+            Prim::Image { faded, .. } => *faded = true,
             Prim::Fill { color, .. } => {
                 for c in color.iter_mut().take(3) {
                     *c = (f64::from(*c) + (255.0 - f64::from(*c)) * 0.66).round() as u8;

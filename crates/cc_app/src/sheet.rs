@@ -49,6 +49,18 @@ pub fn show(ui: &mut Ui, state: &mut AppState, sheet_id: ViewId) {
     if zooming {
         return;
     }
+    // A view dragged from the project browser: outline the paper, place it where dropped.
+    if resp.dnd_hover_payload::<crate::browser::ViewDrag>().is_some() {
+        ui.ctx().set_cursor_icon(egui::CursorIcon::Copy);
+        painter.rect_stroke(paper_rect, 0.0, Stroke::new(2.0, HIGHLIGHT), egui::StrokeKind::Outside);
+    }
+    if let Some(drag) = resp.dnd_release_payload::<crate::browser::ViewDrag>()
+        && let Some(pos) = ui.ctx().pointer_interact_pos()
+    {
+        let center = xf.to_world(pos).clamp(DVec2::ZERO, paper);
+        crate::actions::place_on_sheet_at(state, sheet_id, drag.0, center);
+        return;
+    }
     // Select and drag viewports.
     let hit = |pos: egui::Pos2| {
         let w = xf.to_world(pos);

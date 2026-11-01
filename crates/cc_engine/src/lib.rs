@@ -22,6 +22,7 @@ mod refs;
 mod registry;
 pub mod script;
 mod session;
+pub mod skp;
 
 pub mod commands;
 

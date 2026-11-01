@@ -1,7 +1,7 @@
-//! Imported CAD drawings in the app: the Import CAD command (file dialog or
-//! files dropped on the window), and their properties and layers. Every
-//! change runs an engine command (`cad_import`, `element_set`,
-//! `cad_layers_set`).
+//! Imported CAD drawings in the app: the Import CAD and Import Image
+//! commands (file dialog or files dropped on the window), and their
+//! properties and layers. Every change runs an engine command
+//! (`cad_import`, `image_import`, `element_set`, `cad_layers_set`).
 
 use crate::state::AppState;
 use crate::t;
@@ -83,14 +83,67 @@ pub fn import_cad_path(state: &mut AppState, path: PathBuf) {
     }
 }
 
-/// DWG and DXF files dropped on the window go into the active view.
+fn is_image(path: &std::path::Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| cad::IMAGE_EXTENSIONS.iter().any(|x| e.eq_ignore_ascii_case(x)))
+}
+
+/// Pick a picture or an SVG file and import it into the active view.
+pub fn import_image(state: &mut AppState) {
+    if cad_view(state).is_none() {
+        state.message = t!("why-cad-view");
+        return;
+    }
+    let mut dialog = rfd::FileDialog::new().add_filter(t!("file-filter-image"), &cad::IMAGE_EXTENSIONS);
+    if let Some(dir) = state.prefs.projects_dir() {
+        dialog = dialog.set_directory(dir);
+    }
+    let Some(path) = dialog.pick_file() else { return };
+    import_image_path(state, path);
+}
+
+/// Import the picture or SVG at `path` into the active view, centered on
+/// what it shows, and select it.
+pub fn import_image_path(state: &mut AppState, path: PathBuf) {
+    let Some(view) = cad_view(state) else {
+        state.message = t!("why-cad-view");
+        return;
+    };
+    let command = cad::ImageImport {
+        path,
+        view: cc_engine::Ref::Id(view.0),
+        position: None,
+        align: None,
+        width: None,
+        scale: None,
+        rotation: None,
+        halftone: None,
+    };
+    match state.session.run(command) {
+        Ok(out) => {
+            if let Some(id) = out["id"].as_u64() {
+                state.selection = std::collections::BTreeSet::from([ElementId(id)]);
+            }
+            let name = out["name"].as_str().unwrap_or_default().to_string();
+            state.message = t!("msg-image-imported", "name" => name);
+        }
+        Err(e) => state.dialogs.error = Some(t!("msg-cad-import-failed", "error" => e.message)),
+    }
+}
+
+/// DWG and DXF drawings, pictures and SVG files dropped on the window go into the active view.
 pub fn dropped_files(ctx: &egui::Context, state: &mut AppState) {
     if !state.project_open || state.show_home {
         return;
     }
     let dropped: Vec<PathBuf> = ctx.input(|i| i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).collect());
-    for path in dropped.into_iter().filter(|p| is_cad(p)) {
-        import_cad_path(state, path);
+    for path in dropped {
+        if is_cad(&path) {
+            import_cad_path(state, path);
+        } else if is_image(&path) {
+            import_image_path(state, path);
+        }
     }
 }
 

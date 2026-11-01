@@ -394,6 +394,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
         (RibbonTab::Architecture, t!("ribbon-architecture")),
         (RibbonTab::Structure, t!("ribbon-structure")),
         (RibbonTab::Mep, t!("ribbon-mep")),
+        (RibbonTab::Insert, t!("ribbon-insert")),
         (RibbonTab::Modify, t!("ribbon-modify")),
         (RibbonTab::Annotate, t!("ribbon-annotate")),
         (RibbonTab::View, t!("ribbon-view")),
@@ -521,6 +522,7 @@ fn tab_row(ui: &mut Ui, state: &mut AppState, available: f32) {
                     RibbonTab::Architecture => architecture_tab(ui, state),
                     RibbonTab::Structure => structure_tab(ui, state),
                     RibbonTab::Mep => mep_tab(ui, state),
+                    RibbonTab::Insert => insert_tab(ui, state),
                     RibbonTab::Modify => modify_tab(ui, state),
                     RibbonTab::Annotate => annotate_tab(ui, state),
                     RibbonTab::View => view_tab(ui, state),
@@ -570,16 +572,23 @@ fn command_buttons(ui: &mut Ui, state: &mut AppState, list: &[UiCommand]) {
 }
 
 fn file_tab(ui: &mut Ui, state: &mut AppState) {
-    use UiCommand::{
-        CloseProject, ExportDxf, ExportIfc, ExportImage, ExportPdf, ExportSvg, ImportIfc, New, Open, Save, SaveAs,
-    };
+    use UiCommand::{CloseProject, ExportDxf, ExportIfc, ExportImage, ExportPdf, ExportSvg, New, Open, Save, SaveAs};
     group(ui, t!("group-project"), |ui| command_buttons(ui, state, &[New, Open, Save, SaveAs, CloseProject]));
-    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, UiCommand::ImportCad]));
     group(ui, t!("group-export"), |ui| {
         command_buttons(ui, state, &[ExportIfc, ExportPdf, ExportSvg, ExportImage, ExportDxf])
     });
     group(ui, t!("group-settings"), |ui| command_button(ui, state, UiCommand::Preferences));
     group(ui, t!("group-help"), |ui| command_buttons(ui, state, &[UiCommand::About, UiCommand::CheckUpdates]));
+}
+
+/// Files brought into the project or written from it, and components to load.
+fn insert_tab(ui: &mut Ui, state: &mut AppState) {
+    use UiCommand::{
+        ComponentLibrary, ExportDxf, ExportIfc, ImportCad, ImportIfc, ImportImage, ImportSkp, LoadComponent,
+    };
+    group(ui, t!("group-import"), |ui| command_buttons(ui, state, &[ImportIfc, ImportCad, ImportSkp, ImportImage]));
+    group(ui, t!("group-export"), |ui| command_buttons(ui, state, &[ExportIfc, ExportDxf]));
+    group(ui, t!("group-library"), |ui| command_buttons(ui, state, &[LoadComponent, ComponentLibrary]));
 }
 
 fn place(category: Category) -> UiCommand {
@@ -598,17 +607,10 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
     group(ui, t!("group-model"), |ui| {
-        command_buttons(
-            ui,
-            state,
-            &[
-                place(Component),
-                UiCommand::NewComponent,
-                UiCommand::EditComponent,
-                UiCommand::LoadComponent,
-                UiCommand::ComponentLibrary,
-            ],
-        );
+        command_button(ui, state, place(Component));
+        // Making, editing and loading components: one column of small buttons.
+        stacks(ui, state, &[&[UiCommand::NewComponent, UiCommand::EditComponent, UiCommand::LoadComponent]]);
+        command_button(ui, state, UiCommand::ComponentLibrary);
     });
     group(ui, t!("group-datum"), |ui| command_buttons(ui, state, &[place(Grid), UiCommand::AlignGridEnds]));
     group(ui, t!("group-selection"), |ui| command_button(ui, state, UiCommand::Select));

@@ -14,6 +14,7 @@ mod dwg;
 mod dxf;
 mod flatten;
 mod geom;
+pub mod svg;
 mod text;
 mod tokens;
 
@@ -73,6 +74,7 @@ pub enum Format {
     #[default]
     Dxf,
     Dwg,
+    Svg,
 }
 
 /// A drawing read, with what the reader saw.
@@ -122,8 +124,11 @@ pub fn detect(data: &[u8]) -> Option<Format> {
     first.parse::<i32>().is_ok().then_some(Format::Dxf)
 }
 
-/// Read a drawing from its bytes.
+/// Read a drawing from its bytes (DXF, DWG or SVG).
 pub fn read(data: &[u8], limits: &Limits) -> Result<CadRead, CadError> {
+    if detect(data).is_none() && svg::is_svg(data) {
+        return svg::read(data, limits);
+    }
     match detect(data).ok_or(CadError::UnknownFormat)? {
         Format::Dxf => {
             if data.len() > limits.max_dxf_bytes {
@@ -137,6 +142,7 @@ pub fn read(data: &[u8], limits: &Limits) -> Result<CadRead, CadError> {
             }
             dwg::read(data, limits)
         }
+        Format::Svg => svg::read(data, limits),
     }
 }
 

@@ -14,6 +14,8 @@ glam.workspace = true
 # Raster export: the SVG with its text as Inter outlines (embedded), encoded as PNG.
 png.workspace = true
 resvg.workspace = true
+image.workspace = true
+miniz_oxide.workspace = true
 skrifa.workspace = true
 
 [lints]

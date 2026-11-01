@@ -10,6 +10,10 @@ use crate::tools::Tool;
 use cc_core::{Category, ViewCategory, ViewId, ViewKind};
 use egui::{Rect, Response, Sense, Ui, vec2};
 
+/// A view dragged from the browser (dropped on a sheet, it is placed there).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ViewDrag(pub ViewId);
+
 const ROW_HEIGHT: f32 = 21.0;
 const INDENT: f32 = 20.0;
 
@@ -172,6 +176,17 @@ fn category_items(ui: &mut Ui, state: &mut AppState, category: ViewCategory) {
         }
         let active = state.active_view == Some(id);
         let r = tree_row(ui, 1, None, i + 1 == n, category_icon(category), &label, None, active);
+        // Views that go on sheets can be dragged onto one.
+        let r = if state.project().view(id).is_some_and(|v| v.placeable()) {
+            let r = r.interact(Sense::drag());
+            r.dnd_set_drag_payload(ViewDrag(id));
+            if r.dragged() {
+                drag_label(ui, &label);
+            }
+            r
+        } else {
+            r
+        };
         if r.clicked() {
             state.open_view(id);
         }
@@ -206,6 +221,24 @@ fn category_items(ui: &mut Ui, state: &mut AppState, category: ViewCategory) {
             }
         });
     }
+}
+
+/// The name of a view being dragged, next to the pointer.
+fn drag_label(ui: &Ui, label: &str) {
+    let Some(pos) = ui.ctx().pointer_interact_pos() else { return };
+    ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
+    let layer = egui::LayerId::new(egui::Order::Tooltip, egui::Id::new("browser-view-drag"));
+    let painter = ui.ctx().layer_painter(layer);
+    let galley = painter.layout_no_wrap(label.to_string(), egui::FontId::proportional(12.5), PALETTE.text);
+    let rect = Rect::from_min_size(pos + vec2(14.0, 10.0), galley.size() + vec2(12.0, 6.0));
+    painter.rect_filled(rect, theme::RADIUS as f32, PALETTE.panel);
+    painter.rect_stroke(
+        rect,
+        theme::RADIUS as f32,
+        egui::Stroke::new(1.0, PALETTE.border_strong),
+        egui::StrokeKind::Inside,
+    );
+    painter.galley(rect.min + vec2(6.0, 3.0), galley, PALETTE.text);
 }
 
 /// "+" button at the right of a category row. Returns true when it was used.

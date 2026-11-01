@@ -68,6 +68,11 @@ pub fn layer_name(name: &str) -> String {
     if s.is_empty() { "0".to_string() } else { s }
 }
 
+/// The corners of a picture's parallelogram, in order round it.
+fn image_frame(origin: DVec2, u: DVec2, v: DVec2) -> [DVec2; 4] {
+    [origin, origin + u, origin + u + v, origin + v]
+}
+
 /// The layer of a primitive with no element: annotation lines, texts, or the rest.
 pub fn default_layer(prim: &Prim) -> &'static str {
     match prim {
@@ -175,6 +180,7 @@ pub fn to_dxf(drawing: &Drawing2D, scale: DxfScale, layer: &dyn Fn(&Prim) -> Str
             }
             Prim::Fill { pts, .. } => pts.iter().for_each(|p| grow(at(*p))),
             Prim::Text { pos, .. } => grow(at(*pos)),
+            Prim::Image { origin, u, v, .. } => image_frame(*origin, *u, *v).iter().for_each(|p| grow(at(*p))),
         }
     }
     if !(lo.is_finite() && hi.is_finite()) {
@@ -297,6 +303,20 @@ pub fn to_dxf(drawing: &Drawing2D, scale: DxfScale, layer: &dyn Fn(&Prim) -> Str
                     w.point(13, *s);
                 }
             }
+            // R12 has no images: a picture is written as its frame.
+            Prim::Image { origin, u, v, .. } => {
+                let corners = image_frame(*origin, *u, *v).map(at);
+                if !corners.iter().all(|p| p.is_finite()) {
+                    continue;
+                }
+                for i in 0..4 {
+                    w.pair(0, "LINE");
+                    w.pair(8, &layer);
+                    w.pair(62, 8);
+                    w.point(10, corners[i]);
+                    w.point(11, corners[(i + 1) % 4]);
+                }
+            }
             Prim::Text { pos, text, size, anchor, angle, .. } => {
                 let value = text_value(text);
                 let p = at(*pos);
@@ -384,6 +404,24 @@ mod tests {
             assert!(p.contains(&(2, layer.into())), "{layer}");
         }
         assert_eq!(aci([10, 10, 10]), 7);
+        // A picture becomes its frame.
+        let mut d = Drawing2D::default();
+        let image = std::sync::Arc::new(cc_core::raster::RasterImage {
+            format: cc_core::raster::RasterFormat::Png,
+            width: 1,
+            height: 1,
+            data: Vec::new(),
+        });
+        d.prims.push(Prim::Image {
+            origin: DVec2::ZERO,
+            u: DVec2::new(2.0, 0.0),
+            v: DVec2::new(0.0, 1.0),
+            image,
+            element: None,
+            faded: false,
+        });
+        let p = pairs(&to_dxf(&d, DxfScale::PAPER, &|p| default_layer(p).into()));
+        assert_eq!(p.iter().filter(|(c, v)| *c == 0 && v == "LINE").count(), 4);
         assert_eq!(layer_name("Sala de estar/1"), "SALA_DE_ESTAR_1");
     }
 }

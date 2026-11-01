@@ -1,12 +1,14 @@
-//! Files: IFC import/export, sheet PDF/SVG, view PNG/SVG/PDF, schedule CSV, component files.
+//! Files: IFC import/export, SketchUp import, sheet PDF/SVG, view PNG/SVG/PDF, schedule CSV, component files.
 
+use super::add_element;
 use super::edit;
 use crate::error::{EngineError, Result};
+use crate::refs::Point;
 use crate::refs::{self, Ref};
 use crate::registry::{Command, CommandKind};
 use crate::session::{Session, guard, new_project};
 use crate::t;
-use cc_core::{Document, ViewKind};
+use cc_core::{Category, Component, Document, ElementKind, ElementType, ElementTypeId, TypeData, ViewKind};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -252,6 +254,152 @@ impl Command for ComponentLoad {
             Ok(types.into_iter().map(|t| e.add_type(t).0).collect::<Vec<_>>())
         })?;
         Ok(json!({ "component": file.component, "types": ids }))
+    }
+}
+
+/// Read and parse a SketchUp file.
+fn read_skp(path: &Path) -> Result<cc_skp::SkpModel> {
+    let file = cc_skp::SkpFile::open(path)?;
+    guard(|| file.parse(&Default::default()))?
+        .map_err(|e| EngineError::io(t!("err-skp-parse", "detail" => e.to_string())))
+}
+
+/// The file name without its extension (the name of what it becomes).
+fn file_stem(path: &Path) -> String {
+    path.file_stem()
+        .map(|s| s.to_string_lossy().trim().to_string())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "SketchUp".into())
+}
+
+/// `name`, or `name 2`, `name 3`… when a component type already has it.
+fn unique_type_name(p: &cc_core::Project, name: &str, taken: &mut std::collections::HashSet<String>) -> String {
+    if taken.is_empty() {
+        taken.extend(p.types.values().filter(|t| t.category() == Category::Component).map(|t| t.name.clone()));
+    }
+    let mut out = name.to_string();
+    let mut n = 2;
+    while taken.contains(&out) {
+        out = format!("{name} {n}");
+        n += 1;
+    }
+    taken.insert(out.clone());
+    out
+}
+
+/// Add the converted materials (those the project lacks) and types; returns the type ids.
+fn add_skp_types(e: &mut cc_core::EditCtx, conv: crate::skp::Converted) -> (Vec<ElementTypeId>, usize) {
+    let mut added = 0;
+    for (name, color) in conv.materials {
+        if !e.project().materials.iter().any(|m| m.name == name) {
+            e.materials_mut().push(cc_core::Material::new(name, color));
+            added += 1;
+        }
+    }
+    let mut taken = std::collections::HashSet::new();
+    let mut ids = Vec::with_capacity(conv.types.len());
+    for ty in conv.types {
+        let name = unique_type_name(e.project(), &ty.name, &mut taken);
+        let id = ElementTypeId(e.alloc_id());
+        let data = TypeData::Component { component: name.clone(), def: ty.def };
+        ids.push(e.add_type(ElementType { id, name, data, info: Default::default(), uid: Default::default() }));
+    }
+    (ids, added)
+}
+
+fn too_large(_: crate::skp::SkpError) -> EngineError {
+    EngineError::rejected(t!("err-skp-too-large"))
+}
+
+/// Import a SketchUp model (.skp) into the project. Each placed component
+/// or group becomes a component element on `level`, of a component type
+/// holding its faces as fixed mesh pieces (one per material): placements
+/// that differ only by a move or a plan rotation share a type, anything
+/// else in their transform (tilt, scale, mirror) is built into the type.
+/// Faces outside any component make one more element at the file's origin.
+/// Missing materials are added by name and color; hidden objects and those
+/// on hidden layers are left out.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkpImport {
+    /// Path of the .skp file.
+    pub path: PathBuf,
+    /// Level id or name (default: the lowest level); the file's ground is at its elevation.
+    #[serde(default)]
+    pub level: Option<Ref>,
+    /// Where the file's origin goes, in plan (default [0, 0]).
+    #[serde(default)]
+    pub position: Option<Point>,
+    /// Rotation of the whole model in plan, degrees counter-clockwise (default 0).
+    #[serde(default)]
+    pub rotation: Option<f64>,
+}
+
+impl Command for SkpImport {
+    const NAME: &'static str = "skp_import";
+    const KIND: CommandKind = CommandKind::Edit;
+    fn run(self, s: &mut Session) -> Result<Value> {
+        let level = refs::level_or_first(s.project(), self.level.as_ref())?;
+        let origin = refs::point(self.position.unwrap_or([0.0, 0.0]))?;
+        let turn = refs::finite(self.rotation.unwrap_or(0.0), "rotation")?;
+        let model = read_skp(&self.path)?;
+        let name = file_stem(&self.path);
+        let conv = guard(|| crate::skp::convert(&model, &name))?.map_err(too_large)?;
+        if conv.placements.is_empty() {
+            return Err(EngineError::rejected(t!("err-skp-empty")));
+        }
+        let (hidden, faces) = (conv.hidden, conv.faces);
+        let placements = conv.placements.clone();
+        let rot = glam::DMat2::from_angle(turn.to_radians());
+        let (types, elements, materials) = edit(s, t!("tx-import-skp"), |e| {
+            let (types, materials) = add_skp_types(e, conv);
+            let mut elements = Vec::with_capacity(placements.len());
+            for p in &placements {
+                let Some(&type_id) = types.get(p.ty) else { continue };
+                let component = Component {
+                    position: origin + rot * p.position,
+                    rotation_deg: p.rotation_deg + turn,
+                    base_offset: p.z,
+                    overrides: Default::default(),
+                    properties: Vec::new(),
+                    system: None,
+                };
+                elements.push(add_element(e, level, type_id, ElementKind::Component(component)).0);
+            }
+            Ok((types.iter().map(|t| t.0).collect::<Vec<_>>(), elements, materials))
+        })?;
+        Ok(json!({ "types": types, "elements": elements, "materials": materials, "faces": faces, "hidden": hidden }))
+    }
+}
+
+/// Load a SketchUp model (.skp) as one component type, named after the
+/// file, to place like any component: its faces become fixed mesh pieces
+/// (one per material) with the file's origin as the insertion point.
+/// Missing materials are added by name and color.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct SkpComponentLoad {
+    /// Path of the .skp file.
+    pub path: PathBuf,
+}
+
+impl Command for SkpComponentLoad {
+    const NAME: &'static str = "skp_component_load";
+    const KIND: CommandKind = CommandKind::Edit;
+    fn run(self, s: &mut Session) -> Result<Value> {
+        let model = read_skp(&self.path)?;
+        let name = file_stem(&self.path);
+        let conv = guard(|| crate::skp::convert_single(&model, &name))?.map_err(too_large)?;
+        if conv.types.is_empty() {
+            return Err(EngineError::rejected(t!("err-skp-empty")));
+        }
+        let (types, component) = edit(s, t!("tx-load-component"), |e| {
+            let (types, _) = add_skp_types(e, conv);
+            let component =
+                types.first().and_then(|id| e.project().element_type(*id)).map(|t| t.name.clone()).unwrap_or_default();
+            Ok((types.iter().map(|t| t.0).collect::<Vec<_>>(), component))
+        })?;
+        Ok(json!({ "component": component, "types": types }))
     }
 }
 

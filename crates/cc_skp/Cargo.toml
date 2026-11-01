@@ -1,0 +1,14 @@
+[package]
+name = "cc_skp"
+description = "ConstructCAD SketchUp (.skp) reader and writer, without external dependencies"
+version.workspace = true
+edition.workspace = true
+# Derived from MIT-licensed code (see LICENSE); the crate keeps that license.
+license = "MIT"
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

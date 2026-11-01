@@ -42,6 +42,10 @@ pub enum UiCommand {
     ImportIfc,
     /// Import a DWG or DXF drawing into the active view.
     ImportCad,
+    /// Import a picture or an SVG drawing into the active view.
+    ImportImage,
+    /// Insert a SketchUp model into the open project.
+    ImportSkp,
     ExportIfc,
     ExportPdf,
     ExportSvg,
@@ -217,6 +221,8 @@ impl UiCommand {
             CloseProject,
             ImportIfc,
             ImportCad,
+            ImportImage,
+            ImportSkp,
             ExportIfc,
             ExportPdf,
             ExportSvg,
@@ -346,7 +352,7 @@ impl UiCommand {
         match self {
             Home => Icon::Home,
             New => Icon::New,
-            Open | ImportIfc => Icon::Open,
+            Open | ImportIfc | ImportSkp => Icon::Open,
             Save => Icon::Save,
             SaveAs => Icon::SaveAs,
             CloseProject => Icon::CloseProject,
@@ -355,6 +361,7 @@ impl UiCommand {
             ExportImage => Icon::Image,
             ExportDxf => Icon::CadImport,
             ImportCad => Icon::CadImport,
+            ImportImage => Icon::Image,
             About => Icon::About,
             CheckUpdates => Icon::Update,
             Preferences => Icon::Settings,
@@ -482,7 +489,7 @@ impl UiCommand {
             | SteelSchedule | StructuralPlan | PlumbingPlan | ElectricalPlan | MepSchedules | PanelDiagram => {
                 Some(Badge::New)
             }
-            ImportIfc | ImportCad | LoadComponent => Some(Badge::Import),
+            ImportIfc | ImportCad | ImportImage | ImportSkp | LoadComponent => Some(Badge::Import),
             ExportPdf | ExportSvg | ExportImage | ExportDxf | AnalyticalExport => Some(Badge::Export),
             Delete => Some(Badge::Remove),
             _ => None,
@@ -501,6 +508,8 @@ impl UiCommand {
             CloseProject => t!("action-close-project"),
             ImportIfc => t!("action-import-ifc"),
             ImportCad => t!("action-import-cad"),
+            ImportImage => t!("action-import-image"),
+            ImportSkp => t!("action-import-skp"),
             ExportIfc => t!("action-export-ifc"),
             ExportPdf => t!("action-export-pdf"),
             ExportSvg => t!("action-export-svg"),
@@ -663,6 +672,8 @@ impl UiCommand {
             CloseProject => t!("cmd-desc-close-project"),
             ImportIfc => t!("cmd-desc-import-ifc"),
             ImportCad => t!("cmd-desc-import-cad"),
+            ImportImage => t!("cmd-desc-import-image"),
+            ImportSkp => t!("cmd-desc-import-skp"),
             ExportIfc => t!("cmd-desc-export-ifc"),
             ExportPdf => t!("cmd-desc-export-pdf"),
             ExportSvg => t!("cmd-desc-export-svg"),
@@ -910,6 +921,8 @@ impl UiCommand {
             Save | SaveAs => "project_save",
             ImportIfc => "ifc_import",
             ImportCad => "cad_import",
+            ImportImage => "image_import",
+            ImportSkp => "skp_import",
             ExportIfc => "ifc_export",
             ExportPdf | ExportSvg => "sheet_export",
             ExportImage | ExportDxf => "view_export",
@@ -1057,7 +1070,7 @@ impl UiCommand {
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
-            ImportCad if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
+            ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
             // A project without a ramp or mass type gets one when the tool starts.
             Place(category)
                 if !matches!(category, Category::Ramp | Category::Mass)
@@ -1365,6 +1378,8 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         CloseProject => actions::guarded(state, PendingAction::Close),
         ImportIfc => actions::guarded(state, PendingAction::ImportIfc),
         ImportCad => crate::cad_ui::import_cad(state),
+        ImportImage => crate::cad_ui::import_image(state),
+        ImportSkp => actions::import_skp(state),
         ExportIfc => actions::export_ifc(state),
         ExportPdf => actions::export_sheet(state, actions::SheetFormat::Pdf),
         ExportSvg => actions::export_sheet(state, actions::SheetFormat::Svg),

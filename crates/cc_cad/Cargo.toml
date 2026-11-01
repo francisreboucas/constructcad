@@ -13,6 +13,8 @@ glam.workspace = true
 thiserror.workspace = true
 encoding_rs.workspace = true
 acadrust.workspace = true
+# SVG drawings, through the parser the workspace already uses for raster export.
+resvg.workspace = true
 
 [lints]
 workspace = true

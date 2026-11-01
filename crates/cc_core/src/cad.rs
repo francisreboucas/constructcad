@@ -358,11 +358,47 @@ pub fn union(a: Option<(DVec2, DVec2)>, b: Option<(DVec2, DVec2)>) -> Option<(DV
     }
 }
 
-/// A drawing read from a DWG or DXF file.
+/// A raster image laid on the drawing: pixel (0, 0) is the top-left corner
+/// of the parallelogram `origin + s·u + t·v` (`s`, `t` in 0..1), whose
+/// bottom-left corner is `origin`, `u` running along the image's width and
+/// `v` up its height (drawing units).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct CadImage {
+    pub layer: u32,
+    pub origin: DVec2,
+    pub u: DVec2,
+    pub v: DVec2,
+    pub image: std::sync::Arc<crate::raster::RasterImage>,
+}
+
+impl CadImage {
+    /// Corners in order: bottom-left, bottom-right, top-right, top-left.
+    pub fn corners(&self) -> [DVec2; 4] {
+        [self.origin, self.origin + self.u, self.origin + self.u + self.v, self.origin + self.v]
+    }
+
+    /// Whether the placement is finite, not flat, and the image usable.
+    pub fn is_valid(&self) -> bool {
+        let ok = |p: DVec2| p.is_finite() && p.abs().max_element() <= MAX_COORD;
+        ok(self.origin) && ok(self.u) && ok(self.v) && self.u.perp_dot(self.v).abs() > 1e-12 && self.image.is_valid()
+    }
+
+    pub fn bounds(&self) -> Option<(DVec2, DVec2)> {
+        bounds_of(&self.corners())
+    }
+}
+
+/// Most images one drawing may hold.
+pub const MAX_IMAGES: usize = 1_000;
+
+/// A drawing read from a DWG, DXF, SVG or PDF file, or an imported picture.
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct CadDrawing {
     pub layers: Vec<CadLayer>,
     pub prims: Vec<CadPrim>,
+    /// Pictures, drawn under the primitives.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<CadImage>,
     /// Extents of the primitives (min, max), drawing units.
     #[serde(default)]
     pub extents: Option<(DVec2, DVec2)>,
@@ -374,7 +410,8 @@ pub struct CadDrawing {
 impl CadDrawing {
     /// Recompute [`CadDrawing::extents`] from the primitives.
     pub fn compute_extents(&mut self) {
-        self.extents = self.prims.iter().fold(None, |acc, p| union(acc, p.bounds()));
+        let prims = self.prims.iter().fold(None, |acc, p| union(acc, p.bounds()));
+        self.extents = self.images.iter().fold(prims, |acc, i| union(acc, i.bounds()));
     }
 
     /// The layer of a primitive.
@@ -387,12 +424,14 @@ impl CadDrawing {
         let layers = self.layers.len() as u32;
         let extents_ok = match self.extents {
             Some((lo, hi)) => lo.is_finite() && hi.is_finite() && lo.cmple(hi).all(),
-            None => self.prims.is_empty(),
+            None => self.prims.is_empty() && self.images.is_empty(),
         };
         self.layers.is_empty()
             || !extents_ok
             || self.prims.len() > MAX_PRIMS
             || self.prims.iter().any(|p| p.layer() >= layers || !p.is_valid())
+            || self.images.len() > MAX_IMAGES
+            || self.images.iter().any(|i| i.layer >= layers || !i.is_valid())
     }
 
     /// Remove invalid primitives and dangling layer references; returns how many were fixed.
@@ -420,8 +459,19 @@ impl CadDrawing {
         }
         self.prims.retain(CadPrim::is_valid);
         fixed += before - self.prims.len();
+        let images = self.images.len();
+        self.images.truncate(MAX_IMAGES);
+        for image in &mut self.images {
+            if image.layer >= layers {
+                image.layer = 0;
+                fixed += 1;
+            }
+        }
+        self.images.retain(CadImage::is_valid);
+        fixed += images - self.images.len();
         let extents_ok = self.extents.is_none_or(|(lo, hi)| lo.is_finite() && hi.is_finite() && lo.cmple(hi).all());
-        if !extents_ok || (self.extents.is_none() && !self.prims.is_empty()) || fixed > 0 {
+        let empty = self.prims.is_empty() && self.images.is_empty();
+        if !extents_ok || (self.extents.is_none() && !empty) || fixed > 0 {
             if !extents_ok {
                 fixed += 1;
             }
@@ -730,12 +780,44 @@ mod tests {
             ],
             extents: None,
             units: None,
+            images: vec![],
         };
         assert_eq!(d.repair(), 2);
         assert_eq!(d.prims.len(), 1);
         assert_eq!(d.prims[0].layer(), 0);
         assert_eq!(d.layers.len(), 1);
         assert_eq!(d.extents, Some((DVec2::ZERO, DVec2::X)));
+    }
+
+    #[test]
+    fn repair_drops_bad_images() {
+        use crate::raster::{RasterFormat, RasterImage};
+        const PNG_SIGNATURE: [u8; 8] = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        let png = RasterImage { format: RasterFormat::Png, width: 4, height: 2, data: PNG_SIGNATURE.to_vec() };
+        let image = |layer, u: DVec2, image: RasterImage| CadImage {
+            layer,
+            origin: DVec2::ZERO,
+            u,
+            v: DVec2::Y,
+            image: std::sync::Arc::new(image),
+        };
+        let mut d = CadDrawing {
+            layers: vec![CadLayer { name: "0".into(), color: [0, 0, 0], visible: true }],
+            images: vec![
+                image(0, DVec2::new(2.0, 0.0), png.clone()),
+                image(5, DVec2::X, png.clone()),
+                image(0, DVec2::new(f64::NAN, 0.0), png.clone()),
+                image(0, DVec2::Y, png.clone()),
+                image(0, DVec2::X, RasterImage { format: RasterFormat::Jpeg, ..png }),
+            ],
+            ..Default::default()
+        };
+        assert!(d.needs_repair());
+        // A dangling layer reset, a NaN, a flat and a mislabeled image dropped.
+        assert_eq!(d.repair(), 4);
+        assert_eq!(d.images.len(), 2);
+        assert_eq!(d.extents, Some((DVec2::ZERO, DVec2::new(2.0, 1.0))));
+        assert!(!d.needs_repair());
     }
 
     #[test]
@@ -762,6 +844,7 @@ mod tests {
             ],
             extents: None,
             units: Some(CadUnit::Millimeters),
+            images: vec![],
         });
         let s = c.snap_features(DVec2::new(10.0, 1.0), 0.1);
         // The line's end at (1000, 0) mm lands 1 m north of the position.

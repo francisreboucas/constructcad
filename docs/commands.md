@@ -6,7 +6,7 @@ Every command runs the same way from the desktop app, `ccad run` / `ccad script`
 
 ## Contents
 
-- **Project and files**: [`project_new`](#project_new), [`project_open`](#project_open), [`project_save`](#project_save), [`project_info`](#project_info), [`project_info_set`](#project_info_set), [`undo`](#undo), [`redo`](#redo), [`units_get`](#units_get), [`units_set`](#units_set), [`language_set`](#language_set), [`ifc_import`](#ifc_import), [`ifc_export`](#ifc_export), [`sheet_export`](#sheet_export), [`view_export`](#view_export), [`schedule_export_csv`](#schedule_export_csv), [`component_load`](#component_load), [`component_library_list`](#component_library_list), [`component_save`](#component_save), [`cad_import`](#cad_import), [`cad_layers`](#cad_layers), [`cad_layers_set`](#cad_layers_set)
+- **Project and files**: [`project_new`](#project_new), [`project_open`](#project_open), [`project_save`](#project_save), [`project_info`](#project_info), [`project_info_set`](#project_info_set), [`undo`](#undo), [`redo`](#redo), [`units_get`](#units_get), [`units_set`](#units_set), [`language_set`](#language_set), [`ifc_import`](#ifc_import), [`skp_import`](#skp_import), [`skp_component_load`](#skp_component_load), [`ifc_export`](#ifc_export), [`sheet_export`](#sheet_export), [`view_export`](#view_export), [`schedule_export_csv`](#schedule_export_csv), [`component_load`](#component_load), [`component_library_list`](#component_library_list), [`component_save`](#component_save), [`cad_import`](#cad_import), [`image_import`](#image_import), [`cad_layers`](#cad_layers), [`cad_layers_set`](#cad_layers_set)
 - **Queries**: [`categories_list`](#categories_list), [`levels_list`](#levels_list), [`types_list`](#types_list), [`type_get`](#type_get), [`elements_list`](#elements_list), [`element_get`](#element_get), [`groups_list`](#groups_list), [`measure`](#measure), [`views_list`](#views_list), [`view_get`](#view_get), [`materials_list`](#materials_list), [`material_get`](#material_get), [`schedule_table`](#schedule_table)
 - **Creating elements**: [`wall_create`](#wall_create), [`door_create`](#door_create), [`window_create`](#window_create), [`floor_create`](#floor_create), [`floor_opening_add`](#floor_opening_add), [`floor_opening_remove`](#floor_opening_remove), [`ceiling_create`](#ceiling_create), [`roof_create`](#roof_create), [`roof_edge_set`](#roof_edge_set), [`roof_opening_remove`](#roof_opening_remove), [`room_create`](#room_create), [`grid_create`](#grid_create), [`column_create`](#column_create), [`beam_create`](#beam_create), [`columns_at_grids`](#columns_at_grids), [`beams_on_grids`](#beams_on_grids), [`beams_between_columns`](#beams_between_columns), [`slab_join_supports`](#slab_join_supports), [`structure_number`](#structure_number), [`brace_create`](#brace_create), [`braces_between_columns`](#braces_between_columns), [`truss_create`](#truss_create), [`rebar_create`](#rebar_create), [`rebar_typical`](#rebar_typical), [`analytical_model`](#analytical_model), [`analytical_export`](#analytical_export), [`footing_create`](#footing_create), [`strip_footing_create`](#strip_footing_create), [`foundation_slab_create`](#foundation_slab_create), [`footings_under_columns`](#footings_under_columns), [`strip_footings_under_walls`](#strip_footings_under_walls), [`stair_create`](#stair_create), [`stair_check`](#stair_check), [`stair_railings_add`](#stair_railings_add), [`ramp_create`](#ramp_create), [`ramp_check`](#ramp_check), [`roof_check`](#roof_check), [`mass_create`](#mass_create), [`sketch_get`](#sketch_get), [`sketch_set`](#sketch_set), [`mass_floors_set`](#mass_floors_set), [`mass_floors`](#mass_floors), [`mass_type_create`](#mass_type_create), [`mass_face_move`](#mass_face_move), [`mass_walls_create`](#mass_walls_create), [`mass_slabs_create`](#mass_slabs_create), [`mass_roof_create`](#mass_roof_create), [`ramp_type_create`](#ramp_type_create), [`railing_create`](#railing_create), [`component_place`](#component_place)
 - **Building services**: [`pipe_create`](#pipe_create), [`conduit_create`](#conduit_create), [`systems_list`](#systems_list), [`system_create`](#system_create), [`system_set`](#system_set), [`system_delete`](#system_delete), [`system_assign`](#system_assign), [`circuit_loads`](#circuit_loads), [`mep_fittings`](#mep_fittings), [`mep_connect`](#mep_connect), [`mep_sizing`](#mep_sizing), [`mep_size_apply`](#mep_size_apply)
@@ -102,6 +102,25 @@ No parameters.
 |---|---|---|---|
 | `path` | string | required | Path of the .ifc file. |
 
+### `skp_import`
+
+*edit* — Import a SketchUp model (.skp) into the project. Each placed component or group becomes a component element on `level`, of a component type holding its faces as fixed mesh pieces (one per material): placements that differ only by a move or a plan rotation share a type, anything else in their transform (tilt, scale, mirror) is built into the type. Faces outside any component make one more element at the file's origin. Missing materials are added by name and color; hidden objects and those on hidden layers are left out.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `path` | string | required | Path of the .skp file. |
+| `level` | id or name | optional | Level id or name (default: the lowest level); the file's ground is at its elevation. |
+| `position` | [x, y] | optional | Where the file's origin goes, in plan (default [0, 0]). |
+| `rotation` | number | optional | Rotation of the whole model in plan, degrees counter-clockwise (default 0). |
+
+### `skp_component_load`
+
+*edit* — Load a SketchUp model (.skp) as one component type, named after the file, to place like any component: its faces become fixed mesh pieces (one per material) with the file's origin as the insertion point. Missing materials are added by name and color.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `path` | string | required | Path of the .skp file. |
+
 ### `ifc_export`
 
 *file* — Export the project as IFC4.
@@ -181,6 +200,21 @@ No parameters.
 | `rotation` | number | optional | Rotation in degrees counter-clockwise. |
 | `scale` | number | optional | Extra scale on top of the units (default 1). |
 | `units` | string | optional | Drawing units, overriding the file's: mm, cm, dm, m, km, in, ft, yd or mi. Unitless files are read as meters when small (up to 1500 units across), else as millimeters. |
+
+### `image_import`
+
+*edit* — Import a picture (PNG, JPEG, GIF, BMP or WebP) or an SVG drawing into a 2D view (plan, ceiling plan, elevation, section or legend), in one undo step, as an imported drawing under the model: placed, scaled, rotated, pinned, hidden and printed like an imported DWG or DXF. A picture is as large as its resolution makes it on paper (96 dpi when the file declares none), times `scale`, unless `width` sets its width in the view; the file's bytes are kept in the project. An SVG keeps its paths (curves as polylines), fills and embedded pictures in their own colors; its texts are not read.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `path` | string | required | Path of the picture or .svg file. |
+| `view` | id or name | required | View id or name. |
+| `align` | string | optional | `center` (default) or `origin`. |
+| `halftone` | boolean | optional | Draw it faded (default false). |
+| `position` | [x, y] | optional | Where it goes, view coordinates in meters: the center of the picture (`align` "center", the default; the center of what the view shows if not given) or its bottom-left corner for pictures and the page's for SVG (`align` "origin"; [0, 0] if not given). |
+| `rotation` | number | optional | Rotation in degrees counter-clockwise. |
+| `scale` | number | optional | Scale on top of its size on paper (default 1; 100 for a plan drawn at 1:100). |
+| `width` | number | optional | Width in the view, meters (overrides `scale`). |
 
 ### `cad_layers`
 
