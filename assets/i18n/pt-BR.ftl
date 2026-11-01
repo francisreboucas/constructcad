@@ -1816,6 +1816,12 @@ section-stair-build = Construção
 section-stair-rules = Regras dos degraus
 action-stair-railings = Adicionar guarda-corpos
 prop-railing-host = Hospedeiro
+opt-railing-on-host = Numa escada ou rampa
+opt-railing-both-sides = Dos dois lados
+hint-railing-host = Clique numa escada ou rampa: o guarda-corpo vai no lado mais próximo do clique e a acompanha
+prop-railing-side = Lado
+action-railing-detach = Soltar do hospedeiro
+action-railing-detach-tip = O guarda-corpo deixa de acompanhar a escada ou rampa e mantém o caminho que tem em planta
 
 ## Rampas
 category-ramp = Rampas

@@ -1816,6 +1816,12 @@ section-stair-build = Konstruktion
 section-stair-rules = Stufenregeln
 action-stair-railings = Geländer hinzufügen
 prop-railing-host = Träger
+opt-railing-on-host = Auf Treppe oder Rampe
+opt-railing-both-sides = Beide Seiten
+hint-railing-host = Treppe oder Rampe klicken: das Geländer kommt auf die dem Klick nächste Seite und folgt ihr
+prop-railing-side = Seite
+action-railing-detach = Vom Host lösen
+action-railing-detach-tip = Das Geländer folgt der Treppe oder Rampe nicht mehr und behält seinen Pfad im Grundriss
 
 ## Rampen
 category-ramp = Rampen

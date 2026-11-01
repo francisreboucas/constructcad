@@ -1816,6 +1816,12 @@ section-stair-build = 构造
 section-stair-rules = 踏步规则
 action-stair-railings = 添加栏杆
 prop-railing-host = 主体
+opt-railing-on-host = 在楼梯或坡道上
+opt-railing-both-sides = 两侧
+hint-railing-host = 单击楼梯或坡道：栏杆放在最靠近单击处的一侧并跟随它
+prop-railing-side = 侧
+action-railing-detach = 从主体分离
+action-railing-detach-tip = 栏杆不再跟随楼梯或坡道，并保留其在平面中的路径
 
 ## Ramps
 category-ramp = 坡道
