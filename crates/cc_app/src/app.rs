@@ -28,6 +28,18 @@ pub struct ConstructApp {
     recovery: crate::recovery::Recovery,
     /// What the interface last applied of the preferences (theme, zoom, font size).
     look: crate::preferences::Look,
+    /// The window title last sent (see [`set_title`]).
+    title: String,
+}
+
+/// Set the window title when it changed. Every viewport command asks egui
+/// for another frame, so sending the title each frame kept the app
+/// redrawing without pause while idle (high CPU on slow machines).
+fn set_title(ctx: &egui::Context, last: &mut String, title: String) {
+    if *last != title {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
+        *last = title;
+    }
 }
 
 impl ConstructApp {
@@ -89,7 +101,7 @@ impl ConstructApp {
         let dock = if named.is_empty() { initial_dock(state.project()) } else { named_dock(&named) };
         let dock_generation = state.generation;
         let recovery = crate::recovery::Recovery::new(crate::recovery::folder());
-        Self { state, dock, dock_generation, recovery, look }
+        Self { state, dock, dock_generation, recovery, look, title: String::new() }
     }
 }
 
@@ -437,7 +449,7 @@ impl ConstructApp {
         } else {
             "ConstructCAD".to_string()
         };
-        ctx.send_viewport_cmd(egui::ViewportCommand::Title(title));
+        set_title(&ctx, &mut self.title, title);
 
         if self.state.show_home {
             crate::home::show(ui, &mut self.state);
@@ -561,6 +573,27 @@ fn sync_tabs(dock: &mut DockState<ViewId>, state: &mut AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An idle app settles: the title is sent only when it changes. Sent
+    /// every frame, as it was, each frame asked for the next one and the
+    /// app redrew without pause.
+    #[test]
+    fn an_unchanged_title_lets_the_app_settle() {
+        // Frames until egui asks for no other (at most 10).
+        let settle = |send: &mut dyn FnMut(&egui::Context)| {
+            let ctx = egui::Context::default();
+            (1..=10).find(|_| {
+                let mut out = ctx.run_ui(Default::default(), |ui| send(ui.ctx()));
+                out.textures_delta.clear();
+                !ctx.has_requested_repaint()
+            })
+        };
+        let mut last = String::new();
+        assert!(settle(&mut |ctx| set_title(ctx, &mut last, "ConstructCAD".into())).is_some_and(|n| n <= 3));
+        let every_frame =
+            |ctx: &egui::Context| ctx.send_viewport_cmd(egui::ViewportCommand::Title("ConstructCAD".into()));
+        assert_eq!(settle(&mut { every_frame }), None, "sending it every frame never settles");
+    }
 
     #[test]
     fn closing_the_last_tab_leaves_no_active_view() {
