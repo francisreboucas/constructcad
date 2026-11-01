@@ -7,7 +7,8 @@ use crate::t;
 use crate::table::{readonly_row, row};
 use crate::theme::PALETTE;
 use cc_core::{
-    StairBuild, StairConstruction, StairLayout, StairRules, StairShape, Stringers, TreadRule, Turn, stair::MAX_WINDERS,
+    StairBuild, StairConstruction, StairLayout, StairRules, StairShape, Stringers, TreadRule, Turn,
+    stair::{MAX_RISERS, MAX_WINDERS},
 };
 use egui::{DragValue, Response, RichText, Ui};
 
@@ -62,7 +63,16 @@ fn length(ui: &mut Ui, value: &mut f64, max: f64) -> Response {
     ui.add(crate::properties::length_drag(value).speed(0.005).range(0.0..=max))
 }
 
-/// Shape, turn and the sizes the shape uses.
+/// A riser count, 0 shown as automatic.
+fn count(ui: &mut Ui, value: &mut u32) -> Response {
+    ui.add(
+        DragValue::new(value)
+            .range(0..=MAX_RISERS)
+            .custom_formatter(|n, _| if n < 0.5 { t!("stair-auto") } else { format!("{n:.0}") }),
+    )
+}
+
+/// Shape, turn, riser count, tread and the sizes the shape uses.
 pub fn layout_controls(ui: &mut Ui, salt: u64, layout: &mut StairLayout, table: bool) -> Edited {
     let mut e = Edited::default();
     let shape = field(ui, table, &t!("prop-stair-shape"), |ui| {
@@ -75,14 +85,24 @@ pub fn layout_controls(ui: &mut Ui, salt: u64, layout: &mut StairLayout, table: 
         });
         e.choice(turn);
     }
+    let r = field(ui, table, &t!("col-risers"), |ui| count(ui, &mut layout.risers));
+    e.add(&r);
+    let r = field(ui, table, &t!("col-tread"), |ui| {
+        ui.add(
+            DragValue::new(&mut layout.tread)
+                .speed(0.005)
+                .range(0.0..=2.0)
+                .custom_formatter(|n, _| if n < 1e-9 { t!("stair-auto") } else { cc_views::format::length(n) })
+                .custom_parser(cc_views::format::parse_length),
+        )
+    });
+    e.add(&r);
     if layout.shape.has_split() {
-        let r = field(ui, table, &t!("prop-stair-split"), |ui| {
-            ui.add(
-                DragValue::new(&mut layout.split)
-                    .range(0..=200)
-                    .custom_formatter(|n, _| if n < 0.5 { t!("stair-auto") } else { format!("{n:.0}") }),
-            )
-        });
+        let r = field(ui, table, &t!("prop-stair-split"), |ui| count(ui, &mut layout.split));
+        e.add(&r);
+    }
+    if layout.shape == StairShape::ThreeFlight {
+        let r = field(ui, table, &t!("prop-stair-split2"), |ui| count(ui, &mut layout.split2));
         e.add(&r);
     }
     if matches!(layout.shape, StairShape::StraightLanding | StairShape::UShaped) {
@@ -208,7 +228,10 @@ pub fn create_command(
         type_ref: Some(Ref::Id(type_id.0)),
         shape,
         turn: Some(turn.into()),
+        risers: (layout.risers > 0).then_some(layout.risers),
+        tread: (layout.tread > 1e-3).then_some(layout.tread),
         split: Some(layout.split),
+        split2: Some(layout.split2),
         landing: (layout.landing > 1e-3).then_some(layout.landing),
         gap: Some(layout.gap),
         winders: Some(layout.winders),

@@ -93,10 +93,12 @@ pub struct StairGeom {
 /// The local layout, kept for railing paths.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Plan {
-    /// Treads of the first flight, slots in the corner (a landing or winders)
-    /// and treads of the second flight.
+    /// Treads of the first flight, slots in the corners (a landing or
+    /// winders; the two landings of a three-flight stair), treads of the
+    /// middle flight of a three-flight stair and of the last flight.
     first: usize,
     corner: usize,
+    middle: usize,
     second: usize,
     /// Landing depth (straight and U-shaped stairs).
     landing: f64,
@@ -156,7 +158,7 @@ impl StairGeom {
         let (g, w) = (self.tread, self.width);
         let hw = w / 2.0;
         let o = hw - e;
-        let Plan { first, corner, second, landing } = self.plan;
+        let Plan { first, corner, middle, second, landing } = self.plan;
         let mut pts: Vec<(DVec2, f64)> = Vec::new();
         let side = if turn_side { 1.0 } else { -1.0 };
         // Nosings of a flight's treads, from slot `slot`.
@@ -240,6 +242,36 @@ impl StairGeom {
                 let off = if turn_side { o } else { -o };
                 flight(&mut pts, o2, -DVec2::X, second, first + 1, off);
                 pts.push((o2 + DVec2::new(-(second as f64) * g, -off), self.top));
+            }
+            StairShape::ThreeFlight => {
+                // Up along +a, a corner landing, along +b, a second corner
+                // landing, back along -a; the inner side runs round the well.
+                let b1 = hw + middle as f64 * g;
+                let (z1, z2) = (self.slot_z(first), self.slot_z(first + 1 + middle));
+                flight(&mut pts, DVec2::ZERO, DVec2::X, first, 0, side * o);
+                if turn_side {
+                    pts.push((DVec2::new(a0 + e, o), z1));
+                } else {
+                    pts.push((DVec2::new(a0, -o), z1));
+                    pts.push((DVec2::new(a0 + w - e, -o), z1));
+                    if w - e > g {
+                        pts.push((DVec2::new(a0 + w - e, hw - g), z1));
+                    }
+                }
+                let o2 = DVec2::new(a0 + hw, hw);
+                flight(&mut pts, o2, DVec2::Y, middle, first + 1, side * o);
+                if turn_side {
+                    pts.push((DVec2::new(a0 + e, b1 + e), z2));
+                } else {
+                    pts.push((DVec2::new(a0 + w - e, b1), z2));
+                    pts.push((DVec2::new(a0 + w - e, b1 + w - e), z2));
+                    if w - e > g {
+                        pts.push((DVec2::new(a0 + g, b1 + w - e), z2));
+                    }
+                }
+                let o3 = DVec2::new(a0, b1 + hw);
+                flight(&mut pts, o3, -DVec2::X, second, first + 2 + middle, side * o);
+                pts.push((o3 - DVec2::X * (second as f64 * g) + (-DVec2::X).perp() * (side * o), self.top));
             }
         }
         pts
@@ -611,7 +643,7 @@ pub fn layout_stair(
     mut layout: StairLayout,
 ) -> StairGeom {
     let width = if width.is_finite() { width.clamp(0.1, 20.0) } else { 1.0 };
-    let (risers, riser, g) = cc_core::stair_steps(top - base, max_riser, tread, rules);
+    let (risers, riser, g) = layout.steps(top - base, max_riser, tread, rules);
     // A spiral turns no faster than leaves headroom over the turn below:
     // its tread on the walking line grows when the type's would.
     let g = match layout.shape {
@@ -624,22 +656,31 @@ pub fn layout_stair(
     let slots = risers.saturating_sub(1);
     let hw = width / 2.0;
     let landing = if layout.landing > 1e-3 { layout.landing } else { width };
-    // Slots of the corner: one landing or the winders (fewer if there are not enough treads).
+    // Slots of the corners: one landing or the winders, two landings on a
+    // three-flight stair (fewer if there are not enough treads).
     let corner = match layout.shape {
         StairShape::Straight | StairShape::Spiral => 0,
         StairShape::LShaped if layout.winders >= 2 => (layout.winders as usize).min(slots),
+        StairShape::ThreeFlight => slots.min(2),
         _ => usize::from(slots >= 1),
     };
+    let treads = slots - corner;
     let first = match layout.shape {
         StairShape::Straight | StairShape::Spiral => slots,
-        _ if layout.split > 0 => (layout.split as usize).saturating_sub(1).min(slots - corner),
-        _ => (slots - corner) / 2,
+        _ if layout.split > 0 => (layout.split as usize).saturating_sub(1).min(treads),
+        StairShape::ThreeFlight => treads / 3,
+        _ => treads / 2,
     };
-    let second = slots - corner - first;
+    let middle = match layout.shape {
+        StairShape::ThreeFlight if layout.split2 > 0 => (layout.split2 as usize).saturating_sub(1).min(treads - first),
+        StairShape::ThreeFlight => (treads - first) / 2,
+        _ => 0,
+    };
+    let second = treads - first - middle;
     if layout.shape == StairShape::LShaped && corner < 2 {
         layout.winders = 0;
     }
-    let plan = Plan { first, corner, second, landing };
+    let plan = Plan { first, corner, middle, second, landing };
     let landing_check = match layout.shape {
         StairShape::StraightLanding | StairShape::UShaped if corner == 1 => Some((landing, width)),
         _ => None,
@@ -706,6 +747,26 @@ pub fn layout_stair(
             walk.push((DVec2::new(a0 + landing / 2.0, b2), zl));
             walk.push((o2, zl));
         }
+        StairShape::ThreeFlight => {
+            b.flight(DVec2::ZERO, DVec2::X, first, 0);
+            if corner >= 1 {
+                b.landing(rect(a0, a0 + width, -hw, hw), [DVec2::new(a0, -hw), DVec2::new(a0, hw)], first);
+            }
+            let o2 = DVec2::new(a0 + hw, hw);
+            b.flight(o2, DVec2::Y, middle, first + 1);
+            let b1 = hw + middle as f64 * g;
+            if corner >= 2 {
+                let front = [DVec2::new(a0 + width, b1), DVec2::new(a0, b1)];
+                b.landing(rect(a0, a0 + width, b1, b1 + width), front, first + 1 + middle);
+            }
+            let o3 = DVec2::new(a0, b1 + hw);
+            b.flight(o3, -DVec2::X, second, first + 2 + middle);
+            let (z1, z2) = (b.z(first), b.z(first + 1 + middle));
+            walk.push((DVec2::new(a0 + hw, 0.0), z1));
+            walk.push((o2, z1));
+            walk.push((DVec2::new(a0 + hw, b1 + hw), z2));
+            walk.push((o3, z2));
+        }
         StairShape::Spiral => {
             b.spiral(slots);
         }
@@ -714,7 +775,7 @@ pub fn layout_stair(
     // The first flight of a stair with a landing rises to it.
     let ahead = match layout.shape {
         StairShape::StraightLanding | StairShape::UShaped => landing,
-        StairShape::LShaped => width,
+        StairShape::LShaped | StairShape::ThreeFlight => width,
         StairShape::Straight | StairShape::Spiral => 0.0,
     };
     if corner == 1
@@ -723,12 +784,20 @@ pub fn layout_stair(
     {
         f.landing_ahead = ahead;
     }
+    // The first two flights of a three-flight stair rise to a landing (still
+    // in the local frame: they go along +a and +b).
+    if layout.shape == StairShape::ThreeFlight && corner == 2 {
+        for f in flights.iter_mut().filter(|f| f.dir.x > 0.5 || f.dir.y > 0.5) {
+            f.landing_ahead = ahead;
+        }
+    }
     // The walking line ends at the back of the last tread.
     let end = match layout.shape {
         StairShape::Straight => Some(DVec2::new(a0, 0.0)),
         StairShape::StraightLanding => Some(DVec2::new(a0 + landing * corner as f64 + second as f64 * g, 0.0)),
         StairShape::LShaped => Some(DVec2::new(a0 + hw, hw + second as f64 * g)),
         StairShape::UShaped => Some(DVec2::new(a0 - second as f64 * g, width + layout.gap)),
+        StairShape::ThreeFlight => Some(DVec2::new(a0 - second as f64 * g, width + middle as f64 * g)),
         StairShape::Spiral => None,
     };
     match end {
@@ -1137,6 +1206,68 @@ mod tests {
         let end = g.walkline.last().copied().unwrap_or_default();
         // 7 treads up, landing, 7 treads back: the top is over the start, beside it.
         assert!(end.x.abs() < 1e-9 && (end.y - 1.2).abs() < 1e-9 && (end.z - 2.88).abs() < 1e-9, "{end}");
+    }
+
+    #[test]
+    fn three_flight_stair_turns_twice_at_landings() {
+        let layout = StairLayout { shape: StairShape::ThreeFlight, ..Default::default() };
+        let g = geom(layout, 2.88);
+        // 15 slots: 4 treads, a landing, 4 treads, a landing, 5 treads.
+        let kinds: Vec<_> = g.steps.iter().map(|s| s.kind).collect();
+        assert_eq!(kinds.len(), 15);
+        assert_eq!((kinds[4], kinds[9]), (StepKind::Landing, StepKind::Landing));
+        assert_eq!(kinds.iter().filter(|k| **k == StepKind::Landing).count(), 2);
+        for (i, s) in g.steps.iter().enumerate() {
+            assert!((s.z - (i + 1) as f64 * 0.18).abs() < 1e-9);
+        }
+        // The landings are square and no step overlaps another.
+        let area: f64 = g.steps.iter().map(|s| polygon::area(&s.outline)).sum();
+        assert!((area - (13.0 * 0.28 + 2.0)).abs() < 1e-9, "{area}");
+        // The third flight comes back beside the first: it ends one tread
+        // behind the start, across the middle flight.
+        let end = g.walkline.last().copied().unwrap_or_default();
+        assert!((end - DVec3::new(-0.28, 1.0 + 4.0 * 0.28, 2.88)).length() < 1e-9, "{end}");
+        let right = geom(StairLayout { turn: Turn::Right, ..layout }, 2.88);
+        let r_end = right.walkline.last().copied().unwrap_or_default();
+        assert!((r_end.y + end.y).abs() < 1e-9 && (r_end.x - end.x).abs() < 1e-9);
+        // The inner railing turns at both inner corners; both railings reach the top.
+        let a0 = 4.0 * 0.28;
+        let inner = g.railing_path(StairSide::Left, 0.05);
+        let has =
+            |path: &[DVec3], x: f64, y: f64| path.iter().any(|p| (p.x - x).abs() < 1e-9 && (p.y - y).abs() < 1e-9);
+        assert!(has(&inner, a0 + 0.05, 0.45) && has(&inner, a0 + 0.05, 0.5 + a0 + 0.05), "{inner:?}");
+        let outer = g.railing_path(StairSide::Right, 0.05);
+        assert!(has(&outer, a0 + 0.95, -0.45) && has(&outer, a0 + 0.95, 0.5 + a0 + 0.95), "{outer:?}");
+        for path in [&inner, &outer] {
+            assert!(path.last().is_some_and(|p| (p.z - 2.88).abs() < 1e-9));
+        }
+        // Cast in place: three flight blocks and two landing slabs, all closed.
+        let build = StairBuild { construction: StairConstruction::CastInPlace, ..Default::default() };
+        let pieces = g.pieces(&build);
+        assert_eq!(pieces.len(), 5);
+        assert_eq!(g.flights.iter().filter(|f| f.landing_ahead > 0.0).count(), 2);
+        for piece in pieces {
+            let mut s = Solid::new(cc_core::ElementId(1), cc_core::Category::Stair, [0, 0, 0]);
+            s.add_polygons(piece);
+            assert!(s.volume() > 0.0);
+        }
+        // The flights can be sized.
+        let sized = geom(StairLayout { split: 3, split2: 7, ..layout }, 2.88);
+        let treads = |g: &StairGeom| g.flights.iter().map(|f| f.treads).collect::<Vec<_>>();
+        assert_eq!(treads(&sized), [2, 6, 5]);
+    }
+
+    #[test]
+    fn a_stair_can_set_its_risers_and_tread() {
+        // 18 risers of 16 cm and 30 cm treads instead of the type's 16 × 18 cm and 28 cm.
+        let g = geom(StairLayout { risers: 18, tread: 0.30, ..Default::default() }, 2.88);
+        assert_eq!((g.risers, g.steps.len()), (18, 17));
+        assert!((g.riser - 0.16).abs() < 1e-12 && (g.tread - 0.30).abs() < 1e-12);
+        assert!((g.run() - 17.0 * 0.30).abs() < 1e-9);
+        // Too few risers break the type's maximum, and the check says so.
+        let few = geom(StairLayout { risers: 12, ..Default::default() }, 2.88);
+        assert!((few.riser - 0.24).abs() < 1e-12);
+        assert!(few.check.issues.iter().any(|i| i.key() == "stair-issue-riser-high"));
     }
 
     #[test]

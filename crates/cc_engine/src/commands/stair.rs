@@ -18,11 +18,12 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// Names of the stair shapes in commands.
-pub const SHAPES: [(&str, StairShape); 5] = [
+pub const SHAPES: [(&str, StairShape); 6] = [
     ("straight", StairShape::Straight),
     ("straight_landing", StairShape::StraightLanding),
     ("l_shaped", StairShape::LShaped),
     ("u_shaped", StairShape::UShaped),
+    ("three_flight", StairShape::ThreeFlight),
     ("spiral", StairShape::Spiral),
 ];
 
@@ -30,9 +31,12 @@ const TURNS: [(&str, Turn); 2] = [("left", Turn::Left), ("right", Turn::Right)];
 
 /// Create a stair starting at `start` (the middle of its first riser) and
 /// rising along `direction` up to the level above (or `height`). Risers and
-/// treads follow the type: the fewest risers within its maximum, and a fixed
-/// tread or one from Blondel's formula (`2 × riser + tread`). `shape` lays it
-/// out straight, with a landing, L- or U-shaped, or around a center.
+/// treads follow the type (the fewest risers within its maximum, and a fixed
+/// tread or one from Blondel's formula `2 × riser + tread`) unless `risers`
+/// or `tread` set them: the riser height is then the height over the risers.
+/// `shape` lays it out straight, with a landing, L- or U-shaped, in three
+/// flights round two landings, or around a center. The top floor is the last
+/// step: a stair ends with a riser, not a tread.
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct StairCreate {
@@ -53,15 +57,26 @@ pub struct StairCreate {
     /// Level the stair rises to (default: the level above).
     #[serde(default)]
     pub top_level: Option<Ref>,
-    /// Plan shape: `straight` (default), `straight_landing`, `l_shaped`, `u_shaped` or `spiral`.
+    /// Plan shape: `straight` (default), `straight_landing`, `l_shaped`,
+    /// `u_shaped`, `three_flight` (up, across and back, with a landing at
+    /// each corner) or `spiral`.
     #[serde(default)]
     pub shape: Option<String>,
     /// Side the stair turns to, walking up: `left` (default) or `right`.
     #[serde(default)]
     pub turn: Option<String>,
-    /// Risers of the first flight (default: half of them).
+    /// Riser count (default: the fewest within the type's maximum riser).
+    #[serde(default)]
+    pub risers: Option<u32>,
+    /// Tread depth, meters (default: the type's).
+    #[serde(default)]
+    pub tread: Option<f64>,
+    /// Risers of the first flight (default: half of them; a third on a three-flight stair).
     #[serde(default)]
     pub split: Option<u32>,
+    /// Risers of the middle flight of a three-flight stair (default: half of those left).
+    #[serde(default)]
+    pub split2: Option<u32>,
     /// Landing depth along the first flight, meters (default: the stair width).
     #[serde(default)]
     pub landing: Option<f64>,
@@ -86,7 +101,22 @@ impl StairCreate {
         if let Some(turn) = justification(self.turn.as_deref(), &TURNS, "turn")? {
             layout.turn = turn;
         }
-        layout.split = self.split.unwrap_or(0).min(200);
+        let max = cc_core::stair::MAX_RISERS;
+        layout.split = self.split.unwrap_or(0).min(max);
+        layout.split2 = self.split2.unwrap_or(0).min(max);
+        if let Some(n) = self.risers {
+            if n == 0 || n > max {
+                return Err(EngineError::invalid(format!("risers must be from 1 to {max}")));
+            }
+            layout.risers = n;
+        }
+        if let Some(v) = self.tread {
+            let v = positive(v, "tread")?;
+            if v > 2.0 {
+                return Err(EngineError::invalid("tread must be at most 2 m"));
+            }
+            layout.tread = v;
+        }
         if let Some(v) = self.landing {
             layout.landing = positive(v, "landing")?;
         }
