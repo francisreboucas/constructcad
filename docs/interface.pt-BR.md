@@ -158,6 +158,15 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 - **Da massa ao edifício**: com massas selecionadas, *Estudo de massa → Paredes por face* põe uma parede em cada lado de uma extrusão (face externa na face da massa, com a altura dela, unidas nos cantos), *Lajes dos pisos de massa* uma laje em cada piso de massa (o contorno da massa naquele nível, com o topo no nível) e *Telhado por face* um telhado plano no topo. Paredes, lajes e telhado são elementos comuns: mude tipo, altura e forma como de costume. Os lados inclinados de uma transição não recebem paredes.
 - Mover, girar, espelhar, copiar e colar funcionam como nos outros elementos. Excluir um nível remove os pisos de massa dele. A exportação IFC deixa as massas de fora.
 
+## Perfis varridos
+
+*Arquitetura → Modelo → Perfil varrido* (`SW`) leva um perfil ao longo de um caminho desenhado em planta: rodapés, molduras de teto, testeiras, calhas, rufos. Um projeto sem tipo de perfil varrido ganha um na primeira vez (um rodapé de 1,5 × 10 cm).
+
+- **Desenho**: clique os pontos do caminho; Enter, clique duplo ou *Concluir* encerra, e Backspace remove o último ponto. A barra de opções define a altura do caminho acima do nível, *Caminho fechado* (ele volta ao primeiro ponto, em volta de um ambiente, sem pontas) e *Inverter lado*.
+- **De que lado**: o perfil é desenhado num plano próprio, perpendicular ao caminho: x na transversal, à esquerda de quem anda pelo caminho, e y para cima a partir da altura do caminho. *Inverter lado* o põe à direita; uma cópia espelhada o mantém do mesmo lado da parede que acompanha. Os cantos ficam em meia-esquadria.
+- **Perfis**: o tipo guarda o perfil e o material. `sweep_type_create` cria um tipo a partir de pontos `[x, y]` ou de `curves` (linhas, arcos, círculos, retângulos… formando um contorno fechado, então uma meia-cana ou uma calha meia-cana se desenham com arcos), e `sweep_profile_set` redesenha o perfil de um tipo; os dois estão na paleta de comandos. Um perfil precisa ser um contorno fechado que não se cruza.
+- **Vistas**: plantas e plantas de forro desenham o que o plano de corte corta e o que fica abaixo (ou acima, nas plantas de forro), elevações, cortes e vistas 3D mostram o sólido, legendas mostram a seção do perfil e tabelas listam comprimento e volume. A exportação IFC os grava como revestimentos do tipo `MOLDING`.
+
 ## Desenhos CAD importados
 
 - **Inserir → Importar CAD…** coloca um desenho DWG ou DXF na planta, planta de forro, elevação, corte ou legenda ativa (nas outras vistas o botão fica cinza e diz por quê). Também dá para soltar arquivos `.dwg` e `.dxf` na janela. O diálogo de arquivo começa na *Pasta de projetos*. A origem do desenho fica na origem da vista, a menos que isso o deixe a mais de 1 km do modelo (um desenho em coordenadas de levantamento); então ele é centrado no que a vista mostra. A barra de status informa quantos itens e camadas foram lidos, quantas entidades não foram desenhadas (sólidos 3D, imagens, linhas infinitas…) e que unidades foram supostas quando o arquivo não tem nenhuma.

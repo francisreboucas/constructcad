@@ -625,6 +625,34 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                 actions::run_command(state, command);
             }
         }
+        ElementKind::Sweep(sw) => {
+            section(ui, "constraints", t!("section-constraints"), |ui| {
+                level_row(ui, state, &el);
+                length_row(ui, state, &t!("prop-base-offset"), id, "base", sw.base_offset, |e, v| {
+                    if let ElementKind::Sweep(s) = &mut e.kind {
+                        s.base_offset = v;
+                    }
+                });
+                let (mut closed, mut flip) = (sw.closed, sw.flip);
+                if row(ui, &t!("opt-sweep-closed"), |ui| ui.checkbox(&mut closed, "")).changed() {
+                    modify(state, id, "sweep-closed", |e| {
+                        if let ElementKind::Sweep(s) = &mut e.kind {
+                            s.closed = closed;
+                        }
+                    });
+                }
+                if row(ui, &t!("opt-sweep-flip"), |ui| ui.checkbox(&mut flip, "")).changed() {
+                    modify(state, id, "sweep-flip", |e| {
+                        if let ElementKind::Sweep(s) = &mut e.kind {
+                            s.flip = flip;
+                        }
+                    });
+                }
+            });
+            section(ui, "dimensions", t!("section-dimensions"), |ui| {
+                readonly_row(ui, &t!("prop-length"), format::length(sw.length()));
+            });
+        }
         ElementKind::Railing(r) => {
             section(ui, "constraints", t!("section-constraints"), |ui| {
                 level_row(ui, state, &el);

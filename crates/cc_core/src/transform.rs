@@ -182,6 +182,13 @@ impl Element {
                     r.layout.turn = r.layout.turn.flipped();
                 }
             }
+            ElementKind::Sweep(s) => {
+                s.path.iter_mut().for_each(p);
+                // A mirror keeps the profile on the same side of the wall it follows.
+                if t.mirror {
+                    s.flip = !s.flip;
+                }
+            }
             ElementKind::Railing(r) => {
                 r.path.iter_mut().for_each(p);
                 if t.mirror

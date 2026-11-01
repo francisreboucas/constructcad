@@ -2152,3 +2152,16 @@ sketch-apart = 有闭合环位于边界之外：每个构件只有一个边界�
 sketch-nested = 有闭合环位于洞口之内。
 sketch-openings = 此构件只能有一个闭合环，不能有洞口。
 sketch-no-area = 有闭合环没有面积。
+
+# Swept profiles
+category-sweep = 扫掠轮廓
+tool-sweep = 扫掠轮廓
+cmd-desc-sweep = 沿路径带动轮廓：踢脚线、线脚、封檐板、天沟、压顶。
+hint-sweep = 单击路径上的点；轮廓位于左侧（翻转可放到右侧）· Enter、双击或完成即结束 · Backspace 删除最后一点
+opt-sweep-closed = 闭合路径
+opt-sweep-flip = 翻转侧
+prop-sweep-points = 轮廓点数
+hint-sweep-profile = 在命令面板中用 sweep_profile_set 命令（点或曲线）重新绘制轮廓。
+tpl-type-baseboard = 踢脚线 10 厘米
+tx-create-sweep = 创建扫掠轮廓
+tx-create-sweep-type = 创建扫掠轮廓类型

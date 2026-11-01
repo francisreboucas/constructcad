@@ -188,7 +188,7 @@ pub enum UiCommand {
 }
 
 /// Model categories placed by a tool of their own (dimensions and text have their own commands).
-const PLACED: [Category; 18] = [
+const PLACED: [Category; 19] = [
     Category::Wall,
     Category::Door,
     Category::Window,
@@ -198,6 +198,7 @@ const PLACED: [Category; 18] = [
     Category::Stair,
     Category::Ramp,
     Category::Railing,
+    Category::Sweep,
     Category::Room,
     Category::Component,
     Category::Grid,
@@ -866,6 +867,7 @@ impl UiCommand {
             Place(Category::Ramp) => "RP",
             Place(Category::Mass) => "MS",
             Place(Category::Railing) => "RA",
+            Place(Category::Sweep) => "SW",
             Place(Category::Room) => "RM",
             Place(Category::Component) => "CM",
             Place(Category::Grid) => "GR",
@@ -948,6 +950,7 @@ impl UiCommand {
             Place(Category::Ramp) => "ramp_create",
             Place(Category::Mass) => "mass_create",
             Place(Category::Railing) => "railing_create",
+            Place(Category::Sweep) => "sweep_create",
             Place(Category::Room) => "room_create",
             Place(Category::Grid) => "grid_create",
             Place(Category::Column) => "column_create",
@@ -1077,9 +1080,9 @@ impl UiCommand {
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
             ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
-            // A project without a ramp or mass type gets one when the tool starts.
+            // A project without a ramp, mass or sweep type gets one when the tool starts.
             Place(category)
-                if !matches!(category, Category::Ramp | Category::Mass)
+                if !matches!(category, Category::Ramp | Category::Mass | Category::Sweep)
                     && Tool::for_category(project, category).is_none() =>
             {
                 Some(t!("msg-no-type"))
@@ -1291,6 +1294,7 @@ fn place_label(category: Category) -> String {
         Category::Stair => t!("tool-stair"),
         Category::Ramp => t!("tool-ramp"),
         Category::Railing => t!("tool-railing"),
+        Category::Sweep => t!("tool-sweep"),
         Category::Room => t!("tool-room"),
         Category::Grid => t!("tool-grid"),
         Category::Column => t!("tool-column"),
@@ -1318,6 +1322,7 @@ fn place_description(category: Category) -> String {
         Category::Stair => t!("cmd-desc-stair"),
         Category::Ramp => t!("cmd-desc-ramp"),
         Category::Railing => t!("cmd-desc-railing"),
+        Category::Sweep => t!("cmd-desc-sweep"),
         Category::Room => t!("cmd-desc-room"),
         Category::Grid => t!("cmd-desc-grid"),
         Category::Column => t!("cmd-desc-column"),

@@ -2152,3 +2152,16 @@ sketch-apart = Une boucle est hors du contour : un contour par élément.
 sketch-nested = Une boucle est dans une ouverture.
 sketch-openings = Cet élément prend une boucle, sans ouvertures.
 sketch-no-area = Une boucle n'a pas d'aire.
+
+# Swept profiles
+category-sweep = Profils balayés
+tool-sweep = Profil balayé
+cmd-desc-sweep = Porte un profil le long d’un tracé : plinthes, moulures, bandeaux, gouttières, couvertines.
+hint-sweep = Cliquez les points du tracé ; le profil est à gauche (Inverser le met à droite) · Entrée, un double clic ou Terminer finit · Retour arrière retire le dernier point
+opt-sweep-closed = Tracé fermé
+opt-sweep-flip = Inverser le côté
+prop-sweep-points = Points du profil
+hint-sweep-profile = Redessinez le profil avec la commande sweep_profile_set (points ou courbes) dans la palette de commandes.
+tpl-type-baseboard = Plinthe 10 cm
+tx-create-sweep = Créer un profil balayé
+tx-create-sweep-type = Créer un type de profil balayé

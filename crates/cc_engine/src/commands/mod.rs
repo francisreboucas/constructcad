@@ -27,6 +27,7 @@ pub mod roofing;
 pub mod sketch;
 pub mod stair;
 pub mod structure;
+pub mod sweep;
 pub mod types;
 pub mod views;
 

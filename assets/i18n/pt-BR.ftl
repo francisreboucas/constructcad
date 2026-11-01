@@ -2152,3 +2152,16 @@ sketch-apart = Um laço fica fora do contorno: um contorno por elemento.
 sketch-nested = Um laço fica dentro de uma abertura.
 sketch-openings = Este elemento aceita um laço, sem aberturas.
 sketch-no-area = Um laço não tem área.
+
+# Swept profiles
+category-sweep = Perfis varridos
+tool-sweep = Perfil varrido
+cmd-desc-sweep = Leva um perfil ao longo de um caminho: rodapés, molduras, testeiras, calhas, rufos.
+hint-sweep = Clique os pontos do caminho; o perfil fica à esquerda (Inverter o põe à direita) · Enter, clique duplo ou Concluir encerra · Backspace remove o último ponto
+opt-sweep-closed = Caminho fechado
+opt-sweep-flip = Inverter lado
+prop-sweep-points = Pontos do perfil
+hint-sweep-profile = Redesenhe o perfil com o comando sweep_profile_set (pontos ou curvas) na paleta de comandos.
+tpl-type-baseboard = Rodapé 10 cm
+tx-create-sweep = Criar perfil varrido
+tx-create-sweep-type = Criar tipo de perfil varrido

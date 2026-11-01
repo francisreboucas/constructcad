@@ -1440,3 +1440,40 @@ fn several_elements_are_edited_together() {
         assert_eq!(c.base_offset, -1.5);
     }
 }
+
+/// The sweep tool: a project without a sweep type gets a baseboard when the
+/// tool starts; the clicked points (closed, flipped, raised by the options)
+/// make the element, and its properties show it.
+#[test]
+fn the_sweep_tool_draws_a_baseboard_around_a_room() {
+    use crate::commands::UiCommand;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    assert!(state.project().default_type(cc_core::Category::Sweep).is_none());
+    assert_eq!(UiCommand::Place(cc_core::Category::Sweep).unavailable(&state), None);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Sweep);
+    let crate::tools::Tool::Sweep { type_id } = state.tool.clone() else {
+        panic!("not the sweep tool: {:?}", state.tool)
+    };
+    state.sweep = crate::tools::SweepOptions { base_offset: 0.05, closed: true, flip: true };
+    state.interaction.points =
+        vec![glam::DVec2::new(60.0, 0.0), glam::DVec2::new(64.0, 0.0), glam::DVec2::new(64.0, 3.0)];
+    let level = state.active_level().unwrap();
+    crate::tools::finish_sweep(&mut state, level, type_id);
+    assert!(state.interaction.points.is_empty());
+    let sweep = *state.selection.iter().next().unwrap_or_else(|| panic!("{}", state.message));
+    let e = state.project().element(sweep).unwrap();
+    let cc_core::ElementKind::Sweep(s) = &e.kind else { panic!("not a sweep") };
+    assert!(s.closed && s.flip && (s.base_offset - 0.05).abs() < 1e-12 && s.path.len() == 3);
+    assert!(state.session.geom().solids.iter().any(|solid| solid.element == sweep));
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1600.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    // The sweep's own rows: its constraints and dimensions, with the two checkboxes (closed, flip).
+    for key in ["section-constraints", "section-dimensions"] {
+        assert!(harness.query_by_label(&crate::i18n::tr(key)).is_some(), "{key}");
+    }
+    assert!(harness.query_all_by_role(Role::CheckBox).count() >= 2);
+}

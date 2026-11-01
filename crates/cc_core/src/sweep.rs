@@ -61,6 +61,55 @@ fn outward(mut faces: Vec<Vec<DVec3>>) -> Result<Vec<Vec<DVec3>>, ProfileError> 
     Ok(faces)
 }
 
+/// The solid of a counter-clockwise `profile` carried around the closed
+/// `path` (on `plane`, placed `offset` along its normal): mitered at every
+/// corner, the last point joined back to the first, with no end caps.
+pub fn sweep_closed(
+    plane: SketchPlane,
+    path: &[DVec2],
+    offset: f64,
+    profile: &[DVec2],
+) -> Result<Vec<Vec<DVec3>>, ProfileError> {
+    let mut path = path.to_vec();
+    path.dedup_by(|a, b| a.distance(*b) < 1e-9);
+    if path.len() > 1 && path.first().zip(path.last()).is_some_and(|(a, b)| a.distance(*b) < 1e-9) {
+        path.pop();
+    }
+    let n = path.len();
+    if n < 3 || profile.len() < 3 {
+        return Err(ProfileError::Degenerate);
+    }
+    let dirs: Vec<DVec2> = (0..n).filter_map(|i| (path[(i + 1) % n] - path[i]).try_normalize()).collect();
+    if dirs.len() != n {
+        return Err(ProfileError::Degenerate);
+    }
+    let rings: Vec<Vec<DVec3>> = (0..n)
+        .map(|i| {
+            let (a, b) = (dirs[(i + n - 1) % n], dirs[i]);
+            let d = (a + b).try_normalize().unwrap_or(b);
+            let scale = (1.0 / d.dot(b).max(1.0 / MAX_MITER)).min(MAX_MITER);
+            let left = d.perp();
+            profile
+                .iter()
+                .map(|q| {
+                    let p = path[i] + left * (q.x * scale);
+                    plane.point(p.x, p.y, offset + q.y)
+                })
+                .collect()
+        })
+        .collect();
+    let m = profile.len();
+    let mut faces = Vec::with_capacity(m * n);
+    for i in 0..n {
+        let (r0, r1) = (&rings[i], &rings[(i + 1) % n]);
+        for j in 0..m {
+            let k = (j + 1) % m;
+            faces.push(vec![r0[j], r1[j], r1[k], r0[k]]);
+        }
+    }
+    outward(faces)
+}
+
 /// The solid of a counter-clockwise `profile` carried along `path` (on
 /// `plane`, placed `offset` along its normal), mitered at the corners.
 pub fn sweep(
@@ -232,6 +281,22 @@ mod tests {
 
     fn square(s: f64) -> Vec<DVec2> {
         vec![DVec2::new(-s, -s), DVec2::new(s, -s), DVec2::new(s, s), DVec2::new(-s, s)]
+    }
+
+    #[test]
+    fn a_closed_sweep_runs_around_without_caps() {
+        // A 0.1 × 0.2 section inside a 4 m square run counter-clockwise (left is in):
+        // (16 - 3.8²) × 0.2 = 0.312 m³.
+        let path = [DVec2::ZERO, DVec2::new(4.0, 0.0), DVec2::new(4.0, 4.0), DVec2::new(0.0, 4.0)];
+        let section = [DVec2::ZERO, DVec2::new(0.1, 0.0), DVec2::new(0.1, 0.2), DVec2::new(0.0, 0.2)];
+        let faces = sweep_closed(SketchPlane::Plan, &path, 0.0, &section).unwrap();
+        assert_eq!(faces.len(), 16);
+        assert!((volume(&faces) - 0.312).abs() < 1e-9, "{}", volume(&faces));
+        // A repeated last point is the same loop; two points are no loop.
+        let mut again = path.to_vec();
+        again.push(DVec2::ZERO);
+        assert!((volume(&sweep_closed(SketchPlane::Plan, &again, 0.0, &section).unwrap()) - 0.312).abs() < 1e-9);
+        assert!(sweep_closed(SketchPlane::Plan, &path[..2], 0.0, &section).is_err());
     }
 
     #[test]

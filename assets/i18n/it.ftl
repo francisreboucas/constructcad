@@ -2152,3 +2152,16 @@ sketch-apart = Un ciclo è fuori dal contorno: un contorno per elemento.
 sketch-nested = Un ciclo è dentro un'apertura.
 sketch-openings = Questo elemento accetta un ciclo, senza aperture.
 sketch-no-area = Un ciclo non racchiude area.
+
+# Swept profiles
+category-sweep = Profili estrusi
+tool-sweep = Profilo estruso
+cmd-desc-sweep = Porta un profilo lungo un percorso: battiscopa, cornici, frontalini, grondaie, copertine.
+hint-sweep = Fai clic sui punti del percorso; il profilo sta a sinistra (Inverti lo mette a destra) · Invio, doppio clic o Fine termina · Backspace toglie l’ultimo punto
+opt-sweep-closed = Percorso chiuso
+opt-sweep-flip = Inverti lato
+prop-sweep-points = Punti del profilo
+hint-sweep-profile = Ridisegna il profilo con il comando sweep_profile_set (punti o curve) nella tavolozza dei comandi.
+tpl-type-baseboard = Battiscopa 10 cm
+tx-create-sweep = Crea profilo estruso
+tx-create-sweep-type = Crea tipo di profilo estruso

@@ -968,6 +968,12 @@ impl<'a> Exporter<'a> {
                     };
                     StructureProduct::new("IFCRAMP", shape, items).brep()
                 }
+                (ElementKind::Sweep(sw), TypeData::Sweep { .. }) => {
+                    // Baseboards, moldings, fascias: coverings along a path.
+                    let Some(faces) = cc_geom::profile_sweep::sweep_faces(project, e, sw) else { continue };
+                    let items = self.pieces(e, vec![faces], level_z);
+                    StructureProduct::new("IFCCOVERING", "MOLDING", items).brep()
+                }
                 (ElementKind::Railing(r), TypeData::Railing { .. }) => {
                     let items = self.pieces(e, cc_geom::railing_pieces(project, e, r), level_z);
                     let q = vec![("Length", Quantity::Length(cc_geom::railing_length(project, e, r)))];
@@ -1451,6 +1457,7 @@ impl<'a> Exporter<'a> {
             TypeData::Wall { .. } => ("IFCWALLTYPE", args![Value::Enum("STANDARD")]),
             TypeData::Floor { .. } => ("IFCSLABTYPE", args![Value::Enum("FLOOR")]),
             TypeData::Ceiling { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("CEILING")]),
+            TypeData::Sweep { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("MOLDING")]),
             TypeData::Roof { .. } => ("IFCROOFTYPE", args![Value::Enum("NOTDEFINED")]),
             TypeData::Door { .. } => {
                 ("IFCDOORTYPE", args![Value::Enum("DOOR"), Value::Enum("NOTDEFINED"), Value::Null, Value::Null])
@@ -2206,6 +2213,7 @@ fn common_pset(project: &Project, e: &Element) -> Option<&'static str> {
         ElementKind::Stair(_) => "Pset_StairCommon",
         ElementKind::Ramp(_) => "Pset_RampCommon",
         ElementKind::Railing(_) => "Pset_RailingCommon",
+        ElementKind::Sweep(_) => "Pset_CoveringCommon",
         ElementKind::Foundation(_) => match project.element_type(e.type_id).map(|t| &t.data) {
             Some(TypeData::Foundation { kind: cc_core::FoundationKind::Slab, .. }) => "Pset_SlabCommon",
             _ => "Pset_FootingCommon",

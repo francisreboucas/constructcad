@@ -91,6 +91,7 @@ fn element_is_valid(e: &Element) -> bool {
         }
         ElementKind::CadImport(c) => c.is_valid(),
         ElementKind::Mass(m) => m.is_valid(),
+        ElementKind::Sweep(s) => s.is_valid(),
     }
 }
 
@@ -193,6 +194,12 @@ impl Project {
                 TypeData::Ramp { width, thickness, rules, .. } => {
                     repairs += usize::from(fix_positive(width, 1.2)) + usize::from(fix_positive(thickness, 0.15));
                     repairs += rules.repair();
+                }
+                TypeData::Sweep { profile, .. } => {
+                    if crate::profile_sweep::check_profile(profile).is_err() {
+                        *profile = crate::profile_sweep::baseboard();
+                        repairs += 1;
+                    }
                 }
                 TypeData::Railing { height, post_spacing, .. } => {
                     repairs += usize::from(fix_positive(height, 1.1)) + usize::from(fix_positive(post_spacing, 1.2));

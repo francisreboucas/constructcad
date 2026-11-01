@@ -304,7 +304,8 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
     | TypeData::Ramp { material, .. }
     | TypeData::Pipe { material, .. }
     | TypeData::Conduit { material, .. }
-    | TypeData::Railing { material, .. } = &ty.data
+    | TypeData::Railing { material, .. }
+    | TypeData::Sweep { material, .. } = &ty.data
     {
         section(ui, "type-materials", t!("section-materials"), |ui| {
             let mut m = material.clone();
@@ -322,7 +323,8 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
                     | TypeData::Ramp { material, .. }
                     | TypeData::Pipe { material, .. }
                     | TypeData::Conduit { material, .. }
-                    | TypeData::Railing { material, .. } => *material = m,
+                    | TypeData::Railing { material, .. }
+                    | TypeData::Sweep { material, .. } => *material = m,
                     _ => {}
                 });
             }
@@ -705,6 +707,22 @@ fn structure_parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
                 if edited.done {
                     state.session.doc.break_merge();
                 }
+            });
+        }
+        TypeData::Sweep { ref profile, .. } => {
+            // The profile's extent; it is drawn with `sweep_profile_set` (points or curves).
+            crate::table::section(ui, "type-dimensions", t!("section-dimensions"), |ui| {
+                let (lo, hi) = profile
+                    .iter()
+                    .fold((glam::DVec2::splat(f64::INFINITY), glam::DVec2::splat(f64::NEG_INFINITY)), |(lo, hi), p| {
+                        (lo.min(*p), hi.max(*p))
+                    });
+                if lo.is_finite() && hi.is_finite() {
+                    crate::table::readonly_row(ui, &t!("col-width"), cc_views::format::length(hi.x - lo.x));
+                    crate::table::readonly_row(ui, &t!("col-height"), cc_views::format::length(hi.y - lo.y));
+                }
+                crate::table::readonly_row(ui, &t!("prop-sweep-points"), profile.len().to_string());
+                ui.label(crate::theme::muted(t!("hint-sweep-profile")));
             });
         }
         TypeData::Railing { height, post_spacing, .. } => {
