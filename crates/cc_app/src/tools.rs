@@ -138,6 +138,7 @@ impl Tool {
             Tool::Sketch { category: Category::Roof, .. } => "tool-roof",
             Tool::Sketch { category: Category::Foundation, .. } => "tool-foundation-slab",
             Tool::Sketch { category: Category::Mass, .. } => "tool-mass",
+            Tool::Sketch { category: Category::Shaft, .. } => "tool-shaft",
             Tool::Sketch { .. } => "tool-floor",
             Tool::Section => "tool-section",
             Tool::Room { .. } => "tool-room",
@@ -265,7 +266,9 @@ impl Tool {
         Some(match category {
             Category::Wall => Tool::Wall { type_id },
             Category::Door | Category::Window => Tool::Hosted { category, type_id },
-            Category::Floor | Category::Ceiling | Category::Roof | Category::Mass => Tool::Sketch { category, type_id },
+            Category::Floor | Category::Ceiling | Category::Roof | Category::Mass | Category::Shaft => {
+                Tool::Sketch { category, type_id }
+            }
             Category::Room => Tool::Room { type_id },
             Category::Grid => Tool::Grid { type_id },
             Category::Dimension => Tool::Dimension { type_id, mode: DimensionMode::Aligned },

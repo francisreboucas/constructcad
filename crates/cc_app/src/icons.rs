@@ -105,6 +105,7 @@ pub enum Icon {
     DimLinear,
     RefPlane,
     Connector,
+    Shaft,
     Finish,
     Extrusion,
     DrawLine,
@@ -156,7 +157,7 @@ pub enum Icon {
 
 impl Icon {
     #[cfg(test)]
-    pub const ALL: [Icon; 141] = [
+    pub const ALL: [Icon; 142] = [
         Icon::New,
         Icon::Open,
         Icon::Save,
@@ -251,6 +252,7 @@ impl Icon {
         Icon::DimLinear,
         Icon::RefPlane,
         Icon::Connector,
+        Icon::Shaft,
         Icon::Finish,
         Icon::Extrusion,
         Icon::DrawLine,
@@ -397,6 +399,7 @@ impl Icon {
             Icon::DimLinear => include_str!("../../../assets/icons/ui/dim-linear.svg"),
             Icon::RefPlane => include_str!("../../../assets/icons/ui/ref-plane.svg"),
             Icon::Connector => include_str!("../../../assets/icons/ui/connector.svg"),
+            Icon::Shaft => include_str!("../../../assets/icons/ui/shaft.svg"),
             Icon::Finish => include_str!("../../../assets/icons/ui/finish.svg"),
             Icon::Extrusion => include_str!("../../../assets/icons/ui/extrusion.svg"),
             Icon::DrawLine => include_str!("../../../assets/icons/ui/draw-line.svg"),

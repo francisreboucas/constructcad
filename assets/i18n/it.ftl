@@ -2178,3 +2178,11 @@ hint-sweep-profile = Ridisegna il profilo con il comando sweep_profile_set (punt
 tpl-type-baseboard = Battiscopa 10 cm
 tx-create-sweep = Crea profilo estruso
 tx-create-sweep-type = Crea tipo di profilo estruso
+
+# Shafts
+category-shaft = Cavedi
+tool-shaft = Cavedio
+cmd-desc-shaft = Disegna un’apertura verticale (cavedio, cavedio impianti, vano scala) che taglia i solai, controsoffitti e coperture che attraversa.
+tpl-type-shaft = Cavedio
+tx-create-shaft = Crea cavedio
+tx-create-shaft-type = Crea tipo di cavedio

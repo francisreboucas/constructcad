@@ -53,6 +53,8 @@ pub enum ElementKind {
     Mass(crate::mass::Mass),
     /// A profile swept along a path (baseboards, moldings, fascias, gutters).
     Sweep(crate::profile_sweep::Sweep),
+    /// A vertical opening through floors, ceilings and roofs.
+    Shaft(crate::shaft::Shaft),
 }
 
 impl Element {
@@ -81,6 +83,7 @@ impl Element {
             ElementKind::CadImport(_) => Category::CadImport,
             ElementKind::Mass(_) => Category::Mass,
             ElementKind::Sweep(_) => Category::Sweep,
+            ElementKind::Shaft(_) => Category::Shaft,
         }
     }
 
@@ -148,6 +151,7 @@ impl Element {
             ElementKind::Ceiling(c) => Some(&mut c.sketch),
             ElementKind::Roof(r) => Some(&mut r.sketch),
             ElementKind::Mass(m) => Some(&mut m.sketch),
+            ElementKind::Shaft(s) => Some(&mut s.sketch),
             _ => None,
         }
     }
@@ -159,6 +163,7 @@ impl Element {
             ElementKind::Ceiling(c) => c.sketch.as_ref(),
             ElementKind::Roof(r) => r.sketch.as_ref(),
             ElementKind::Mass(m) => m.sketch.as_ref(),
+            ElementKind::Shaft(s) => s.sketch.as_ref(),
             _ => None,
         }
     }
@@ -171,6 +176,7 @@ impl Element {
             ElementKind::Ceiling(c) => Some((&c.boundary, &[])),
             ElementKind::Roof(r) => Some((&r.footprint, &r.holes)),
             ElementKind::Mass(m) => Some((&m.outline, &[])),
+            ElementKind::Shaft(s) => Some((&s.outline, &[])),
             _ => None,
         }
     }
@@ -246,6 +252,7 @@ impl Element {
             ElementKind::Ramp(r) => r.start += delta,
             ElementKind::Railing(r) => r.path.iter_mut().for_each(|p| *p += delta),
             ElementKind::Sweep(s) => s.path.iter_mut().for_each(|p| *p += delta),
+            ElementKind::Shaft(s) => s.outline.iter_mut().for_each(|p| *p += delta),
             ElementKind::Component(c) => c.position += delta,
             ElementKind::Pipe(s) | ElementKind::Conduit(s) => {
                 s.start += delta;
@@ -449,6 +456,10 @@ pub struct Floor {
     /// inside the boundary, apart from each other.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub openings: Vec<Vec<DVec2>>,
+    /// Openings cut by shafts, kept in step with them by every edit (see
+    /// [`crate::shaft`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cuts: Vec<Vec<DVec2>>,
     /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
     /// when the outline is edited without them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -458,12 +469,17 @@ pub struct Floor {
 impl Floor {
     /// A floor over `boundary` with no openings.
     pub fn new(boundary: Vec<DVec2>, height_offset: f64) -> Self {
-        Self { boundary, height_offset, openings: Vec::new(), sketch: None }
+        Self { boundary, height_offset, openings: Vec::new(), cuts: Vec::new(), sketch: None }
+    }
+
+    /// Its openings and the shafts' cuts.
+    pub fn all_openings(&self) -> impl Iterator<Item = &Vec<DVec2>> {
+        self.openings.iter().chain(&self.cuts)
     }
 
     /// Plan area: the boundary less its openings.
     pub fn area(&self) -> f64 {
-        (polygon_area(&self.boundary) - self.openings.iter().map(|o| polygon_area(o)).sum::<f64>()).max(0.0)
+        (polygon_area(&self.boundary) - self.all_openings().map(|o| polygon_area(o)).sum::<f64>()).max(0.0)
     }
 }
 
@@ -478,6 +494,10 @@ pub struct Ceiling {
     pub boundary: Vec<DVec2>,
     /// Height of the ceiling's underside above the level.
     pub height_offset: f64,
+    /// Openings cut by shafts, kept in step with them by every edit (see
+    /// [`crate::shaft`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cuts: Vec<Vec<DVec2>>,
     /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
     /// when the outline is edited without them.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -519,6 +539,10 @@ pub struct Roof {
     /// differs from the shape's, for gable and hip roofs: `Some(0.0)` makes
     /// the edge a gable end, `Some(s)` an eave rising at `s`; missing or
     /// `None` entries follow the shape.
+    /// Openings cut by shafts, kept in step with them by every edit (see
+    /// [`crate::shaft`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub cuts: Vec<Vec<DVec2>>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub edge_slopes: Vec<Option<f64>>,
     /// The curves the outline was drawn with (see [`crate::sketch`]); dropped
@@ -530,7 +554,16 @@ pub struct Roof {
 impl Roof {
     /// A roof over `footprint` with no openings.
     pub fn new(footprint: Vec<DVec2>, base_offset: f64, overhang: f64, shape: RoofShape) -> Self {
-        Self { footprint, base_offset, overhang, shape, holes: Vec::new(), edge_slopes: Vec::new(), sketch: None }
+        Self {
+            footprint,
+            base_offset,
+            overhang,
+            shape,
+            holes: Vec::new(),
+            cuts: Vec::new(),
+            edge_slopes: Vec::new(),
+            sketch: None,
+        }
     }
 
     /// The slope set on footprint edge `i`, if any.
@@ -540,7 +573,8 @@ impl Roof {
 
     /// Plan area: the footprint less its openings.
     pub fn area(&self) -> f64 {
-        (polygon_area(&self.footprint) - self.holes.iter().map(|h| polygon_area(h)).sum::<f64>()).max(0.0)
+        (polygon_area(&self.footprint) - self.holes.iter().chain(&self.cuts).map(|h| polygon_area(h)).sum::<f64>())
+            .max(0.0)
     }
 }
 

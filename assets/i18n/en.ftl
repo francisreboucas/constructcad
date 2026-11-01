@@ -2178,3 +2178,11 @@ hint-sweep-profile = Redraw the profile with the sweep_profile_set command (poin
 tpl-type-baseboard = Baseboard 10 cm
 tx-create-sweep = Create Sweep
 tx-create-sweep-type = Create Sweep Type
+
+# Shafts
+category-shaft = Shafts
+tool-shaft = Shaft
+cmd-desc-shaft = Draws a vertical opening (duct, chase, stairwell) that cuts the floors, ceilings and roofs it passes through.
+tpl-type-shaft = Shaft
+tx-create-shaft = Create Shaft
+tx-create-shaft-type = Create Shaft Type

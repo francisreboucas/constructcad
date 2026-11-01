@@ -33,6 +33,7 @@ pub mod recovery;
 mod repair;
 pub mod roofing;
 mod schedule;
+pub mod shaft;
 pub mod sketch;
 pub mod sketch_edit;
 pub mod stair;

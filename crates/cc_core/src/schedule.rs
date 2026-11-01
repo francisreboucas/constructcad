@@ -159,6 +159,7 @@ impl ScheduleField {
             Category::Ramp => &[F::Width, F::Slope, F::Run, F::Volume],
             Category::Railing => &[F::Length, F::Height],
             Category::Sweep => &[F::Length, F::Volume],
+            Category::Shaft => &[F::Area, F::Height],
             Category::Pipe => &[F::Diameter, F::Length, F::System, F::Slope, F::Material],
             Category::Conduit => &[F::Diameter, F::Length, F::System, F::Material],
             Category::Component => &[
@@ -226,6 +227,7 @@ impl ScheduleField {
             Category::Component => vec![F::Mark, F::ComponentName, F::Type, F::Level, F::Width, F::Depth, F::Height],
             Category::Room => vec![F::Number, F::Name, F::Level, F::Area, F::Perimeter],
             Category::Mass => vec![F::Mark, F::Type, F::Level, F::Height, F::FloorCount, F::FloorArea, F::Volume],
+            Category::Shaft => vec![F::Mark, F::Type, F::Level, F::Area, F::Height],
             Category::Grid | Category::Dimension | Category::Text | Category::CadImport => Vec::new(),
         }
     }

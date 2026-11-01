@@ -188,7 +188,7 @@ pub enum UiCommand {
 }
 
 /// Model categories placed by a tool of their own (dimensions and text have their own commands).
-const PLACED: [Category; 19] = [
+const PLACED: [Category; 20] = [
     Category::Wall,
     Category::Door,
     Category::Window,
@@ -208,6 +208,7 @@ const PLACED: [Category; 19] = [
     Category::Pipe,
     Category::Conduit,
     Category::Mass,
+    Category::Shaft,
 ];
 
 impl UiCommand {
@@ -866,6 +867,7 @@ impl UiCommand {
             Place(Category::Stair) => "ST",
             Place(Category::Ramp) => "RP",
             Place(Category::Mass) => "MS",
+            Place(Category::Shaft) => "SF",
             Place(Category::Railing) => "RA",
             Place(Category::Sweep) => "SW",
             Place(Category::Room) => "RM",
@@ -949,6 +951,7 @@ impl UiCommand {
             Place(Category::Stair) => "stair_create",
             Place(Category::Ramp) => "ramp_create",
             Place(Category::Mass) => "mass_create",
+            Place(Category::Shaft) => "shaft_create",
             Place(Category::Railing) => "railing_create",
             Place(Category::Sweep) => "sweep_create",
             Place(Category::Room) => "room_create",
@@ -1082,7 +1085,7 @@ impl UiCommand {
             ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
             // A project without a ramp, mass or sweep type gets one when the tool starts.
             Place(category)
-                if !matches!(category, Category::Ramp | Category::Mass | Category::Sweep)
+                if !matches!(category, Category::Ramp | Category::Mass | Category::Sweep | Category::Shaft)
                     && Tool::for_category(project, category).is_none() =>
             {
                 Some(t!("msg-no-type"))
@@ -1308,6 +1311,7 @@ fn place_label(category: Category) -> String {
         Category::Component => t!("tool-component"),
         Category::CadImport => t!("action-import-cad"),
         Category::Mass => t!("tool-mass"),
+        Category::Shaft => t!("tool-shaft"),
     }
 }
 
@@ -1336,6 +1340,7 @@ fn place_description(category: Category) -> String {
         Category::Component => t!("cmd-desc-component"),
         Category::CadImport => t!("cmd-desc-import-cad"),
         Category::Mass => t!("cmd-desc-mass"),
+        Category::Shaft => t!("cmd-desc-shaft"),
     }
 }
 

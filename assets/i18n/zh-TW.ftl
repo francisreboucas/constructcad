@@ -2178,3 +2178,11 @@ hint-sweep-profile = 在命令面板中以 sweep_profile_set 命令（點或曲�
 tpl-type-baseboard = 踢腳板 10 公分
 tx-create-sweep = 建立掃掠輪廓
 tx-create-sweep-type = 建立掃掠輪廓類型
+
+# Shafts
+category-shaft = 豎井
+tool-shaft = 豎井
+cmd-desc-shaft = 繪製垂直開口（管道間、豎井、樓梯井），切穿其經過的樓板、天花板與屋頂。
+tpl-type-shaft = 豎井
+tx-create-shaft = 建立豎井
+tx-create-shaft-type = 建立豎井類型

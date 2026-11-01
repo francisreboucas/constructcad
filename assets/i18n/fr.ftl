@@ -2178,3 +2178,11 @@ hint-sweep-profile = Redessinez le profil avec la commande sweep_profile_set (po
 tpl-type-baseboard = Plinthe 10 cm
 tx-create-sweep = Créer un profil balayé
 tx-create-sweep-type = Créer un type de profil balayé
+
+# Shafts
+category-shaft = Trémies
+tool-shaft = Trémie
+cmd-desc-shaft = Dessine une ouverture verticale (gaine, trémie, cage d’escalier) qui coupe les planchers, plafonds et toitures qu’elle traverse.
+tpl-type-shaft = Trémie
+tx-create-shaft = Créer une trémie
+tx-create-shaft-type = Créer un type de trémie

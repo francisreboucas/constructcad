@@ -2180,3 +2180,11 @@ hint-sweep-profile = ແຕ້ມໂປຣໄຟລ໌ຄືນດ້ວຍຄ�
 tpl-type-baseboard = ບົວພື້ນ 10 ຊມ
 tx-create-sweep = ສ້າງໂປຣໄຟລ໌ກວາດ
 tx-create-sweep-type = ສ້າງປະເພດໂປຣໄຟລ໌ກວາດ
+
+# Shafts
+category-shaft = ຊ່ອງຕັ້ງ
+tool-shaft = ຊ່ອງຕັ້ງ
+cmd-desc-shaft = ແຕ້ມຊ່ອງເປີດຕາມແນວຕັ້ງ (ຊ່ອງທໍ່, ຊ່ອງຂັ້ນໄດ) ທີ່ຕັດພື້ນ, ເພດານ ແລະ ຫຼັງຄາທີ່ມັນຜ່ານ.
+tpl-type-shaft = ຊ່ອງຕັ້ງ
+tx-create-shaft = ສ້າງຊ່ອງຕັ້ງ
+tx-create-shaft-type = ສ້າງປະເພດຊ່ອງຕັ້ງ

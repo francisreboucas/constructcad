@@ -2178,3 +2178,11 @@ hint-sweep-profile = Narysuj profil ponownie poleceniem sweep_profile_set (punkt
 tpl-type-baseboard = Listwa przypodłogowa 10 cm
 tx-create-sweep = Utwórz profil przeciągnięty
 tx-create-sweep-type = Utwórz typ profilu przeciągniętego
+
+# Shafts
+category-shaft = Szyby
+tool-shaft = Szyb
+cmd-desc-shaft = Rysuje pionowy otwór (szyb, kanał, dusza schodów), który przecina stropy, sufity i dachy, przez które przechodzi.
+tpl-type-shaft = Szyb
+tx-create-shaft = Utwórz szyb
+tx-create-shaft-type = Utwórz typ szybu

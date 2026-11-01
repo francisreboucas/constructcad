@@ -500,6 +500,15 @@ fn create(
                 ..Default::default()
             },
         ),
+        Category::Shaft => crate::actions::run_command(
+            state,
+            cc_engine::commands::shaft::ShaftCreate {
+                curves: Some(curves),
+                level: Some(Ref::Id(level.0)),
+                type_ref: Some(Ref::Id(type_id.0)),
+                ..Default::default()
+            },
+        ),
         _ => crate::actions::run_command(state, RoofCreate { sketch, overhang: None, holes: Vec::new() }),
     };
     out.and_then(|o| o["id"].as_u64()).map(ElementId)

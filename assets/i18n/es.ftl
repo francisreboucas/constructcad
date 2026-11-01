@@ -2178,3 +2178,11 @@ hint-sweep-profile = Redibuje el perfil con el comando sweep_profile_set (puntos
 tpl-type-baseboard = Zócalo 10 cm
 tx-create-sweep = Crear perfil barrido
 tx-create-sweep-type = Crear tipo de perfil barrido
+
+# Shafts
+category-shaft = Patinillos
+tool-shaft = Patinillo
+cmd-desc-shaft = Dibuja una abertura vertical (patinillo, ducto, hueco de escalera) que corta los forjados, techos y cubiertas por donde pasa.
+tpl-type-shaft = Patinillo
+tx-create-shaft = Crear patinillo
+tx-create-shaft-type = Crear tipo de patinillo

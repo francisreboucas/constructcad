@@ -92,6 +92,7 @@ fn element_is_valid(e: &Element) -> bool {
         ElementKind::CadImport(c) => c.is_valid(),
         ElementKind::Mass(m) => m.is_valid(),
         ElementKind::Sweep(s) => s.is_valid(),
+        ElementKind::Shaft(s) => s.is_valid() && top_ok(s.top),
     }
 }
 
@@ -152,7 +153,7 @@ impl Project {
                 TypeData::Grid { bubble } => repairs += usize::from(fix_positive(bubble, 8.0)),
                 TypeData::Dimension { text_size } => repairs += usize::from(fix_positive(text_size, 2.5)),
                 TypeData::Text { size, .. } => repairs += usize::from(fix_positive(size, 2.5)),
-                TypeData::Room {} | TypeData::CadImport {} | TypeData::Mass { .. } => {}
+                TypeData::Room {} | TypeData::CadImport {} | TypeData::Mass { .. } | TypeData::Shaft {} => {}
                 TypeData::Column { section, .. } => match section {
                     crate::ColumnSection::Rectangular { width, depth } => {
                         repairs += usize::from(fix_positive(width, 0.2)) + usize::from(fix_positive(depth, 0.2));
@@ -312,6 +313,14 @@ impl Project {
             .map(|e| e.id)
             .collect();
         for e in self.elements.values_mut() {
+            // Shaft cuts are derived; bad ones from a file go (the next edit writes them again).
+            if let Some(cuts) = e.shaft_cuts_mut() {
+                let before = cuts.len();
+                cuts.retain(|c| {
+                    c.len() >= 3 && c.len() <= crate::shaft::MAX_OUTLINE && c.iter().all(|p| p.is_finite())
+                });
+                repairs += before - cuts.len();
+            }
             match &mut e.kind {
                 ElementKind::Stair(s) => repairs += s.layout.repair(),
                 ElementKind::Ramp(r) => repairs += r.layout.repair(),

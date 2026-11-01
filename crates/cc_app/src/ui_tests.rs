@@ -1526,3 +1526,30 @@ fn a_hosted_railing_is_detached_from_its_properties() {
     };
     assert!(!hosted(&harness));
 }
+
+/// The shaft tool: a project without a shaft type gets one when the tool
+/// starts, the sketch makes a shaft, and the shaft cuts the ceiling it
+/// passes through.
+#[test]
+fn the_shaft_tool_cuts_a_ceiling() {
+    use crate::commands::UiCommand;
+    use cc_core::sketch::SketchCurve;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    let level = state.active_level().unwrap();
+    let outline = serde_json::json!([[80, 0], [86, 0], [86, 6], [80, 6]]);
+    let ceiling =
+        state.session.execute("ceiling_create", serde_json::json!({"boundary": outline, "level": level.0})).unwrap();
+    let ceiling = cc_core::ElementId(ceiling["id"].as_u64().unwrap());
+    assert_eq!(UiCommand::Place(cc_core::Category::Shaft).unavailable(&state), None);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Shaft);
+    assert!(state.project().default_type(cc_core::Category::Shaft).is_some());
+    let circle = SketchCurve::Circle { center: glam::DVec2::new(83.0, 3.0), radius: 0.6 };
+    state.sketch.as_mut().unwrap().add(vec![circle]);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(state.sketch.is_none(), "{}", state.message);
+    let shaft = *state.selection.iter().next().unwrap();
+    assert!(matches!(state.project().element(shaft).unwrap().kind, cc_core::ElementKind::Shaft(_)));
+    assert_eq!(state.project().element(ceiling).unwrap().shaft_cuts().len(), 1);
+}
