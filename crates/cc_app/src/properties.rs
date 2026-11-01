@@ -586,8 +586,13 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
             }
             let railings = state.project().railings_of(id).count();
             if railings == 0 && ui.button(t!("action-stair-railings")).clicked() {
-                let command =
-                    cc_engine::commands::stair::StairRailingsAdd { id: id.0, side: None, type_ref: None, inset: None };
+                let command = cc_engine::commands::stair::StairRailingsAdd {
+                    id: id.0,
+                    side: None,
+                    type_ref: None,
+                    inset: None,
+                    near: None,
+                };
                 actions::run_command(state, command);
             }
         }
@@ -620,8 +625,13 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
             }
             let railings = state.project().railings_of(id).count();
             if railings == 0 && ui.button(t!("action-stair-railings")).clicked() {
-                let command =
-                    cc_engine::commands::stair::StairRailingsAdd { id: id.0, side: None, type_ref: None, inset: None };
+                let command = cc_engine::commands::stair::StairRailingsAdd {
+                    id: id.0,
+                    side: None,
+                    type_ref: None,
+                    inset: None,
+                    near: None,
+                };
                 actions::run_command(state, command);
             }
         }
@@ -668,6 +678,39 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                     let text =
                         host.map_or(String::new(), |(c, mark)| format!("{} {mark}", tr(c.key())).trim().to_string());
                     readonly_row(ui, &t!("prop-railing-host"), text);
+                    // The side it follows, walking up; or off the host, keeping its plan path.
+                    let mut side = h.side;
+                    row(ui, &t!("prop-railing-side"), |ui| {
+                        egui::ComboBox::from_id_salt(("railing-side", id.0)).selected_text(side_name(side)).show_ui(
+                            ui,
+                            |ui| {
+                                for s in cc_core::StairSide::ALL {
+                                    ui.selectable_value(&mut side, s, side_name(s));
+                                }
+                            },
+                        );
+                    });
+                    if side != h.side {
+                        let name = if side == cc_core::StairSide::Left { "left" } else { "right" };
+                        let command = cc_engine::commands::stair::RailingHostSet {
+                            id: id.0,
+                            host: None,
+                            detach: false,
+                            side: Some(name.into()),
+                            inset: None,
+                        };
+                        actions::run_command(state, command);
+                    }
+                    if ui.button(t!("action-railing-detach")).on_hover_text(t!("action-railing-detach-tip")).clicked() {
+                        let command = cc_engine::commands::stair::RailingHostSet {
+                            id: id.0,
+                            host: None,
+                            detach: true,
+                            side: None,
+                            inset: None,
+                        };
+                        actions::run_command(state, command);
+                    }
                 }
             });
             section(ui, "dimensions", t!("section-dimensions"), |ui| {
@@ -2090,4 +2133,12 @@ fn viewport_props(ui: &mut Ui, state: &mut AppState, sheet: ViewId, index: usize
     // The placed view's own properties: its scale, graphics, crop and phase
     // change here, and the sheet follows.
     view_sections(ui, state, vp.view);
+}
+
+/// A stair side's name, walking up.
+fn side_name(side: cc_core::StairSide) -> String {
+    match side {
+        cc_core::StairSide::Left => t!("stair-turn-left"),
+        cc_core::StairSide::Right => t!("stair-turn-right"),
+    }
 }

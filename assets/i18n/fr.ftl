@@ -1816,6 +1816,12 @@ section-stair-build = Construction
 section-stair-rules = Règles des marches
 action-stair-railings = Ajouter des garde-corps
 prop-railing-host = Hôte
+opt-railing-on-host = Sur un escalier ou une rampe
+opt-railing-both-sides = Des deux côtés
+hint-railing-host = Cliquez un escalier ou une rampe : le garde-corps va du côté le plus proche du clic et le suit
+prop-railing-side = Côté
+action-railing-detach = Détacher de l’hôte
+action-railing-detach-tip = Le garde-corps ne suit plus l’escalier ou la rampe et garde son tracé en plan
 
 ## Rampes
 category-ramp = Rampes

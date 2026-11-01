@@ -234,6 +234,51 @@ pub struct StairRailingsAdd {
     /// Distance in from the edge of the stair, meters (default 0.05).
     #[serde(default)]
     pub inset: Option<f64>,
+    /// A point `[x, y]` in plan: without `side`, the railing goes on the
+    /// side nearest it (where a click picked the stair).
+    #[serde(default)]
+    pub near: Option<Point>,
+}
+
+/// The plan path of a railing along `side` of stair or ramp `el`, `inset` in from its edge.
+fn host_path(p: &cc_core::Project, el: &cc_core::Element, side: StairSide, inset: f64) -> Result<Vec<DVec2>> {
+    let no_type = || EngineError::invalid("the element has no type of its category");
+    let path = match &el.kind {
+        ElementKind::Stair(st) => cc_geom::stair_geom(p, el, st).ok_or_else(no_type)?.railing_path(side, inset),
+        ElementKind::Ramp(r) => cc_geom::ramp_geom(p, el, r).ok_or_else(no_type)?.railing_path(side, inset),
+        _ => return Err(EngineError::invalid(format!("element {} is not a stair or a ramp", el.id.0))),
+    };
+    Ok(path.iter().map(|q| q.truncate()).collect())
+}
+
+/// Distance from `q` to a polyline.
+fn distance_to(path: &[DVec2], q: DVec2) -> f64 {
+    path.windows(2)
+        .map(|w| cc_geom::polygon::closest_on_segment(w[0], w[1], q).0.distance(q))
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// The side of stair or ramp `el` whose railing path passes nearest `q`.
+fn nearest_side(p: &cc_core::Project, el: &cc_core::Element, inset: f64, q: DVec2) -> Result<StairSide> {
+    let left = distance_to(&host_path(p, el, StairSide::Left, inset)?, q);
+    let right = distance_to(&host_path(p, el, StairSide::Right, inset)?, q);
+    Ok(if right < left { StairSide::Right } else { StairSide::Left })
+}
+
+fn parse_side(side: &str) -> Result<StairSide> {
+    match side {
+        "left" => Ok(StairSide::Left),
+        "right" => Ok(StairSide::Right),
+        other => Err(EngineError::invalid(format!("side must be left or right, not '{other}'"))),
+    }
+}
+
+fn check_inset(inset: f64) -> Result<f64> {
+    let inset = finite(inset, "inset")?;
+    if inset.abs() >= 1.0 {
+        return Err(EngineError::invalid("inset must be under 1 m"));
+    }
+    Ok(inset)
 }
 
 impl Command for StairRailingsAdd {
@@ -244,33 +289,20 @@ impl Command for StairRailingsAdd {
         let Some(el) = p.element(ElementId(self.id)) else {
             return Err(EngineError::not_found(format!("no element {}", self.id)));
         };
-        let sides = match self.side.as_deref() {
-            None | Some("both") => vec![StairSide::Left, StairSide::Right],
-            Some("left") => vec![StairSide::Left],
-            Some("right") => vec![StairSide::Right],
-            Some(other) => {
-                return Err(EngineError::invalid(format!("side must be left, right or both, not '{other}'")));
-            }
+        let inset = check_inset(self.inset.unwrap_or(0.05))?;
+        let sides = match (self.side.as_deref(), self.near) {
+            (None, Some(q)) => vec![nearest_side(p, el, inset, point(q)?)?],
+            (None | Some("both"), _) => vec![StairSide::Left, StairSide::Right],
+            (Some(side), _) => vec![
+                parse_side(side)
+                    .map_err(|_| EngineError::invalid(format!("side must be left, right or both, not '{side}'")))?,
+            ],
         };
-        let inset = finite(self.inset.unwrap_or(0.05), "inset")?;
-        if inset.abs() >= 1.0 {
-            return Err(EngineError::invalid("inset must be under 1 m"));
-        }
         let type_id = refs::type_of(p, Category::Railing, self.type_ref.as_ref())?;
-        let no_type = || EngineError::invalid("the element has no type of its category");
-        let path = |side: StairSide| -> Result<Vec<glam::DVec3>> {
-            match &el.kind {
-                ElementKind::Stair(st) => {
-                    Ok(cc_geom::stair_geom(p, el, st).ok_or_else(no_type)?.railing_path(side, inset))
-                }
-                ElementKind::Ramp(r) => Ok(cc_geom::ramp_geom(p, el, r).ok_or_else(no_type)?.railing_path(side, inset)),
-                _ => Err(EngineError::invalid(format!("element {} is not a stair or a ramp", el.id.0))),
-            }
-        };
         let (host, level) = (el.id, el.level);
         let mut railings: Vec<(StairSide, Vec<DVec2>)> = Vec::new();
         for side in sides {
-            let plan: Vec<DVec2> = path(side)?.iter().map(|q| q.truncate()).collect();
+            let plan = host_path(p, el, side, inset)?;
             if plan.len() >= 2 {
                 railings.push((side, plan));
             }
@@ -288,5 +320,97 @@ impl Command for StairRailingsAdd {
                 .collect::<Vec<_>>())
         })?;
         Ok(json!({ "ids": ids.iter().map(|id| id.0).collect::<Vec<_>>() }))
+    }
+}
+
+/// Put a railing on a stair or ramp (`host`), or take it off (`detach`).
+/// On a host it follows the host's `side` (default: the side its path runs
+/// nearest), `inset` in from the edge, and moves, turns and goes with it;
+/// taken off, it keeps the path it had in plan, at its level plus
+/// `base_offset`. A hosted railing can also change only its side or inset.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct RailingHostSet {
+    /// Railing element id.
+    pub id: u64,
+    /// Stair or ramp element id to follow.
+    #[serde(default)]
+    pub host: Option<u64>,
+    /// Take the railing off its host.
+    #[serde(default)]
+    pub detach: bool,
+    /// `left` or `right`, walking up.
+    #[serde(default)]
+    pub side: Option<String>,
+    /// Distance in from the edge of the host, meters (default 0.05, or the railing's own).
+    #[serde(default)]
+    pub inset: Option<f64>,
+}
+
+impl Command for RailingHostSet {
+    const NAME: &'static str = "railing_host_set";
+    const KIND: CommandKind = CommandKind::Edit;
+    fn run(self, s: &mut Session) -> Result<Value> {
+        let p = s.project();
+        let id = ElementId(self.id);
+        let (railing_el, railing) = match p.element(id) {
+            Some(e) => match &e.kind {
+                ElementKind::Railing(r) => (e, r.clone()),
+                _ => return Err(EngineError::invalid(format!("element {} is not a railing", self.id))),
+            },
+            None => return Err(EngineError::not_found(format!("no element {}", self.id))),
+        };
+        if self.detach && self.host.is_some() {
+            return Err(EngineError::invalid("give host or detach, not both"));
+        }
+        // The path as it runs now (on its host, if any): what a detached railing keeps.
+        let current: Vec<DVec2> = cc_geom::railing_path(p, railing_el, &railing).iter().map(|q| q.truncate()).collect();
+        if self.detach {
+            if railing.stair.is_none() {
+                return Err(EngineError::invalid("the railing has no host"));
+            }
+            edit(s, t!("tx-modify"), |e| {
+                if let Some(ElementKind::Railing(r)) = e.element_mut(id).map(|el| &mut el.kind) {
+                    r.stair = None;
+                    r.path = current.clone();
+                }
+                Ok(())
+            })?;
+            return Ok(json!({ "id": self.id, "host": Value::Null }));
+        }
+        let host_id = match (self.host, railing.stair) {
+            (Some(h), _) => ElementId(h),
+            (None, Some(h)) => h.host,
+            (None, None) => return Err(EngineError::invalid("give the stair or ramp to put the railing on")),
+        };
+        let host = p.element(host_id).ok_or_else(|| EngineError::not_found(format!("no element {}", host_id.0)))?;
+        let inset = check_inset(self.inset.or(railing.stair.map(|h| h.inset)).unwrap_or(0.05))?;
+        let side = match (self.side.as_deref(), railing.stair) {
+            (Some(side), _) => parse_side(side)?,
+            (None, Some(h)) if h.host == host_id => h.side,
+            // The side its path runs nearest: the middle of its path.
+            (None, _) => {
+                let mid = current.get(current.len() / 2).copied().unwrap_or_default();
+                nearest_side(p, host, inset, mid)?
+            }
+        };
+        let path = host_path(p, host, side, inset)?;
+        if path.len() < 2 {
+            return Err(EngineError::invalid("the element has no side for a railing"));
+        }
+        let level = host.level;
+        edit(s, t!("tx-modify"), |e| {
+            if let Some(el) = e.element_mut(id) {
+                el.level = level;
+                if let ElementKind::Railing(r) = &mut el.kind {
+                    r.stair = Some(StairRailing { host: host_id, side, inset });
+                    r.path = path.clone();
+                    r.base_offset = 0.0;
+                }
+            }
+            Ok(())
+        })?;
+        let side = if side == StairSide::Left { "left" } else { "right" };
+        Ok(json!({ "id": self.id, "host": host_id.0, "side": side, "inset": inset }))
     }
 }

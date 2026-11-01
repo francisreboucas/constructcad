@@ -158,6 +158,14 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 - **Da massa ao edifício**: com massas selecionadas, *Estudo de massa → Paredes por face* põe uma parede em cada lado de uma extrusão (face externa na face da massa, com a altura dela, unidas nos cantos), *Lajes dos pisos de massa* uma laje em cada piso de massa (o contorno da massa naquele nível, com o topo no nível) e *Telhado por face* um telhado plano no topo. Paredes, lajes e telhado são elementos comuns: mude tipo, altura e forma como de costume. Os lados inclinados de uma transição não recebem paredes.
 - Mover, girar, espelhar, copiar e colar funcionam como nos outros elementos. Excluir um nível remove os pisos de massa dele. A exportação IFC deixa as massas de fora.
 
+## Guarda-corpos e seus hospedeiros
+
+*Arquitetura → Circulação → Guarda-corpo* (`RA`) desenha um guarda-corpo pelos pontos clicados, no nível mais o deslocamento da base. Um guarda-corpo também pode acompanhar uma escada ou rampa (seu hospedeiro): ele corre pelo lado do hospedeiro na inclinação dos bocéis ou da rampa, contorna os patamares e se move, muda e é excluído com ele.
+
+- **Numa escada ou rampa**: marque *Numa escada ou rampa* na barra de opções da ferramenta e clique numa escada ou rampa em planta. O guarda-corpo vai no lado mais próximo do clique, ou nos dois com *Dos dois lados*. As propriedades da escada ou rampa também têm *Adicionar guarda-corpos*, para os dois lados de uma vez.
+- **Lado e hospedeiro**: as propriedades de um guarda-corpo hospedado mostram o hospedeiro e o *Lado* (subindo), que pode ser trocado. *Soltar do hospedeiro* o torna um guarda-corpo comum, que mantém o caminho que tem em planta.
+- Pela linha de comando ou MCP: `stair_railings_add` (com `near`, para o lado mais próximo de um ponto) e `railing_host_set` (põe um guarda-corpo existente numa escada ou rampa, no lado por onde seu caminho passa se `side` não for dado; troca o lado ou o recuo; ou o solta com `detach`).
+
 ## Perfis varridos
 
 *Arquitetura → Modelo → Perfil varrido* (`SW`) leva um perfil ao longo de um caminho desenhado em planta: rodapés, molduras de teto, testeiras, calhas, rufos. Um projeto sem tipo de perfil varrido ganha um na primeira vez (um rodapé de 1,5 × 10 cm).

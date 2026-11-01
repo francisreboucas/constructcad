@@ -158,6 +158,14 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 - **From the mass to the building**: with masses selected, *Massing → Walls by Face* puts a wall on each side of an extrusion (exterior face on the mass's face, as tall as the mass, joined at the corners), *Floors from Mass Floors* a floor on each mass floor (the mass's outline at that level, its top at the level) and *Roof by Face* a flat roof on the top. The walls, floors and roof are ordinary elements: change their types, heights and shapes as usual. A loft's slanted sides take no walls.
 - Moving, rotating, mirroring, copying and pasting work as for other elements. Deleting a level removes its mass floors. IFC export leaves masses out.
 
+## Railings and their hosts
+
+*Architecture → Circulation → Railing* (`RA`) draws a railing along the points you click, at its level plus the base offset. A railing can also follow a stair or ramp (its host): it runs along the host's side at the pitch of the nosings or of the slope, turns at its landings, and moves, changes and is deleted with it.
+
+- **On a stair or ramp**: tick *On a stair or ramp* in the railing tool's options bar, then click a stair or ramp in a plan. The railing goes on the side nearest the click, or on both with *Both sides*. A stair's or ramp's properties also have *Add railings* for both sides at once.
+- **Side and host**: a hosted railing's properties show its host and its *Side* (walking up), which can be switched. *Detach from Host* makes it an ordinary railing that keeps the path it has in plan.
+- From the command line or MCP: `stair_railings_add` (with `near` for the side nearest a point) and `railing_host_set` (put an existing railing on a stair or ramp, on the side its path runs along unless `side` is given; change its side or inset; or `detach` it).
+
 ## Swept profiles
 
 *Architecture → Model → Sweep* (`SW`) carries a profile along a path drawn in a plan: baseboards, crown moldings, fascia boards, gutters, copings. A project without a sweep type gets one the first time (a baseboard 1.5 × 10 cm).

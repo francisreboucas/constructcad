@@ -1816,6 +1816,12 @@ section-stair-build = Konstrukcja
 section-stair-rules = Zasady stopni
 action-stair-railings = Dodaj balustrady
 prop-railing-host = Element nośny
+opt-railing-on-host = Na schodach lub pochylni
+opt-railing-both-sides = Obie strony
+hint-railing-host = Kliknij schody lub pochylnię: balustrada stanie po stronie najbliższej kliknięciu i będzie za nimi podążać
+prop-railing-side = Strona
+action-railing-detach = Odłącz od hosta
+action-railing-detach-tip = Balustrada przestaje podążać za schodami lub pochylnią i zachowuje swoją ścieżkę w rzucie
 
 ## Pochylnie
 category-ramp = Pochylnie
