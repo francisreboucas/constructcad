@@ -2253,7 +2253,7 @@ fn grid_ends_align_to_a_reference() {
 #[test]
 fn stairs_shapes_rules_and_railings() {
     let mut s = Session::default();
-    let shapes = ["straight", "straight_landing", "l_shaped", "u_shaped", "spiral"];
+    let shapes = ["straight", "straight_landing", "l_shaped", "u_shaped", "three_flight", "spiral"];
     for (k, shape) in shapes.iter().enumerate() {
         let st = run(&mut s, "stair_create", json!({"start": [k as f64 * 5.0, 0.0], "shape": shape}));
         assert_eq!(st["params"]["layout"]["shape"], json!(shape_name(shape)), "{st}");
@@ -2355,11 +2355,49 @@ fn stairs_shapes_rules_and_railings() {
     assert_eq!(back["risers"], 17);
 }
 
+/// A stair given its riser count and tread: the riser height is the height
+/// over the risers, the run follows the tread; element_set changes them and
+/// a three-flight stair splits them between its flights.
+#[test]
+fn stairs_take_a_riser_count_and_a_tread() {
+    let mut s = Session::default();
+    // 3.00 m to the level above in 20 risers of 15 cm on 30 cm treads.
+    let args = json!({"start": [0, 0], "risers": 20, "tread": 0.30});
+    let st = run(&mut s, "stair_create", args);
+    let sid = id(&st);
+    let check = run(&mut s, "stair_check", json!({"id": sid}));
+    assert_eq!(check["risers"], 20, "{check}");
+    assert!((check["riser"].as_f64().unwrap() - 0.15).abs() < 1e-9);
+    assert!((check["run"].as_f64().unwrap() - 19.0 * 0.30).abs() < 1e-9, "{check}");
+    // Back to the type's: the fewest risers within 18 cm (17) and its 28 cm tread.
+    let layout = json!({"layout": {"risers": 0, "tread": 0.0}});
+    run(&mut s, "element_set", json!({"id": sid, "params": layout}));
+    let check = run(&mut s, "stair_check", json!({"id": sid}));
+    assert_eq!(check["risers"], 17);
+    assert!((check["tread"].as_f64().unwrap() - 0.28).abs() < 1e-9);
+    for bad in [json!({"risers": 0}), json!({"risers": 201}), json!({"tread": -0.2})] {
+        let mut args = bad.clone();
+        args["start"] = json!([0, 0]);
+        assert_eq!(fails(&mut s, "stair_create", args), ErrorCode::InvalidArguments, "{bad}");
+    }
+    // Three flights of 6, 5 and 6 risers (two of them reach the landings).
+    let args = json!({"start": [5, 0], "shape": "three_flight", "risers": 18, "split": 6, "split2": 5});
+    let three = run(&mut s, "stair_create", args);
+    let p = s.project();
+    let el = p.element(cc_core::ElementId(id(&three))).unwrap();
+    let cc_core::ElementKind::Stair(st) = &el.kind else { panic!("not a stair") };
+    let g = cc_geom::stair_geom(p, el, st).unwrap();
+    let treads: Vec<usize> = g.flights.iter().map(|f| f.treads).collect();
+    assert_eq!(treads, [5, 4, 6]);
+    assert_eq!(g.steps.iter().filter(|st| st.kind == cc_geom::StepKind::Landing).count(), 2);
+}
+
 fn shape_name(shape: &str) -> &'static str {
     match shape {
         "straight_landing" => "StraightLanding",
         "l_shaped" => "LShaped",
         "u_shaped" => "UShaped",
+        "three_flight" => "ThreeFlight",
         "spiral" => "Spiral",
         _ => "Straight",
     }
