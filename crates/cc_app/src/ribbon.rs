@@ -67,6 +67,7 @@ fn tool_icon(tool: &Tool) -> Icon {
         Tool::Measure => Icon::Measure,
         Tool::JoinGeometry { unjoin: false } => Icon::JoinGeometry,
         Tool::JoinGeometry { unjoin: true } => Icon::UnjoinGeometry,
+        Tool::AttachTop => Icon::AttachTop,
         Tool::Paste => Icon::Paste,
         Tool::Dimension { mode, .. } => dimension_icon(*mode),
         Tool::MatchType => Icon::MatchType,
@@ -705,7 +706,9 @@ fn modify_tab(ui: &mut Ui, state: &mut AppState) {
         stacks(ui, state, &[transforms, picks, &[Pin, Unpin, Delete]]);
     });
     group(ui, t!("group-measure"), |ui| command_button(ui, state, Measure));
-    group(ui, t!("group-geometry"), |ui| command_buttons(ui, state, &[JoinGeometry, UnjoinGeometry]));
+    group(ui, t!("group-geometry"), |ui| {
+        command_buttons(ui, state, &[JoinGeometry, UnjoinGeometry, AttachTop, DetachTop])
+    });
     group(ui, t!("group-sketch"), |ui| command_button(ui, state, EditBoundary));
     group(ui, t!("group-group"), |ui| command_buttons(ui, state, &[Group, Ungroup]));
     group(ui, t!("group-phasing"), |ui| command_button(ui, state, Demolish));
@@ -1118,6 +1121,9 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
                     (false, true) => "hint-unjoin-second",
                 };
                 ui.label(theme::muted(crate::i18n::tr(key)));
+            }
+            Tool::AttachTop => {
+                ui.label(theme::muted(t!("hint-attach-top")));
             }
             Tool::Paste => {
                 ui.label(theme::muted(t!("hint-paste")));

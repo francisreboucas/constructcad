@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Disegna un’apertura verticale (cavedio, cavedio impianti, van
 tpl-type-shaft = Cavedio
 tx-create-shaft = Crea cavedio
 tx-create-shaft-type = Crea tipo di cavedio
+
+# Attached wall tops
+tool-attach-top = Collega sommità
+tool-detach-top = Scollega sommità
+cmd-desc-attach-top = Collega la sommità dei muri selezionati a una copertura, un controsoffitto o un solaio: sotto di esso il muro sale o scende fino al suo intradosso, seguendone la pendenza.
+cmd-desc-detach-top = I muri selezionati tornano alla propria sommità.
+hint-attach-top = Fai clic sulla copertura, il controsoffitto o il solaio a cui collegare i muri · Esc annulla
+why-select-walls = Seleziona uno o più muri.
+why-select-attached-walls = Seleziona muri con la sommità collegata.
+prop-attached-to = Sommità collegata a
+tx-wall-attach = Collega sommità del muro

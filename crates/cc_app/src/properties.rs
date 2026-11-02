@@ -1620,6 +1620,20 @@ fn wall_constraints(ui: &mut Ui, state: &mut AppState, el: &Element, w: &cc_core
         }
     });
 
+    // The roof, ceiling or floor the top is attached to, if any.
+    if let Some(target) = w.attach_top {
+        let text = state
+            .project()
+            .element(target)
+            .map(|e| format!("{} {}", tr(e.category().key()), e.mark).trim().to_string())
+            .unwrap_or_default();
+        readonly_row(ui, &t!("prop-attached-to"), text);
+        if ui.button(t!("tool-detach-top")).clicked() {
+            let command = cc_engine::commands::modify::WallAttach { ids: vec![id.0], top: None, detach: true };
+            crate::actions::run_command(state, command);
+        }
+    }
+
     // Top: unconnected (explicit height) or attached to a level.
     let levels: Vec<_> = state.project().levels.iter().map(|l| (l.id, l.name.clone())).collect();
     let top_label = |top: WallTop| match top {

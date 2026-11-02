@@ -890,3 +890,63 @@ impl Command for ElementsPaste {
         Ok(json!({ "created": ids_json(&created) }))
     }
 }
+
+/// Attach the tops of walls to a roof, ceiling or floor (`top`), or take
+/// them off it (`detach`). Under the element a wall rises or drops to its
+/// underside, following its slope (a gable wall ends in a triangle);
+/// elsewhere it keeps its own top. The walls follow the element when it
+/// changes.
+#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+pub struct WallAttach {
+    /// Wall ids.
+    pub ids: Vec<u64>,
+    /// The roof, ceiling or floor to attach the tops to.
+    #[serde(default)]
+    pub top: Option<u64>,
+    /// Take the tops off what they are attached to.
+    #[serde(default)]
+    pub detach: bool,
+}
+
+impl Command for WallAttach {
+    const NAME: &'static str = "wall_attach";
+    const KIND: CommandKind = CommandKind::Edit;
+    fn run(self, s: &mut Session) -> Result<Value> {
+        let p = s.project();
+        let target = match (self.top, self.detach) {
+            (Some(_), true) => return Err(EngineError::invalid("give top or detach, not both")),
+            (None, false) => {
+                return Err(EngineError::invalid("give the roof, ceiling or floor to attach to, or detach"));
+            }
+            (Some(t), false) => {
+                let t = refs::element(p, t)?;
+                match p.element(t).map(|e| &e.kind) {
+                    Some(ElementKind::Roof(_) | ElementKind::Ceiling(_) | ElementKind::Floor(_)) => Some(t),
+                    _ => return Err(EngineError::invalid(format!("element {} is not a roof, ceiling or floor", t.0))),
+                }
+            }
+            (None, true) => None,
+        };
+        if self.ids.is_empty() {
+            return Err(EngineError::invalid("no walls given"));
+        }
+        let mut walls = Vec::with_capacity(self.ids.len());
+        for id in &self.ids {
+            let id = refs::element(p, *id)?;
+            if !matches!(p.element(id).map(|e| &e.kind), Some(ElementKind::Wall(_))) {
+                return Err(EngineError::invalid(format!("element {} is not a wall", id.0)));
+            }
+            walls.push(id);
+        }
+        edit(s, t!("tx-wall-attach"), |e| {
+            for id in &walls {
+                if let Some(ElementKind::Wall(w)) = e.element_mut(*id).map(|x| &mut x.kind) {
+                    w.attach_top = target;
+                }
+            }
+            Ok(())
+        })?;
+        Ok(json!({ "ids": walls.iter().map(|id| id.0).collect::<Vec<_>>(), "top": target.map(|t| t.0) }))
+    }
+}

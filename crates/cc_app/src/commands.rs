@@ -144,6 +144,8 @@ pub enum UiCommand {
     Measure,
     JoinGeometry,
     UnjoinGeometry,
+    AttachTop,
+    DetachTop,
     Group,
     Ungroup,
     Pin,
@@ -297,6 +299,8 @@ impl UiCommand {
             Measure,
             JoinGeometry,
             UnjoinGeometry,
+            AttachTop,
+            DetachTop,
             Group,
             Ungroup,
             Pin,
@@ -452,6 +456,7 @@ impl UiCommand {
             Group => Icon::Group,
             Ungroup => Icon::Ungroup,
             UnjoinGeometry => Icon::UnjoinGeometry,
+            AttachTop | DetachTop => Icon::AttachTop,
             Pin => Icon::Pin,
             Unpin => Icon::Unpin,
             Delete => Icon::Delete,
@@ -496,7 +501,7 @@ impl UiCommand {
             }
             ImportIfc | ImportCad | ImportImage | ImportSkp | LoadComponent => Some(Badge::Import),
             ExportPdf | ExportSvg | ExportImage | ExportDxf | AnalyticalExport => Some(Badge::Export),
-            Delete => Some(Badge::Remove),
+            Delete | DetachTop => Some(Badge::Remove),
             _ => None,
         }
     }
@@ -609,6 +614,8 @@ impl UiCommand {
             Group => t!("action-group"),
             Ungroup => t!("action-ungroup"),
             UnjoinGeometry => t!("tool-unjoin-geometry"),
+            AttachTop => t!("tool-attach-top"),
+            DetachTop => t!("tool-detach-top"),
             Pin => t!("action-pin"),
             Unpin => t!("action-unpin"),
             Delete => t!("action-delete"),
@@ -779,6 +786,8 @@ impl UiCommand {
             Group => t!("cmd-desc-group"),
             Ungroup => t!("cmd-desc-ungroup"),
             UnjoinGeometry => t!("cmd-desc-unjoin-geometry"),
+            AttachTop => t!("cmd-desc-attach-top"),
+            DetachTop => t!("cmd-desc-detach-top"),
             Pin => t!("cmd-desc-pin"),
             Unpin => t!("cmd-desc-unpin"),
             Delete => t!("cmd-desc-delete"),
@@ -1013,6 +1022,7 @@ impl UiCommand {
             Group => "group_create",
             Ungroup => "group_ungroup",
             UnjoinGeometry => "geometry_unjoin",
+            AttachTop | DetachTop => "wall_attach",
             Pin | Unpin => "elements_pin",
             Delete | Cut => "elements_delete",
             Paste => "elements_paste",
@@ -1049,7 +1059,15 @@ impl UiCommand {
         }
         let has_sel = !state.selection.is_empty();
         let project = state.project();
+        let walls = || {
+            state.selection.iter().filter_map(|id| project.element(*id)).filter_map(|e| match &e.kind {
+                cc_core::ElementKind::Wall(w) => Some(w),
+                _ => None,
+            })
+        };
         match self {
+            AttachTop if walls().next().is_none() => Some(t!("why-select-walls")),
+            DetachTop if !walls().any(|w| w.attach_top.is_some()) => Some(t!("why-select-attached-walls")),
             Undo if state.sketch.as_ref().is_some_and(|s| !s.can_undo()) => Some(t!("why-nothing-undo")),
             Redo if state.sketch.as_ref().is_some_and(|s| !s.can_redo()) => Some(t!("why-nothing-redo")),
             Undo | Redo if state.sketch.is_some() => None,
@@ -1245,6 +1263,7 @@ impl UiCommand {
             Measure => *tool == Tool::Measure,
             JoinGeometry => *tool == Tool::JoinGeometry { unjoin: false },
             UnjoinGeometry => *tool == Tool::JoinGeometry { unjoin: true },
+            AttachTop => *tool == Tool::AttachTop,
             Paste => *tool == Tool::Paste,
             MatchType => *tool == Tool::MatchType,
             Demolish => *tool == Tool::Demolish,
@@ -1575,6 +1594,8 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
             state.set_tool(Tool::JoinGeometry { unjoin: command == UnjoinGeometry });
             state.message = t!("hint-join-pick");
         }
+        AttachTop => crate::modify::start_attach(state),
+        DetachTop => crate::modify::detach_tops(state),
         Pin => crate::modify::set_pinned(state, true),
         Unpin => crate::modify::set_pinned(state, false),
         Delete => match state.sketch.as_mut() {

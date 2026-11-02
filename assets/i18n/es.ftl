@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Dibuja una abertura vertical (patinillo, ducto, hueco de escale
 tpl-type-shaft = Patinillo
 tx-create-shaft = Crear patinillo
 tx-create-shaft-type = Crear tipo de patinillo
+
+# Attached wall tops
+tool-attach-top = Enlazar parte superior
+tool-detach-top = Desenlazar parte superior
+cmd-desc-attach-top = Enlaza la parte superior de los muros seleccionados a una cubierta, techo o forjado: bajo él el muro sube o baja hasta su cara inferior, siguiendo su pendiente.
+cmd-desc-detach-top = Los muros seleccionados vuelven a su propia altura.
+hint-attach-top = Haga clic en la cubierta, techo o forjado al que enlazar los muros · Esc cancela
+why-select-walls = Seleccione uno o más muros.
+why-select-attached-walls = Seleccione muros con la parte superior enlazada.
+prop-attached-to = Parte superior enlazada a
+tx-wall-attach = Enlazar parte superior del muro

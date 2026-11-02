@@ -68,6 +68,10 @@ pub struct WallGeom {
     pub face_gaps: Vec<(f64, f64, f64)>,
     /// The body centerline of an arc wall.
     pub arc: Option<Arc>,
+    /// A top that follows what the wall is attached to: segments
+    /// `(u0, u1, z0, z1)` along the centerline, the top running straight
+    /// from `z0` to `z1` (empty: the flat `top_z`).
+    pub top_profile: Vec<(f64, f64, f64, f64)>,
 }
 
 /// How one end of a wall is cut by a neighbor.
@@ -411,7 +415,50 @@ impl WallGeom {
             layers,
             face_gaps: Vec::new(),
             arc,
+            top_profile: Vec::new(),
         }
+    }
+
+    /// The top of the profile segment that holds `mid`, carried on to `u`
+    /// (the corners of a mitered end lie a little beyond); `None` with a
+    /// flat top.
+    pub fn profile_top(&self, mid: f64, u: f64) -> Option<f64> {
+        let (u0, u1, z0, z1) =
+            *self.top_profile.iter().find(|s| s.0 - 1e-9 <= mid && mid <= s.1 + 1e-9).or_else(|| {
+                if mid < self.top_profile.first()?.0 { self.top_profile.first() } else { self.top_profile.last() }
+            })?;
+        let t = if (u1 - u0).abs() > 1e-12 { (u - u0) / (u1 - u0) } else { 0.0 };
+        Some(z0 + (z1 - z0) * t)
+    }
+
+    /// Follow a top profile: the columns split where its segments meet, so
+    /// each one's top is a single plane.
+    pub(crate) fn set_top_profile(&mut self, profile: Vec<(f64, f64, f64, f64)>) {
+        let cuts: Vec<f64> = profile.iter().skip(1).map(|s| s.0).collect();
+        let mut columns = Vec::with_capacity(self.columns.len() + cuts.len());
+        for c in std::mem::take(&mut self.columns) {
+            let mut c = c;
+            for &u in &cuts {
+                let (lo, hi) = (c.left.0.max(c.right.0), c.left.1.min(c.right.1));
+                if u > lo + 1e-6 && u < hi - 1e-6 {
+                    columns.push(Column { left: (c.left.0, u), right: (c.right.0, u), solid: c.solid.clone() });
+                    c = Column { left: (u, c.left.1), right: (u, c.right.1), solid: c.solid };
+                }
+            }
+            columns.push(c);
+        }
+        self.columns = columns;
+        self.top_profile = profile;
+    }
+
+    /// The solid intervals of column `c` at `u`, its top following the profile.
+    fn intervals_at(&self, c: &Column, u: f64) -> Vec<(f64, f64)> {
+        let mut out = c.solid.clone();
+        let mid = (c.left.0.max(c.right.0) + c.left.1.min(c.right.1)) * 0.5;
+        if let (Some(last), Some(z)) = (out.last_mut(), self.profile_top(mid, u)) {
+            last.1 = z.max(last.0 + 0.01);
+        }
+        out
     }
 
     /// World plan position of wall-local `(u, v)`.
@@ -569,7 +616,8 @@ impl WallGeom {
         self.columns
             .iter()
             .map(|c| {
-                let height: f64 = c.solid.iter().map(|(z0, z1)| z1 - z0).sum();
+                let mid = (c.left.0.max(c.right.0) + c.left.1.min(c.right.1)) * 0.5;
+                let height: f64 = self.intervals_at(c, mid).iter().map(|(z0, z1)| z1 - z0).sum();
                 self.outline_area(c.left, c.right) * height
             })
             .sum()
@@ -610,40 +658,54 @@ impl WallGeom {
             f.smooth = curved;
             f
         };
+        // A quad whose top runs from `za` (at u0) to `zb` (at u1).
+        let slanted = |u0: f64, v0: f64, u1: f64, v1: f64, z0: f64, za: f64, zb: f64, n: DVec3| {
+            let verts = vec![
+                self.world3(u0, v0, z0),
+                self.world3(u1, v1, z0),
+                self.world3(u1, v1, zb),
+                self.world3(u0, v0, za),
+            ];
+            Face::new(verts, n)
+        };
         for (ci, c) in self.columns.iter().enumerate() {
             let n = self.segments(c);
             let at = |range: (f64, f64), i: usize| range.0 + (range.1 - range.0) * i as f64 / n as f64;
-            for &(z0, z1) in &c.solid {
+            let last = c.solid.len().saturating_sub(1);
+            for (k, &(z0, z1)) in c.solid.iter().enumerate() {
+                // The top interval follows the profile; others are level.
+                let top = |u: f64| if k == last { self.intervals_at(c, u).last().map_or(z1, |iv| iv.1) } else { z1 };
                 for i in 0..n {
                     let (l0, l1) = (at(c.left, i), at(c.left, i + 1));
                     let (r0, r1) = (at(c.right, i), at(c.right, i + 1));
                     let poly = [self.world(r0, -h), self.world(r1, -h), self.world(l1, h), self.world(l0, h)];
-                    s.faces.push(Face::new(poly.iter().map(|p| DVec3::new(p.x, p.y, z1)).collect(), DVec3::Z));
+                    let tops = [top(r0), top(r1), top(l1), top(l0)];
+                    let upper: Vec<DVec3> = poly.iter().zip(tops).map(|(p, z)| DVec3::new(p.x, p.y, z)).collect();
+                    let up = (upper[1] - upper[0]).cross(upper[2] - upper[0]).try_normalize().unwrap_or(DVec3::Z);
+                    s.faces.push(Face::new(upper, up));
                     s.faces.push(Face::new(poly.iter().rev().map(|p| DVec3::new(p.x, p.y, z0)).collect(), -DVec3::Z));
                     let right_n = -flat(self.normal_at((r0 + r1) * 0.5));
                     let left_n = flat(self.normal_at((l0 + l1) * 0.5));
-                    s.faces.push(side(quad(r0, -h, r1, -h, z0, z1, right_n)));
-                    s.faces.push(side(quad(l1, h, l0, h, z0, z1, left_n)));
+                    s.faces.push(side(slanted(r0, -h, r1, -h, z0, tops[0], tops[1], right_n)));
+                    s.faces.push(side(slanted(l1, h, l0, h, z0, tops[2], tops[3], left_n)));
                 }
             }
             // Faces on the boundary with the next column where only one side is solid.
             if let Some(next) = self.columns.get(ci + 1) {
                 let u = c.left.1;
                 let along = flat(self.tangent(u));
-                for &iv in &c.solid {
-                    let exposed = next
-                        .solid
+                let (mine, theirs) = (self.intervals_at(c, u), self.intervals_at(next, u));
+                for &iv in &mine {
+                    let exposed = theirs
                         .iter()
                         .fold(vec![iv], |acc, &cut| acc.iter().flat_map(|&i| subtract(&[i], cut)).collect());
                     for (z0, z1) in exposed {
                         s.faces.push(quad(u, -h, u, h, z0, z1, along));
                     }
                 }
-                for &iv in &next.solid {
-                    let exposed = c
-                        .solid
-                        .iter()
-                        .fold(vec![iv], |acc, &cut| acc.iter().flat_map(|&i| subtract(&[i], cut)).collect());
+                for &iv in &theirs {
+                    let exposed =
+                        mine.iter().fold(vec![iv], |acc, &cut| acc.iter().flat_map(|&i| subtract(&[i], cut)).collect());
                     for (z0, z1) in exposed {
                         s.faces.push(quad(u, h, u, -h, z0, z1, -along));
                     }
@@ -658,8 +720,9 @@ impl WallGeom {
                 n = -n;
             }
             let n3 = DVec3::new(n.x, n.y, 0.0);
-            for &(z0, z1) in &col.solid {
-                s.faces.push(quad(ur, -h, ul, h, z0, z1, n3));
+            let (at_r, at_l) = (self.intervals_at(col, ur), self.intervals_at(col, ul));
+            for (&(z0, zr), &(_, zl)) in at_r.iter().zip(&at_l) {
+                s.faces.push(slanted(ur, -h, ul, h, z0, zr, zl, n3));
             }
         };
         if !self.start_joined

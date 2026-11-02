@@ -2188,3 +2188,14 @@ cmd-desc-shaft = ແຕ້ມຊ່ອງເປີດຕາມແນວຕັ້
 tpl-type-shaft = ຊ່ອງຕັ້ງ
 tx-create-shaft = ສ້າງຊ່ອງຕັ້ງ
 tx-create-shaft-type = ສ້າງປະເພດຊ່ອງຕັ້ງ
+
+# Attached wall tops
+tool-attach-top = ຕິດດ້ານເທິງ
+tool-detach-top = ແຍກດ້ານເທິງ
+cmd-desc-attach-top = ຕິດດ້ານເທິງຂອງຝາທີ່ເລືອກກັບຫຼັງຄາ, ເພດານ ຫຼື ພື້ນ: ຢູ່ລຸ່ມມັນ ຝາຈະສູງຂຶ້ນ ຫຼື ຕ່ຳລົງຫາດ້ານລຸ່ມຂອງມັນ ຕາມຄວາມຄ້ອຍ.
+cmd-desc-detach-top = ຝາທີ່ເລືອກກັບຄືນສູ່ດ້ານເທິງຂອງມັນເອງ.
+hint-attach-top = ຄລິກຫຼັງຄາ, ເພດານ ຫຼື ພື້ນ ທີ່ຈະຕິດດ້ານເທິງຂອງຝາ · Esc ຍົກເລີກ
+why-select-walls = ເລືອກຝາໜຶ່ງ ຫຼື ຫຼາຍຝາ.
+why-select-attached-walls = ເລືອກຝາທີ່ຕິດດ້ານເທິງແລ້ວ.
+prop-attached-to = ດ້ານເທິງຕິດກັບ
+tx-wall-attach = ຕິດດ້ານເທິງຂອງຝາ

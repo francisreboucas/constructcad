@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Draws a vertical opening (duct, chase, stairwell) that cuts the
 tpl-type-shaft = Shaft
 tx-create-shaft = Create Shaft
 tx-create-shaft-type = Create Shaft Type
+
+# Attached wall tops
+tool-attach-top = Attach Top
+tool-detach-top = Detach Top
+cmd-desc-attach-top = Attaches the selected walls’ tops to a roof, ceiling or floor: under it a wall rises or drops to its underside, following its slope.
+cmd-desc-detach-top = The selected walls go back to their own tops.
+hint-attach-top = Click the roof, ceiling or floor to attach the walls’ tops to · Esc cancels
+why-select-walls = Select one or more walls.
+why-select-attached-walls = Select walls whose top is attached.
+prop-attached-to = Top attached to
+tx-wall-attach = Attach Wall Top

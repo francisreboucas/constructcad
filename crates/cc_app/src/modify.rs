@@ -444,6 +444,74 @@ pub fn join_tool(resp: &Response, painter: &Painter, state: &mut AppState, xf: &
     }
 }
 
+/// Attach Top: the selected walls wait for a click on the roof, ceiling or
+/// floor their tops attach to.
+pub fn start_attach(state: &mut AppState) {
+    let walls: Vec<ElementId> = state
+        .selection
+        .iter()
+        .copied()
+        .filter(|id| matches!(state.project().element(*id).map(|e| &e.kind), Some(cc_core::ElementKind::Wall(_))))
+        .collect();
+    state.set_tool(Tool::AttachTop);
+    state.interaction.targets = walls;
+    state.message = t!("hint-attach-top");
+}
+
+/// Whether `id` is something a wall's top attaches to.
+pub fn attach_target(state: &AppState, id: ElementId) -> bool {
+    state.project().element(id).is_some_and(|e| {
+        matches!(
+            e.kind,
+            cc_core::ElementKind::Roof(_) | cc_core::ElementKind::Ceiling(_) | cc_core::ElementKind::Floor(_)
+        )
+    })
+}
+
+/// The Attach Top tool: the roof, ceiling or floor under the pointer is
+/// highlighted, and a click attaches the walls' tops to it.
+pub fn attach_tool(resp: &Response, painter: &Painter, state: &mut AppState, xf: &Xf, drawing: &Drawing2D) {
+    let Some(raw) = resp.hover_pos().map(|p| xf.to_world(p)) else { return };
+    let hovered = drawing.hit_test(raw, 6.0 / xf.scale).filter(|id| attach_target(state, *id));
+    let mut lit: BTreeSet<ElementId> = state.interaction.targets.iter().copied().collect();
+    lit.extend(hovered);
+    paint_ghost(painter, xf, drawing, &lit, &PlanTransform::IDENTITY);
+    if resp.clicked()
+        && let Some(target) = hovered
+    {
+        attach_to(state, target);
+    }
+}
+
+/// Attach the walls the tool holds to `target`, then go back to selecting them.
+pub(crate) fn attach_to(state: &mut AppState, target: ElementId) {
+    let walls = std::mem::take(&mut state.interaction.targets);
+    if walls.is_empty() {
+        return;
+    }
+    let ids = walls.iter().map(|id| id.0).collect();
+    let command = cc_engine::commands::modify::WallAttach { ids, top: Some(target.0), detach: false };
+    if crate::actions::run_command(state, command).is_some() {
+        state.set_tool(Tool::Select);
+        state.selection = walls.into_iter().collect();
+    }
+}
+
+/// Detach Top: the selected walls keep their own tops again.
+pub fn detach_tops(state: &mut AppState) {
+    let ids: Vec<u64> = state
+        .selection
+        .iter()
+        .filter(|id| {
+            matches!(state.project().element(**id).map(|e| &e.kind), Some(cc_core::ElementKind::Wall(w)) if w.attach_top.is_some())
+        })
+        .map(|id| id.0)
+        .collect();
+    if !ids.is_empty() {
+        crate::actions::run_command(state, cc_engine::commands::modify::WallAttach { ids, top: None, detach: true });
+    }
+}
+
 /// A click of the join tool on `hovered` (a joinable element or nothing):
 /// the first pick stays, each further one is joined with it (or unjoined).
 pub(crate) fn join_pick(state: &mut AppState, hovered: Option<ElementId>, unjoin: bool) {

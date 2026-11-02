@@ -1553,3 +1553,39 @@ fn the_shaft_tool_cuts_a_ceiling() {
     assert!(matches!(state.project().element(shaft).unwrap().kind, cc_core::ElementKind::Shaft(_)));
     assert_eq!(state.project().element(ceiling).unwrap().shaft_cuts().len(), 1);
 }
+
+/// Attach Top and Detach Top: available with walls selected; the tool
+/// attaches the selected walls' tops to the roof clicked, and Detach Top
+/// gives them back their own tops.
+#[test]
+fn walls_attach_their_tops_to_a_roof_and_detach_them() {
+    use crate::commands::UiCommand;
+    let mut state = sample_state();
+    let wall = state
+        .session
+        .execute("wall_create", serde_json::json!({"start": [90, 0], "end": [96, 0], "height": 3}))
+        .unwrap();
+    let wall = cc_core::ElementId(wall["id"].as_u64().unwrap());
+    let outline = serde_json::json!([[89, -1], [97, -1], [97, 5], [89, 5]]);
+    let roof = state.session.execute("roof_create", serde_json::json!({"boundary": outline, "offset": 3.5})).unwrap();
+    let roof = cc_core::ElementId(roof["id"].as_u64().unwrap());
+    state.selection.clear();
+    assert!(UiCommand::AttachTop.unavailable(&state).is_some(), "no wall selected");
+    state.selection = [wall].into_iter().collect();
+    assert_eq!(UiCommand::AttachTop.unavailable(&state), None);
+    assert!(UiCommand::DetachTop.unavailable(&state).is_some(), "not attached yet");
+    let ctx = egui::Context::default();
+    crate::commands::run(&mut state, &ctx, UiCommand::AttachTop);
+    assert_eq!(state.tool, crate::tools::Tool::AttachTop);
+    assert!(crate::modify::attach_target(&state, roof) && !crate::modify::attach_target(&state, wall));
+    crate::modify::attach_to(&mut state, roof);
+    let attached = |state: &AppState| match &state.project().element(wall).unwrap().kind {
+        cc_core::ElementKind::Wall(w) => w.attach_top,
+        _ => None,
+    };
+    assert_eq!(attached(&state), Some(roof));
+    assert_eq!(state.tool, crate::tools::Tool::Select);
+    assert_eq!(UiCommand::DetachTop.unavailable(&state), None);
+    crate::commands::run(&mut state, &ctx, UiCommand::DetachTop);
+    assert_eq!(attached(&state), None);
+}
