@@ -2358,6 +2358,41 @@ fn stairs_shapes_rules_and_railings() {
 /// A stair given its riser count and tread: the riser height is the height
 /// over the risers, the run follows the tread; element_set changes them and
 /// a three-flight stair splits them between its flights.
+/// Issue #143: the landings of an assembled stair are a deck on beams, with
+/// posts down to the base only where asked for; `stair_check` lists where
+/// they can stand.
+#[test]
+fn assembled_stair_landings_take_posts_where_asked() {
+    let mut s = Session::default();
+    let st = run(&mut s, "stair_create", json!({"start": [0, 0], "shape": "l_shaped", "posts": [["back"]]}));
+    let sid = id(&st);
+    let build = json!({"construction": "Assembled", "stringers": "Center", "landing_beams": "Tee"});
+    run(&mut s, "type_set", json!({"type": st["type"]["id"], "params": {"build": build}}));
+    let check = run(&mut s, "stair_check", json!({"id": sid}));
+    let spots = check["landings"][0]["posts"].as_array().unwrap();
+    let names: Vec<&str> = spots.iter().map(|p| p["place"].as_str().unwrap()).collect();
+    assert_eq!(names, ["front", "back", "inner"], "{check}");
+    let placed: Vec<bool> = spots.iter().map(|p| p["post"].as_bool().unwrap()).collect();
+    assert_eq!(placed, [false, true, false]);
+    let volume = |s: &mut Session| run(s, "element_get", json!({"id": sid}))["derived"]["volume"].as_f64().unwrap();
+    let one = volume(&mut s);
+    // A second post, at the front: one more 8 cm post as high as the first.
+    let posts = json!({"layout": {"posts": [{"back": true, "front": true}, {}]}});
+    run(&mut s, "element_set", json!({"id": sid, "params": posts}));
+    let two = volume(&mut s);
+    let z = check["landings"][0]["z"].as_f64().unwrap();
+    let post = 0.08 * 0.08 * (z - 0.04 - 0.25);
+    assert!((two - one - post).abs() < 1e-9, "{two} - {one} vs {post}");
+    // None: less again.
+    run(&mut s, "element_set", json!({"id": sid, "params": {"layout": {"posts": [{}, {}]}}}));
+    assert!((one - volume(&mut s) - post).abs() < 1e-9);
+    // Unknown places and too many landings are refused.
+    let bad = json!({"start": [5, 0], "shape": "l_shaped", "posts": [["middle"]]});
+    assert_eq!(fails(&mut s, "stair_create", bad), ErrorCode::InvalidArguments);
+    let bad = json!({"start": [5, 0], "posts": [[], [], []]});
+    assert_eq!(fails(&mut s, "stair_create", bad), ErrorCode::InvalidArguments);
+}
+
 #[test]
 fn stairs_take_a_riser_count_and_a_tread() {
     let mut s = Session::default();

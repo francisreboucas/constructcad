@@ -7,7 +7,7 @@ use crate::t;
 use crate::table::{readonly_row, row};
 use crate::theme::PALETTE;
 use cc_core::{
-    StairBuild, StairConstruction, StairLayout, StairRules, StairShape, Stringers, TreadRule, Turn,
+    LandingBeams, StairBuild, StairConstruction, StairLayout, StairRules, StairShape, Stringers, TreadRule, Turn,
     stair::{MAX_RISERS, MAX_WINDERS},
 };
 use egui::{DragValue, Response, RichText, Ui};
@@ -154,10 +154,18 @@ pub fn build_rows(ui: &mut Ui, salt: u64, build: &mut StairBuild) -> Edited {
                 combo(ui, ("stair-stringers", salt), &mut build.stringers, &Stringers::ALL, Stringers::key)
             });
             e.choice(s);
+            if build.stringers == Stringers::Center {
+                let b = row(ui, &t!("prop-stair-landing-beams"), |ui| {
+                    let all = &LandingBeams::ALL;
+                    combo(ui, ("stair-landing-beams", salt), &mut build.landing_beams, all, LandingBeams::key)
+                });
+                e.choice(b);
+            }
             for (label, value) in [
                 (t!("prop-stair-stringer-width"), &mut build.stringer_width),
                 (t!("prop-stair-stringer-depth"), &mut build.stringer_depth),
                 (t!("prop-stair-tread-thickness"), &mut build.tread_thickness),
+                (t!("prop-stair-post-width"), &mut build.post_width),
             ] {
                 let r = row(ui, &label, |ui| length(ui, value, 1.0));
                 e.add(&r);
@@ -165,6 +173,27 @@ pub fn build_rows(ui: &mut Ui, salt: u64, build: &mut StairBuild) -> Edited {
             let r = row(ui, &t!("prop-stair-closed-risers"), |ui| ui.checkbox(&mut build.closed_risers, ""));
             e.choice(r.changed());
         }
+    }
+    e
+}
+
+/// The posts under each landing of an assembled stair: a checkbox for each
+/// place round its edge its beams reach.
+pub fn posts_rows(ui: &mut Ui, layout: &mut StairLayout, g: &cc_geom::StairGeom, build: &StairBuild) -> Edited {
+    let mut e = Edited::default();
+    for (i, (landing, posts)) in g.landings.iter().zip(layout.posts.iter_mut()).enumerate() {
+        let label = t!("prop-stair-landing-posts", "n" => (i + 1).to_string());
+        row(ui, &label, |ui| {
+            ui.vertical(|ui| {
+                for (at, _) in landing.post_spots(build.stringers, build.landing_beams) {
+                    let mut on = posts.get(at);
+                    if ui.checkbox(&mut on, tr(at.key())).changed() {
+                        posts.set(at, on);
+                        e.choice(true);
+                    }
+                }
+            });
+        });
     }
     e
 }

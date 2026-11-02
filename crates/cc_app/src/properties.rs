@@ -581,7 +581,28 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                     state.session.doc.break_merge();
                 }
             });
-            if let Some(g) = cc_geom::stair_geom(state.project(), &el, st) {
+            let geom = cc_geom::stair_geom(state.project(), &el, st);
+            let build = match state.project().element_type(el.type_id).map(|t| &t.data) {
+                Some(cc_core::TypeData::Stair { build, .. }) => Some(*build),
+                _ => None,
+            };
+            if let (Some(g), Some(build)) = (&geom, build)
+                && build.construction == cc_core::StairConstruction::Assembled
+                && !g.landings.is_empty()
+            {
+                section(ui, "stair-posts", t!("section-stair-posts"), |ui| {
+                    let mut layout = st.layout;
+                    if crate::stair_ui::posts_rows(ui, &mut layout, g, &build).changed {
+                        modify(state, id, "posts", |e| {
+                            if let ElementKind::Stair(s) = &mut e.kind {
+                                s.layout = layout;
+                            }
+                        });
+                        state.session.doc.break_merge();
+                    }
+                });
+            }
+            if let Some(g) = geom {
                 section(ui, "dimensions", t!("section-stair-check"), |ui| crate::stair_ui::check_rows(ui, &g));
             }
             let railings = state.project().railings_of(id).count();
