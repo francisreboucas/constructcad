@@ -441,31 +441,8 @@ impl StairGeom {
 
     /// A straight flight as one closed solid: its profile across the width.
     fn flight_solid(&self, f: &Flight, waist: Option<f64>) -> Vec<Vec<DVec3>> {
-        let profile = self.flight_profile(f, waist);
         let hw = self.width / 2.0;
-        let at = |(s, z): (f64, f64), v: f64| {
-            let p = f.origin + f.dir * s + f.left * v;
-            DVec3::new(p.x, p.y, z)
-        };
-        let n = profile.len();
-        // Counter-clockwise in (s, z) seen from the left side (+v): that face
-        // takes the order, the right one its reverse, the sides each edge.
-        let area: f64 = (0..n)
-            .map(|i| {
-                let (a, b) = (profile[i], profile[(i + 1) % n]);
-                a.0 * b.1 - b.0 * a.1
-            })
-            .sum();
-        let pts: Vec<(f64, f64)> = if area >= 0.0 { profile } else { profile.into_iter().rev().collect() };
-        let mut faces: Vec<Vec<DVec3>> = Vec::with_capacity(n + 2);
-        let (left, right) = (hw, -hw);
-        faces.push(pts.iter().rev().map(|&p| at(p, left)).collect());
-        faces.push(pts.iter().map(|&p| at(p, right)).collect());
-        for i in 0..n {
-            let (a, b) = (pts[i], pts[(i + 1) % n]);
-            faces.push(vec![at(a, left), at(b, left), at(b, right), at(a, right)]);
-        }
-        faces
+        extrude_profile(f, self.flight_profile(f, waist), hw, -hw)
     }
 
     fn add_assembled(&self, build: &StairBuild, slope: f64, s: &mut Pieces) {
@@ -527,9 +504,7 @@ impl StairGeom {
             }
             return;
         }
-        let k = if self.tread > 1e-6 { h / self.tread } else { 0.0 };
         for f in self.flights.iter().filter(|f| f.treads > 0) {
-            let len = f.treads as f64 * self.tread;
             let strips: Vec<(f64, f64, f64)> = match build.stringers {
                 // Housed stringers whose top runs 5 cm above the nosings.
                 Stringers::Sides => {
@@ -540,15 +515,47 @@ impl StairGeom {
                 Stringers::Center => vec![(-sw / 2.0, sw / 2.0, -tt - h)],
             };
             for (v0, v1, lift) in strips {
-                let p = |s_: f64, v: f64| f.origin + f.dir * s_ + f.left * v;
-                let outline = [p(0.0, v0), p(len, v0), p(len, v1), p(0.0, v1)];
-                let floor = f.floor - if f.floor > self.base + 1e-9 { build.stringer_depth } else { 0.0 };
-                let floor = floor.max(self.base);
-                let top: Vec<f64> = [0.0, len, len, 0.0].iter().map(|s_| (f.z0 + lift + k * s_).max(floor)).collect();
-                let bottom: Vec<f64> = top.iter().map(|z| (z - depth).max(floor)).collect();
-                add_wedge(s, &outline, &bottom, &top);
+                for profile in self.stringer_profiles(f, lift, depth, build.stringer_depth) {
+                    s.push(extrude_profile(f, profile, v1, v0));
+                }
             }
         }
+    }
+
+    /// Side profiles, in `(s, z)` along flight `f`, of a stringer whose top
+    /// runs `lift` above the nosings, `depth` deep measured plumb: a band
+    /// parallel to the pitch, cut level where it stands (the floor, or the
+    /// underside of the landing the flight leaves, `landing_depth` below
+    /// its top) and, where the flight rises to a landing, carried on under
+    /// it up to the landing's underside, so it bears on the landing instead
+    /// of touching its edge.
+    pub(crate) fn stringer_profiles(
+        &self,
+        f: &Flight,
+        lift: f64,
+        depth: f64,
+        landing_depth: f64,
+    ) -> Vec<Vec<(f64, f64)>> {
+        let (g, h) = (self.tread, self.riser);
+        let k = if g > 1e-6 { h / g } else { 0.0 };
+        let len = f.treads as f64 * g;
+        let top = |s: f64| f.z0 + lift + k * s;
+        let low = if f.floor > self.base + 1e-9 { (f.floor - landing_depth).max(self.base) } else { self.base };
+        let band = |s0: f64, s1: f64| vec![(s0, top(s0) - depth), (s1, top(s1) - depth), (s1, top(s1)), (s0, top(s0))];
+        let mut out = Vec::new();
+        let along = clip_level(&band(0.0, len), low, true);
+        if along.len() >= 3 {
+            out.push(along);
+        }
+        if f.landing_ahead > 1e-9 {
+            // Under the landing it rises to: up to the landing's underside.
+            let underside = f.z0 + f.treads as f64 * h - landing_depth;
+            let under = clip_level(&clip_level(&band(len, len + f.landing_ahead), low, true), underside, false);
+            if under.len() >= 3 {
+                out.push(under);
+            }
+        }
+        out
     }
 
     /// The part of spiral tread `st` between radii `r0` and `r1`.
@@ -582,6 +589,58 @@ fn winder_hit(a0: f64, hw: f64, reach: f64, phi: f64) -> DVec2 {
     } else {
         DVec2::new(a0 + reach, hw + reach * phi.tan())
     }
+}
+
+/// A side profile `(s, z)` of flight `f` extruded across it, from `left` to
+/// `right` (offsets to the flight's left), as a closed solid.
+fn extrude_profile(f: &Flight, profile: Vec<(f64, f64)>, left: f64, right: f64) -> Vec<Vec<DVec3>> {
+    let at = |(s, z): (f64, f64), v: f64| {
+        let p = f.origin + f.dir * s + f.left * v;
+        DVec3::new(p.x, p.y, z)
+    };
+    let n = profile.len();
+    // Counter-clockwise in (s, z) seen from the left side (+v): that face
+    // takes the order, the right one its reverse, the sides each edge.
+    let area: f64 = (0..n)
+        .map(|i| {
+            let (a, b) = (profile[i], profile[(i + 1) % n]);
+            a.0 * b.1 - b.0 * a.1
+        })
+        .sum();
+    let pts: Vec<(f64, f64)> = if area >= 0.0 { profile } else { profile.into_iter().rev().collect() };
+    let mut faces: Vec<Vec<DVec3>> = Vec::with_capacity(n + 2);
+    faces.push(pts.iter().rev().map(|&p| at(p, left)).collect());
+    faces.push(pts.iter().map(|&p| at(p, right)).collect());
+    for i in 0..n {
+        let (a, b) = (pts[i], pts[(i + 1) % n]);
+        faces.push(vec![at(a, left), at(b, left), at(b, right), at(a, right)]);
+    }
+    faces
+}
+
+/// A convex profile `(s, z)` cut by the level `z = level`, keeping what lies
+/// above it (`above`) or below it.
+fn clip_level(poly: &[(f64, f64)], level: f64, above: bool) -> Vec<(f64, f64)> {
+    let keep = |p: (f64, f64)| if above { p.1 >= level - 1e-12 } else { p.1 <= level + 1e-12 };
+    let n = poly.len();
+    let mut out = Vec::with_capacity(n + 2);
+    for i in 0..n {
+        let (a, b) = (poly[i], poly[(i + 1) % n]);
+        if keep(a) {
+            out.push(a);
+        }
+        if keep(a) != keep(b) && (b.1 - a.1).abs() > 1e-15 {
+            let t = (level - a.1) / (b.1 - a.1);
+            out.push((a.0 + (b.0 - a.0) * t, level));
+        }
+    }
+    out.dedup_by(|a, b| (a.0 - b.0).abs() < 1e-12 && (a.1 - b.1).abs() < 1e-12);
+    if out.len() > 1
+        && out.first().zip(out.last()).is_some_and(|(a, b)| (a.0 - b.0).abs() < 1e-12 && (a.1 - b.1).abs() < 1e-12)
+    {
+        out.pop();
+    }
+    out
 }
 
 /// A prism over `outline` with an elevation per vertex at the bottom and the
@@ -1268,6 +1327,97 @@ mod tests {
         let few = geom(StairLayout { risers: 12, ..Default::default() }, 2.88);
         assert!((few.riser - 0.24).abs() < 1e-12);
         assert!(few.check.issues.iter().any(|i| i.key() == "stair-issue-riser-high"));
+    }
+
+    /// The plumb thickness of a side profile at `s`: between the lowest and
+    /// highest points where a vertical line crosses its edges.
+    fn thickness_at(profile: &[(f64, f64)], s: f64) -> f64 {
+        let n = profile.len();
+        let zs: Vec<f64> = (0..n)
+            .filter_map(|i| {
+                let (a, b) = (profile[i], profile[(i + 1) % n]);
+                let (lo, hi) = (a.0.min(b.0), a.0.max(b.0));
+                (s >= lo && s <= hi && hi - lo > 1e-12).then(|| a.1 + (b.1 - a.1) * (s - a.0) / (b.0 - a.0))
+            })
+            .collect();
+        let (lo, hi) = zs.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), z| (lo.min(*z), hi.max(*z)));
+        if hi > lo { hi - lo } else { 0.0 }
+    }
+
+    /// Issue #142: a central stringer is a band parallel to the pitch, cut
+    /// level on the floor (not a wedge growing from nothing), and the
+    /// stringers of flights between landings bear on them instead of
+    /// touching their edges.
+    #[test]
+    fn center_stringers_are_bands_that_bear_on_the_floor_and_landings() {
+        let build = StairBuild {
+            construction: StairConstruction::Assembled,
+            stringers: Stringers::Center,
+            stringer_width: 0.06,
+            stringer_depth: 0.25,
+            tread_thickness: 0.04,
+            ..Default::default()
+        };
+        let (h, g, tt): (f64, f64, f64) = (0.18, 0.28, 0.04);
+        let k = h / g;
+        let depth = 0.25 * (1.0 + k * k).sqrt();
+        let lift = -tt - h;
+        // A straight flight from the floor: full depth wherever the band clears the floor.
+        let straight = geom(StairLayout::default(), 2.88);
+        let f = straight.flights[0];
+        let profiles = straight.stringer_profiles(&f, lift, depth, 0.25);
+        assert_eq!(profiles.len(), 1);
+        let p = &profiles[0];
+        let len = f.treads as f64 * g;
+        let clear = (depth - (f.z0 + lift)) / k; // where the band's underside reaches the floor
+        for i in 1..20 {
+            let s = clear + (len - clear) * i as f64 / 20.0;
+            assert!((thickness_at(p, s) - depth).abs() < 1e-9, "at {s}: {}", thickness_at(p, s));
+        }
+        // The built stringer (the pieces within 3 cm of the axis) holds that
+        // band: the wedge it used to be held about half of it.
+        let mut stringer = 0.0;
+        for piece in straight.pieces(&build) {
+            if piece.iter().flatten().all(|q| q.y.abs() <= 0.03 + 1e-9) {
+                let mut s = Solid::new(cc_core::ElementId(1), cc_core::Category::Stair, [0, 0, 0]);
+                s.add_polygons(piece);
+                stringer += s.volume();
+            }
+        }
+        let n = p.len();
+        let area = (0..n).map(|i| p[i].0 * p[(i + 1) % n].1 - p[(i + 1) % n].0 * p[i].1).sum::<f64>().abs() / 2.0;
+        assert!((stringer - 0.06 * area).abs() < 1e-9, "{stringer} vs {}", 0.06 * area);
+        assert!(area > 0.9 * depth * len, "{area} vs the full band {}", depth * len);
+        // Cut level on the floor, nowhere below it.
+        let low = p.iter().map(|q| q.1).fold(f64::INFINITY, f64::min);
+        assert!(low.abs() < 1e-12, "{low}");
+        assert!(p.iter().filter(|q| q.1.abs() < 1e-12).count() >= 2, "a level seat on the floor: {p:?}");
+
+        // Three flights: the middle one leaves the first landing and rises to the second.
+        let three = geom(StairLayout { shape: StairShape::ThreeFlight, ..Default::default() }, 2.88);
+        let middle = three.flights[1];
+        let pieces = three.stringer_profiles(&middle, lift, depth, 0.25);
+        assert_eq!(pieces.len(), 2, "along the flight, and on under the landing");
+        // Leaving the first landing: it bears on the landing's face from its underside up.
+        let underside_1 = middle.floor - 0.25;
+        let start = thickness_at(&pieces[0], 1e-9);
+        let top_0 = middle.z0 + lift;
+        assert!((start - (top_0 - underside_1)).abs() < 1e-9 && start > 0.15, "{start}");
+        // Rising to the second: carried on under it up to its underside, along it.
+        let underside_2 = middle.z0 + middle.treads as f64 * h - 0.25;
+        let under = &pieces[1];
+        let high = under.iter().map(|q| q.1).fold(f64::NEG_INFINITY, f64::max);
+        assert!((high - underside_2).abs() < 1e-9, "{high} vs {underside_2}");
+        let bearing = under.iter().filter(|q| (q.1 - underside_2).abs() < 1e-9).map(|q| q.0).collect::<Vec<_>>();
+        let reach = bearing.iter().fold(f64::NEG_INFINITY, |a, b| a.max(*b))
+            - bearing.iter().fold(f64::INFINITY, |a, b| a.min(*b));
+        assert!(reach > 0.1, "it bears along the landing's underside for {reach} m");
+        // Built, every piece is a closed solid.
+        for piece in three.pieces(&build) {
+            let mut s = Solid::new(cc_core::ElementId(1), cc_core::Category::Stair, [0, 0, 0]);
+            s.add_polygons(piece);
+            assert!(s.volume() > 0.0);
+        }
     }
 
     #[test]

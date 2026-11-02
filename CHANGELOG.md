@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Assembled stairs' stringers (#142). A central stringer was a wedge growing from nothing at the foot of a flight that starts on the floor, and the stringers of flights between landings only touched the landings' edges. Stringers are now built from their side profile: a band parallel to the pitch, as deep as the type says, cut level on the floor or at the underside of the landing a flight leaves (bearing on its face), and carried on under the landing a flight rises to, up to its underside.
 - The app redrew itself without pause while idle, keeping a CPU core and the GPU busy (noticed on older computers): it set the window title every frame, and egui answers every window command with another frame. The title is now set only when it changes.
 - The component modeling environment's side panel drew its fields and buttons against the panel's border, cut.
 
