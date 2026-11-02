@@ -10,7 +10,8 @@ use crate::registry::{Command, CommandKind};
 use crate::session::Session;
 use crate::t;
 use cc_core::{
-    Category, ElementId, ElementKind, Railing, Stair, StairLayout, StairRailing, StairShape, StairSide, Turn, WallTop,
+    Category, ElementId, ElementKind, PostAt, Railing, Stair, StairLayout, StairRailing, StairShape, StairSide, Turn,
+    TypeData, WallTop,
 };
 use glam::DVec2;
 use schemars::JsonSchema;
@@ -89,6 +90,14 @@ pub struct StairCreate {
     /// Radius of the inner edge of a spiral stair, meters (default 0.15).
     #[serde(default)]
     pub inner_radius: Option<f64>,
+    /// Posts under the landings of an assembled stair, down to its base: a
+    /// list per landing (up the stair) of places round its edge, named
+    /// walking onto it (front: where the stair arrives; inner: the side it
+    /// turns to): `front_outer`, `front`, `front_inner`, `inner`,
+    /// `back_inner`, `back`, `back_outer`, `outer`. Only places its beams
+    /// reach take a post (see `stair_check`); none by default.
+    #[serde(default)]
+    pub posts: Option<Vec<Vec<String>>>,
 }
 
 impl StairCreate {
@@ -132,6 +141,20 @@ impl StairCreate {
         if let Some(v) = self.inner_radius {
             layout.inner_radius = finite(v, "inner_radius")?.max(0.0);
         }
+        if let Some(lists) = &self.posts {
+            if lists.len() > layout.posts.len() {
+                return Err(EngineError::invalid("a stair has at most two landings"));
+            }
+            for (posts, names) in layout.posts.iter_mut().zip(lists) {
+                for name in names {
+                    let at = PostAt::from_name(name).ok_or_else(|| {
+                        let all: Vec<&str> = PostAt::ALL.iter().map(|p| p.name()).collect();
+                        EngineError::invalid(format!("no post place '{name}' (one of {})", all.join(", ")))
+                    })?;
+                    posts.set(at, true);
+                }
+            }
+        }
         Ok(layout)
     }
 }
@@ -161,7 +184,10 @@ impl Command for StairCreate {
 
 /// Check a stair's steps: riser count and height, tread on the walking line,
 /// Blondel's step `2 × riser + tread` and the rules of its type they break
-/// (riser out of range, short tread, step out of the Blondel range, short landing).
+/// (riser out of range, short tread, step out of the Blondel range, short
+/// landing). `landings` lists each landing's elevation and the places round
+/// its edge where a post can stand under an assembled stair (where its
+/// beams reach the edge), with their plan points and whether one stands there.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct StairCheck {
@@ -178,6 +204,27 @@ impl Command for StairCheck {
         let g = cc_geom::stair_geom(p, el, st).ok_or_else(|| EngineError::invalid("the stair has no stair type"))?;
         let issues: Vec<Value> =
             g.check.issues.iter().map(|i| json!({"message": issue_text(i), "detail": i})).collect();
+        let build = match p.element_type(el.type_id).map(|t| &t.data) {
+            Some(TypeData::Stair { build, .. }) => *build,
+            _ => cc_core::StairBuild::default(),
+        };
+        let landings: Vec<Value> = g
+            .landings
+            .iter()
+            .enumerate()
+            .map(|(i, l)| {
+                let placed = st.layout.posts.get(i).copied().unwrap_or_default();
+                let spots: Vec<Value> = l
+                    .post_spots(build.stringers, build.landing_beams)
+                    .into_iter()
+                    .map(|(at, spot)| {
+                        let q = l.point(spot);
+                        json!({"place": at.name(), "at": [q.x, q.y], "post": placed.get(at)})
+                    })
+                    .collect();
+                json!({"z": l.z, "posts": spots})
+            })
+            .collect();
         Ok(json!({
             "risers": g.risers,
             "riser": g.riser,
@@ -186,6 +233,7 @@ impl Command for StairCheck {
             "run": g.run(),
             "ok": g.check.ok(),
             "issues": issues,
+            "landings": landings,
         }))
     }
 }

@@ -718,6 +718,7 @@ No parameters.
 | `inner_radius` | number | optional | Radius of the inner edge of a spiral stair, meters (default 0.15). |
 | `landing` | number | optional | Landing depth along the first flight, meters (default: the stair width). |
 | `level` | id or name | optional | Level id or name (default: the lowest level). |
+| `posts` | [[string, …], …] | optional | Posts under the landings of an assembled stair, down to its base: a list per landing (up the stair) of places round its edge, named walking onto it (front: where the stair arrives; inner: the side it turns to): `front_outer`, `front`, `front_inner`, `inner`, `back_inner`, `back`, `back_outer`, `outer`. Only places its beams reach take a post (see `stair_check`); none by default. |
 | `risers` | integer | optional | Riser count (default: the fewest within the type's maximum riser). |
 | `shape` | string | optional | Plan shape: `straight` (default), `straight_landing`, `l_shaped`, `u_shaped`, `three_flight` (up, across and back, with a landing at each corner) or `spiral`. |
 | `split` | integer | optional | Risers of the first flight (default: half of them; a third on a three-flight stair). |
@@ -730,7 +731,7 @@ No parameters.
 
 ### `stair_check`
 
-*query* — Check a stair's steps: riser count and height, tread on the walking line, Blondel's step `2 × riser + tread` and the rules of its type they break (riser out of range, short tread, step out of the Blondel range, short landing).
+*query* — Check a stair's steps: riser count and height, tread on the walking line, Blondel's step `2 × riser + tread` and the rules of its type they break (riser out of range, short tread, step out of the Blondel range, short landing). `landings` lists each landing's elevation and the places round its edge where a post can stand under an assembled stair (where its beams reach the edge), with their plan points and whether one stands there.
 
 | Parameter | Type | | Description |
 |---|---|---|---|

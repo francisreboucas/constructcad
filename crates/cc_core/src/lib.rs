@@ -72,8 +72,8 @@ pub use project::{Group, Level, Project, ProjectInfo, can_join_geometry, join_pr
 pub use ramp::{RampCheck, RampIssue, RampLayout, RampRules, RampShape, ramp_flights};
 pub use schedule::{ScheduleDef, ScheduleField};
 pub use stair::{
-    StairBuild, StairCheck, StairConstruction, StairIssue, StairLayout, StairRailing, StairRules, StairShape,
-    StairSide, Stringers, TreadRule, Turn, stair_steps,
+    LandingBeams, LandingPosts, PostAt, StairBuild, StairCheck, StairConstruction, StairIssue, StairLayout,
+    StairRailing, StairRules, StairShape, StairSide, Stringers, TreadRule, Turn, stair_steps,
 };
 pub use transform::PlanTransform;
 pub use types::{

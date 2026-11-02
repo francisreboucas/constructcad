@@ -41,8 +41,8 @@ pub use ramp::{RampGeom, RampPiece, ramp_geom};
 pub use rooms::{outer_boundary, room_boundary};
 pub use solid::{Face, Ray, Solid};
 pub use stair::{
-    Flight, Pieces, StairGeom, StairStep, StepKind, add_railing, railing_length, railing_path, railing_pieces,
-    stair_geom,
+    Flight, LandingRect, Pieces, StairGeom, StairLanding, StairStep, StepKind, add_railing, railing_length,
+    railing_path, railing_pieces, stair_geom,
 };
 pub use wall::{Column, Opening, WallGeom};
 

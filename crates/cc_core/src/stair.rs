@@ -120,6 +120,9 @@ pub struct StairLayout {
     pub winders: u32,
     /// Radius of the inner edge of a spiral stair (0: treads meet at the center).
     pub inner_radius: f64,
+    /// Posts under the landings of an assembled stair, down to its base: one
+    /// set per landing, in order up the stair.
+    pub posts: [LandingPosts; 2],
 }
 
 impl Default for StairLayout {
@@ -135,6 +138,7 @@ impl Default for StairLayout {
             gap: 0.1,
             winders: 0,
             inner_radius: 0.15,
+            posts: [LandingPosts::default(); 2],
         }
     }
 }
@@ -240,6 +244,137 @@ impl Stringers {
     }
 }
 
+/// How the beams under a landing of an assembled stair with a central
+/// stringer run (with side stringers they frame the landing's edge).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum LandingBeams {
+    /// The lines of the stringers of the flights the landing joins carried
+    /// across it, crossing (a beam across the middle on straight and
+    /// U-shaped landings).
+    #[default]
+    Cross,
+    /// One beam across the landing and the other springing from it: on a
+    /// corner, the beam of the arriving flight's stringer, with the leaving
+    /// flight's from its middle to the edge the flight leaves; on a
+    /// U-shaped landing, a beam across the middle with the stringers'
+    /// beams from the front up to it.
+    Tee,
+}
+
+impl LandingBeams {
+    pub const ALL: [LandingBeams; 2] = [LandingBeams::Cross, LandingBeams::Tee];
+
+    pub fn key(self) -> &'static str {
+        match self {
+            LandingBeams::Cross => "stair-landing-beams-cross",
+            LandingBeams::Tee => "stair-landing-beams-tee",
+        }
+    }
+}
+
+/// A place round the edge of a landing where a post can stand: a corner or
+/// the middle of an edge, named walking onto the landing (front: the edge
+/// the stair arrives at; inner: the side the stair turns to).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PostAt {
+    FrontOuter,
+    Front,
+    FrontInner,
+    Inner,
+    BackInner,
+    Back,
+    BackOuter,
+    Outer,
+}
+
+impl PostAt {
+    /// Round the edge, from the front corner on the outer side.
+    pub const ALL: [PostAt; 8] = [
+        PostAt::FrontOuter,
+        PostAt::Front,
+        PostAt::FrontInner,
+        PostAt::Inner,
+        PostAt::BackInner,
+        PostAt::Back,
+        PostAt::BackOuter,
+        PostAt::Outer,
+    ];
+
+    /// The name in commands and files.
+    pub fn name(self) -> &'static str {
+        match self {
+            PostAt::FrontOuter => "front_outer",
+            PostAt::Front => "front",
+            PostAt::FrontInner => "front_inner",
+            PostAt::Inner => "inner",
+            PostAt::BackInner => "back_inner",
+            PostAt::Back => "back",
+            PostAt::BackOuter => "back_outer",
+            PostAt::Outer => "outer",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<PostAt> {
+        PostAt::ALL.into_iter().find(|p| p.name() == name)
+    }
+
+    pub fn key(self) -> &'static str {
+        match self {
+            PostAt::FrontOuter => "stair-post-front-outer",
+            PostAt::Front => "stair-post-front",
+            PostAt::FrontInner => "stair-post-front-inner",
+            PostAt::Inner => "stair-post-inner",
+            PostAt::BackInner => "stair-post-back-inner",
+            PostAt::Back => "stair-post-back",
+            PostAt::BackOuter => "stair-post-back-outer",
+            PostAt::Outer => "stair-post-outer",
+        }
+    }
+}
+
+/// Where posts stand under one landing (only places where the landing's
+/// beams reach its edge take one, see `cc_geom::StairLanding::post_spots`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LandingPosts {
+    pub front_outer: bool,
+    pub front: bool,
+    pub front_inner: bool,
+    pub inner: bool,
+    pub back_inner: bool,
+    pub back: bool,
+    pub back_outer: bool,
+    pub outer: bool,
+}
+
+impl LandingPosts {
+    fn slot(&mut self, at: PostAt) -> &mut bool {
+        match at {
+            PostAt::FrontOuter => &mut self.front_outer,
+            PostAt::Front => &mut self.front,
+            PostAt::FrontInner => &mut self.front_inner,
+            PostAt::Inner => &mut self.inner,
+            PostAt::BackInner => &mut self.back_inner,
+            PostAt::Back => &mut self.back,
+            PostAt::BackOuter => &mut self.back_outer,
+            PostAt::Outer => &mut self.outer,
+        }
+    }
+
+    pub fn get(mut self, at: PostAt) -> bool {
+        *self.slot(at)
+    }
+
+    pub fn set(&mut self, at: PostAt, on: bool) {
+        *self.slot(at) = on;
+    }
+
+    pub fn any(self) -> bool {
+        PostAt::ALL.into_iter().any(|at| self.get(at))
+    }
+}
+
 /// Construction of a stair type.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -255,6 +390,12 @@ pub struct StairBuild {
     pub tread_thickness: f64,
     /// Riser boards closing the gap between treads (assembled stairs).
     pub closed_risers: bool,
+    /// Layout of the beams under the landings of an assembled stair with a
+    /// central stringer (they are as wide and deep as the stringers, under
+    /// a deck as thick as the treads).
+    pub landing_beams: LandingBeams,
+    /// Side of the square posts under the landings of an assembled stair.
+    pub post_width: f64,
 }
 
 impl Default for StairBuild {
@@ -267,6 +408,8 @@ impl Default for StairBuild {
             stringer_depth: 0.25,
             tread_thickness: 0.04,
             closed_risers: false,
+            landing_beams: LandingBeams::Cross,
+            post_width: 0.08,
         }
     }
 }
@@ -281,6 +424,7 @@ impl StairBuild {
             (&mut self.stringer_width, d.stringer_width),
             (&mut self.stringer_depth, d.stringer_depth),
             (&mut self.tread_thickness, d.tread_thickness),
+            (&mut self.post_width, d.post_width),
         ] {
             if !v.is_finite() || *v < 0.005 || *v > 2.0 {
                 *v = default;
