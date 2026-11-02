@@ -495,6 +495,31 @@ impl<'a> EditCtx<'a> {
         &mut self.project.phase_graphics
     }
 
+    /// Walls attached to an element this edit deleted (or turned into
+    /// something that is no roof, ceiling or floor) keep their own top.
+    fn sync_attachments(&mut self) {
+        let p = &*self.project;
+        let slab = |id: ElementId| {
+            p.elements.get(&id).is_some_and(|e| {
+                matches!(
+                    e.kind,
+                    crate::ElementKind::Floor(_) | crate::ElementKind::Ceiling(_) | crate::ElementKind::Roof(_)
+                )
+            })
+        };
+        let stale: Vec<ElementId> = p
+            .elements
+            .values()
+            .filter(|e| matches!(&e.kind, crate::ElementKind::Wall(w) if w.attach_top.is_some_and(|t| !slab(t))))
+            .map(|e| e.id)
+            .collect();
+        for id in stale {
+            if let Some(crate::ElementKind::Wall(w)) = self.element_mut(id).map(|e| &mut e.kind) {
+                w.attach_top = None;
+            }
+        }
+    }
+
     /// Floors, ceilings and roofs take the cuts of the shafts that pass
     /// through them (see [`crate::shaft`]), in the same undo step as the
     /// edit that moved a shaft or them; unchanged cuts are left alone.
@@ -587,6 +612,7 @@ impl<'a> EditCtx<'a> {
     fn finish(mut self) -> Transaction {
         // Associative dimensions follow what this edit changed (elements or levels).
         self.sync_shafts();
+        self.sync_attachments();
         self.sync_dimensions();
         self.sync_phases();
         self.sync_sketches();

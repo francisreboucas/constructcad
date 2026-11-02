@@ -291,6 +291,7 @@ impl ModelGeometry {
         geom.build_walls(project);
         geom.build_hosted(project);
         geom.build_slabs(project);
+        geom.attach_wall_tops(project);
         geom.build_beams(project);
         geom.build_foundations(project);
         geom.build_structure(project);
@@ -609,6 +610,105 @@ impl ModelGeometry {
             }
         }
         geom
+    }
+
+    /// Walls whose top is attached to a roof, ceiling or floor: along its
+    /// centerline the top follows the plane of the target's underside above
+    /// it (the lowest where several meet, as along a ridge), and keeps its
+    /// own height where the target is not above. A wall straddling the
+    /// target's edge counts as under it. Arc walls keep their own top.
+    fn attach_wall_tops(&mut self, project: &Project) {
+        let attached: Vec<(ElementId, ElementId)> = project
+            .walls()
+            .filter(|(_, w)| w.bulge.abs() < 1e-9)
+            .filter_map(|(e, w)| Some((e.id, w.attach_top?)))
+            .collect();
+        for (wall, target) in attached {
+            let Some(g) = self.walls.get(&wall) else { continue };
+            // The target's undersides (faces turned down) as plan outlines,
+            // reaching half the wall further, with their planes.
+            let reach = g.half + 0.01;
+            let planes: Vec<(Vec<DVec2>, DVec3, DVec3)> = self
+                .solids
+                .iter()
+                .filter(|s| s.element == target && !s.secondary)
+                .flat_map(|s| s.faces.iter())
+                .filter(|f| f.normal.z < -1e-6 && f.verts.len() >= 3)
+                .map(|f| {
+                    let plan = polygon::offset(&f.verts.iter().map(|p| p.truncate()).collect::<Vec<_>>(), reach);
+                    (plan, f.normal, f.verts[0])
+                })
+                .collect();
+            if planes.is_empty() {
+                continue;
+            }
+            let z_on = |(n, p0): (DVec3, DVec3), p: DVec2| p0.z - (n.x * (p.x - p0.x) + n.y * (p.y - p0.y)) / n.z;
+            let (u_start, u_end) = (g.start_ext.0.min(g.start_ext.1), g.end_ext.0.max(g.end_ext.1));
+            let at = |u: f64| g.origin + g.dir * u;
+            // Where the centerline crosses an outline's edges, the plane above may change.
+            let mut breaks = vec![u_start, u_end];
+            for (plan, _, _) in &planes {
+                for i in 0..plan.len() {
+                    let (a, b) = (plan[i], plan[(i + 1) % plan.len()]);
+                    let d = b - a;
+                    let den = g.dir.perp_dot(d);
+                    if den.abs() < 1e-12 {
+                        continue;
+                    }
+                    let w = a - g.origin;
+                    let (u, t) = (w.perp_dot(d) / den, w.perp_dot(g.dir) / den);
+                    if (-1e-9..=1.0 + 1e-9).contains(&t) && u > u_start && u < u_end {
+                        breaks.push(u);
+                    }
+                }
+            }
+            // Where two planes cross over the centerline (a ridge), the lower one changes.
+            let line = |(n, p0): (DVec3, DVec3)| {
+                let z0 = z_on((n, p0), at(0.0));
+                (z0, z_on((n, p0), at(1.0)) - z0)
+            };
+            for (i, a) in planes.iter().enumerate() {
+                for b in &planes[i + 1..] {
+                    let ((za, ka), (zb, kb)) = (line((a.1, a.2)), line((b.1, b.2)));
+                    if (ka - kb).abs() > 1e-12 {
+                        let u = (zb - za) / (ka - kb);
+                        if u > u_start && u < u_end {
+                            breaks.push(u);
+                        }
+                    }
+                }
+            }
+            breaks.sort_by(f64::total_cmp);
+            breaks.dedup_by(|a, b| (*a - *b).abs() < 1e-6);
+            let mut profile: Vec<(f64, f64, f64, f64)> = Vec::new();
+            for w in breaks.windows(2) {
+                let (ua, ub) = (w[0], w[1]);
+                let mid = at((ua + ub) * 0.5);
+                let above = planes
+                    .iter()
+                    .filter(|(plan, _, _)| polygon::contains(plan, mid))
+                    .min_by(|a, b| z_on((a.1, a.2), mid).total_cmp(&z_on((b.1, b.2), mid)));
+                profile.push(match above {
+                    Some((_, n, p0)) => (ua, ub, z_on((*n, *p0), at(ua)), z_on((*n, *p0), at(ub))),
+                    None => (ua, ub, g.top_z, g.top_z),
+                });
+            }
+            if profile.iter().all(|s| (s.2 - g.top_z).abs() < 1e-9 && (s.3 - g.top_z).abs() < 1e-9) {
+                continue;
+            }
+            let mut g = g.clone();
+            // Openings stay below the top; the columns are rebuilt from scratch.
+            let high = profile.iter().flat_map(|s| [s.2, s.3]).fold(g.top_z, f64::max);
+            let low = profile.iter().flat_map(|s| [s.2, s.3]).fold(f64::INFINITY, f64::min).max(g.base_z + 0.01);
+            g.top_z = high;
+            let openings = g.openings.clone();
+            g.set_openings(openings.into_iter().filter(|o| o.z1 <= low).collect());
+            g.set_top_profile(profile);
+            if let Some(s) = self.solids.iter_mut().find(|s| s.element == wall && s.category == Category::Wall) {
+                s.faces = g.to_solid(s.color).faces;
+            }
+            self.walls.insert(wall, g);
+        }
     }
 
     fn build_walls(&mut self, project: &Project) {

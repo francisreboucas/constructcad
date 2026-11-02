@@ -344,6 +344,11 @@ pub struct Wall {
     /// 0 for a straight wall.
     #[serde(default)]
     pub bulge: f64,
+    /// The roof, ceiling or floor the top is attached to: under it the wall
+    /// rises or drops to its underside, following its slope; elsewhere it
+    /// keeps its own top.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attach_top: Option<ElementId>,
 }
 
 impl Default for Wall {
@@ -360,6 +365,7 @@ impl Default for Wall {
             join_start: true,
             join_end: true,
             bulge: 0.0,
+            attach_top: None,
         }
     }
 }

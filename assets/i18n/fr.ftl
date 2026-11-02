@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Dessine une ouverture verticale (gaine, trémie, cage d’escal
 tpl-type-shaft = Trémie
 tx-create-shaft = Créer une trémie
 tx-create-shaft-type = Créer un type de trémie
+
+# Attached wall tops
+tool-attach-top = Attacher le haut
+tool-detach-top = Détacher le haut
+cmd-desc-attach-top = Attache le haut des murs sélectionnés à une toiture, un plafond ou un plancher : dessous, le mur monte ou descend jusqu’à sa sous-face, en suivant sa pente.
+cmd-desc-detach-top = Les murs sélectionnés retrouvent leur propre hauteur.
+hint-attach-top = Cliquez la toiture, le plafond ou le plancher auquel attacher le haut des murs · Échap annule
+why-select-walls = Sélectionnez un ou plusieurs murs.
+why-select-attached-walls = Sélectionnez des murs dont le haut est attaché.
+prop-attached-to = Haut attaché à
+tx-wall-attach = Attacher le haut du mur

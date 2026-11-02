@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Zeichnet eine vertikale Öffnung (Schacht, Durchbruch, Treppena
 tpl-type-shaft = Schacht
 tx-create-shaft = Schacht erstellen
 tx-create-shaft-type = Schachttyp erstellen
+
+# Attached wall tops
+tool-attach-top = Oberkante anbinden
+tool-detach-top = Oberkante lösen
+cmd-desc-attach-top = Bindet die Oberkante der gewählten Wände an ein Dach, eine Unterdecke oder eine Decke: darunter steigt oder sinkt die Wand bis zu deren Unterseite und folgt ihrer Neigung.
+cmd-desc-detach-top = Die gewählten Wände erhalten wieder ihre eigene Oberkante.
+hint-attach-top = Dach, Unterdecke oder Decke klicken, an die die Wände angebunden werden · Esc bricht ab
+why-select-walls = Eine oder mehrere Wände wählen.
+why-select-attached-walls = Wände mit angebundener Oberkante wählen.
+prop-attached-to = Oberkante angebunden an
+tx-wall-attach = Wandoberkante anbinden

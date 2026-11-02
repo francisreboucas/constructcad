@@ -104,6 +104,9 @@ pub enum Tool {
     JoinGeometry {
         unjoin: bool,
     },
+    /// Click the roof, ceiling or floor the selected walls' tops attach to
+    /// (the walls are kept in `interaction.targets`).
+    AttachTop,
     /// Place the clipboard with a click.
     Paste,
     /// Pick an element, then click others to give them its type.
@@ -171,6 +174,7 @@ impl Tool {
             Tool::Measure => "tool-measure",
             Tool::JoinGeometry { unjoin: false } => "tool-join-geometry",
             Tool::JoinGeometry { unjoin: true } => "tool-unjoin-geometry",
+            Tool::AttachTop => "tool-attach-top",
             Tool::Paste => "action-paste",
             Tool::MatchType => "tool-match-type",
             Tool::Demolish => "tool-demolish",
@@ -1140,6 +1144,7 @@ pub fn handle(
         (Tool::Measure, _) => measure_tool(ui, resp, painter, state, xf, drawing),
         // Joining geometry too (sections show it best).
         (Tool::JoinGeometry { unjoin }, _) => crate::modify::join_tool(resp, painter, state, xf, drawing, *unjoin),
+        (Tool::AttachTop, _) => crate::modify::attach_tool(resp, painter, state, xf, drawing),
         // Text notes too.
         (Tool::Text { type_id }, _) => {
             let px_per_mm = xf.scale * view.scale.max(1) as f64 / 1000.0;

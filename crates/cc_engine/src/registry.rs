@@ -216,6 +216,7 @@ registry![
         modify::ElementsExport,
         modify::ElementsPaste,
         modify::WallJoin,
+        modify::WallAttach,
         modify::GeometryJoin,
         modify::GeometryUnjoin,
         modify::GroupCreate,

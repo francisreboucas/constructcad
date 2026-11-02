@@ -312,7 +312,20 @@ impl Project {
             .filter(|e| matches!(e.kind, ElementKind::Stair(_) | ElementKind::Ramp(_)))
             .map(|e| e.id)
             .collect();
+        // What a wall's top may be attached to.
+        let slabs: std::collections::BTreeSet<crate::ElementId> = self
+            .elements
+            .values()
+            .filter(|e| matches!(e.kind, ElementKind::Floor(_) | ElementKind::Ceiling(_) | ElementKind::Roof(_)))
+            .map(|e| e.id)
+            .collect();
         for e in self.elements.values_mut() {
+            if let ElementKind::Wall(w) = &mut e.kind
+                && w.attach_top.is_some_and(|t| !slabs.contains(&t))
+            {
+                w.attach_top = None;
+                repairs += 1;
+            }
             // Shaft cuts are derived; bad ones from a file go (the next edit writes them again).
             if let Some(cuts) = e.shaft_cuts_mut() {
                 let before = cuts.len();

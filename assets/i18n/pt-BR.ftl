@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Desenha uma abertura vertical (poço, duto, vazio de escada) qu
 tpl-type-shaft = Shaft
 tx-create-shaft = Criar shaft
 tx-create-shaft-type = Criar tipo de shaft
+
+# Attached wall tops
+tool-attach-top = Prender topo
+tool-detach-top = Soltar topo
+cmd-desc-attach-top = Prende o topo das paredes selecionadas a um telhado, forro ou piso: sob ele a parede sobe ou desce até a face inferior, seguindo a inclinação.
+cmd-desc-detach-top = As paredes selecionadas voltam ao próprio topo.
+hint-attach-top = Clique no telhado, forro ou piso ao qual prender o topo das paredes · Esc cancela
+why-select-walls = Selecione uma ou mais paredes.
+why-select-attached-walls = Selecione paredes com o topo preso.
+prop-attached-to = Topo preso a
+tx-wall-attach = Prender topo da parede

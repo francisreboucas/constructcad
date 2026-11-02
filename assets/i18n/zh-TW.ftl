@@ -2186,3 +2186,14 @@ cmd-desc-shaft = 繪製垂直開口（管道間、豎井、樓梯井），切穿
 tpl-type-shaft = 豎井
 tx-create-shaft = 建立豎井
 tx-create-shaft-type = 建立豎井類型
+
+# Attached wall tops
+tool-attach-top = 附著頂部
+tool-detach-top = 分離頂部
+cmd-desc-attach-top = 將所選牆的頂部附著到屋頂、天花板或樓板：在其下方，牆會升高或降低到其底面並隨其坡度。
+cmd-desc-detach-top = 所選的牆回到自身的頂部。
+hint-attach-top = 按一下要附著牆頂的屋頂、天花板或樓板 · Esc 取消
+why-select-walls = 選取一面或多面牆。
+why-select-attached-walls = 選取頂部已附著的牆。
+prop-attached-to = 頂部附著於
+tx-wall-attach = 附著牆頂

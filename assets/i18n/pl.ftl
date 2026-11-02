@@ -2186,3 +2186,14 @@ cmd-desc-shaft = Rysuje pionowy otwór (szyb, kanał, dusza schodów), który pr
 tpl-type-shaft = Szyb
 tx-create-shaft = Utwórz szyb
 tx-create-shaft-type = Utwórz typ szybu
+
+# Attached wall tops
+tool-attach-top = Dołącz górę
+tool-detach-top = Odłącz górę
+cmd-desc-attach-top = Dołącza górę zaznaczonych ścian do dachu, sufitu lub stropu: pod nim ściana wznosi się lub obniża do jego spodu, zgodnie z jego spadkiem.
+cmd-desc-detach-top = Zaznaczone ściany wracają do własnej wysokości.
+hint-attach-top = Kliknij dach, sufit lub strop, do którego dołączyć górę ścian · Esc anuluje
+why-select-walls = Zaznacz jedną lub więcej ścian.
+why-select-attached-walls = Zaznacz ściany z dołączoną górą.
+prop-attached-to = Góra dołączona do
+tx-wall-attach = Dołącz górę ściany
