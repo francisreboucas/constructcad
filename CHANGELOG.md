@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-02
+
 ### Added
 
 - Structural landings for assembled stairs (#143). The landings of a steel, timber or precast stair are no longer a solid block: they are a deck as thick as the treads on beams as wide and deep as the stringers, in line with them. With a central stringer the beams carry the flights' stringer lines across the landing, crossing (*Cross*) or one springing from the other (*T*), a new type property (`landing_beams`); with side stringers they frame the landing's edge. Posts down to the stair's base are placed per stair and per landing, only where wanted: at the corners of a frame or the ends of a central stringer's beams (front, back, inner side, outer side...), in the properties palette's *Landing posts*, in `stair_create` (`posts`) and in `element_set` (`layout.posts`); `stair_check` lists where each landing can take one. Their size is the type's `post_width`.
@@ -365,7 +367,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Closing the last open view tab crashed the application.
 - Per-wall volumes in schedules were wrong for walls joined at corners; they are now computed exactly.
 
-[Unreleased]: https://github.com/francisreboucas/constructcad/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/francisreboucas/constructcad/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/francisreboucas/constructcad/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/francisreboucas/constructcad/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/francisreboucas/constructcad/compare/v0.6.1...v0.7.0
 [0.6.1]: https://github.com/francisreboucas/constructcad/compare/v0.6.0...v0.6.1
