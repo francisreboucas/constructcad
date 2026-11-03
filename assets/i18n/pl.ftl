@@ -122,7 +122,7 @@ tool-room = Pomieszczenie
 tool-grid = Oś
 tool-dimension = Wyrównany
 hint-room = Kliknij wewnątrz ścian ograniczających pomieszczenia, aby umieścić pomieszczenie · zamknięty obszar zostanie podświetlony
-hint-grid = Kliknij początek i koniec linii osi · Shift = ortogonalnie
+hint-grid = Kliknij początek i koniec linii osi · wpisz długość + Enter · Shift = ortogonalnie
 hint-dimension = Kliknij dwa punkty, a następnie położenie linii wymiarowej · działa w każdym widoku 2D
 tool-dim-linear = Liniowy
 tool-dim-ordinate = Narastający

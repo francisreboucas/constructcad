@@ -122,7 +122,7 @@ tool-room = Room
 tool-grid = Grid
 tool-dimension = Aligned
 hint-room = Click inside walls that bound rooms to place a room · the enclosed area is highlighted
-hint-grid = Click the start and the end of the grid line · Shift = orthogonal
+hint-grid = Click the start and the end of the grid line · type a length + Enter · Shift = orthogonal
 hint-dimension = Click two points, then the position of the dimension line · works in any 2D view
 tool-dim-linear = Linear
 tool-dim-ordinate = Ordinate

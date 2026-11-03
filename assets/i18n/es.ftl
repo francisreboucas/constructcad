@@ -122,7 +122,7 @@ tool-room = Habitación
 tool-grid = Eje
 tool-dimension = Alineada
 hint-room = Haga clic dentro de muros que delimitan habitaciones para colocar una habitación · el área cerrada se resalta
-hint-grid = Haga clic en el inicio y el final de la línea de eje · Mayús = ortogonal
+hint-grid = Haga clic en el inicio y el final de la línea de eje · escriba una longitud + Enter · Mayús = ortogonal
 hint-dimension = Haga clic en dos puntos y luego en la posición de la línea de cota · funciona en cualquier vista 2D
 tool-dim-linear = Lineal
 tool-dim-ordinate = Por coordenadas

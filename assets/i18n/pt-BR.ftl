@@ -122,7 +122,7 @@ tool-room = Ambiente
 tool-grid = Eixo
 tool-dimension = Alinhada
 hint-room = Clique dentro de paredes que delimitam ambientes para criar o ambiente · a área fechada fica destacada
-hint-grid = Clique no início e no fim do eixo · Shift = ortogonal
+hint-grid = Clique no início e no fim do eixo · digite o comprimento + Enter · Shift = ortogonal
 hint-dimension = Clique dois pontos e depois a posição da linha de cota · funciona em qualquer vista 2D
 tool-dim-linear = Linear
 tool-dim-ordinate = Ordenada
