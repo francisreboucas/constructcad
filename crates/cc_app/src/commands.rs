@@ -1429,8 +1429,9 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         Undo => match state.sketch.as_mut() {
             Some(s) => s.undo(),
             None => {
-                // While a chain is drawn, undo steps it back and the tool goes on.
-                if !crate::tools::chain_back(state) {
+                // While a chain is drawn, undo steps it back and the tool goes on;
+                // another tool halfway through a pick undoes nothing.
+                if !crate::tools::chain_back(state) && state.interaction.is_idle() {
                     actions::run_command(state, cc_engine::commands::project::Undo {});
                 }
             }

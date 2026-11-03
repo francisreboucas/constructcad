@@ -3466,13 +3466,27 @@ mod tests {
         }
         assert_eq!(walls(&state), before + 3);
         let ctx = egui::Context::default();
+        // The keys themselves, through the app's shortcuts (issue #161).
+        let press = |state: &mut AppState, key: egui::Key| {
+            let modifiers = egui::Modifiers::COMMAND;
+            let event = egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers };
+            let input = egui::RawInput { events: vec![event], ..Default::default() };
+            ctx.begin_pass(input);
+            crate::app::shortcuts(&ctx, state);
+            ctx.end_pass().textures_delta.clear();
+        };
         // Ctrl+Z: the last wall goes, the chain goes on from its start, the tool stays.
-        run(&mut state, &ctx, UiCommand::Undo);
+        press(&mut state, egui::Key::Z);
         assert_eq!(walls(&state), before + 2);
         assert_eq!(state.interaction.anchor, Some(pts[2]));
         assert_eq!(state.interaction.prev_dir, Some(pts[1] - pts[2]));
         assert!(matches!(state.tool, Tool::Wall { .. }));
         // Ctrl+Y puts it back and the chain goes on from its end.
+        press(&mut state, egui::Key::Y);
+        assert_eq!((walls(&state), state.interaction.anchor), (before + 3, Some(pts[3])));
+        // The quick access buttons do the same.
+        run(&mut state, &ctx, UiCommand::Undo);
+        assert_eq!((walls(&state), state.interaction.anchor), (before + 2, Some(pts[2])));
         run(&mut state, &ctx, UiCommand::Redo);
         assert_eq!((walls(&state), state.interaction.anchor), (before + 3, Some(pts[3])));
         // Backspace walks back the whole chain, then drops the start point.

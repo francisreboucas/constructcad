@@ -238,11 +238,13 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
     if close {
         actions::guarded(state, PendingAction::Close);
     }
-    if undo && state.interaction.is_idle() {
-        let _ = state.session.run(cc_engine::commands::project::Undo {});
+    // The same commands as the quick access buttons: an open sketch has its
+    // own undo, and a chain tool steps back and forth a segment (issue #161).
+    if undo {
+        crate::commands::run(state, ctx, crate::commands::UiCommand::Undo);
     }
     if redo {
-        let _ = state.session.run(cc_engine::commands::project::Redo {});
+        crate::commands::run(state, ctx, crate::commands::UiCommand::Redo);
     }
     if save_as {
         actions::save(state, true);
