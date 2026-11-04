@@ -3,7 +3,7 @@ resolver = "3"
 members = ["crates/cc_core", "crates/cc_geom", "crates/cc_views", "crates/cc_render", "crates/cc_ifc", "crates/cc_cad", "crates/cc_skp", "crates/cc_engine", "crates/cc_cli", "crates/cc_app"]
 
 [workspace.package]
-version = "0.9.0"
+version = "0.9.1"
 edition = "2024"
 license = "GPL-3.0-or-later"
 authors = ["Francis Rebouças <francisreboucas@gmail.com>"]

@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.9.1] - 2026-11-04
+
+### Added
+
+- Plan underlays (#154). A floor or ceiling plan can show another level's plan halftone under its own, for reference while drawing. The *Underlay* section of the plan's properties takes the plan below and the plan above. Each is the next level below or above (which suits view templates) or a given level, seen looking down as a floor plan or up as a ceiling plan. Only the model is drawn (no annotations), in the faint pen and with the view's category visibility, and it is not picked, selected or snapped to. It shows on screen only, unless *Print underlay* puts it on sheets and in exports. It is also a view template property. `view_set` and `template_set` take `underlay`, and deleting a level drops it from the underlays that name it.
+- Edit a sweep type's profile in a sketch (#166). *Modify → Sketch → Edit Profile*, with one sweep selected, or the button in its type's *Edit Type…*, opens the profile in a sketch in its own plane: x across the path, y up from it, with the path's point marked. It has the usual drawing and Modify tools, grips and undo. *Finish* redraws every sweep of the type in one undo step. Sweep types now keep the curves their profile was drawn with, so arcs stay arcs when it is edited again; `sweep_type_create` and `sweep_profile_set` store them.
+- More properties edited on several elements at once: the walls' location line, the top constraint of walls, columns, stairs, ramps and shafts (unconnected or up to a level, walls keeping their height) with its offset or unconnected height, the walls' joins at their ends, and the mark and comments (`elements_set` takes `mark` and `comments`). The level row of elements with a top constraint reads *Base Constraint*.
+
+### Fixed
+
+- Importing a large DWG or DXF closed the program (#156). A drawing seen whole made more vertices in one frame than the GPU's vertex buffer holds, and the renderer stopped. Painting now draws one line per pixel for lines shorter than a pixel, cuts dashed lines to the view, leaves out texts far outside it, and keeps each frame within a vertex budget, with the model still drawn over imported drawings.
+- Ctrl+Z and Ctrl+Y did not step a chain of walls, beams, pipes or conduits back and forth (#161). Only Backspace and the quick access buttons did, and Ctrl+Y redid a segment without moving the chain on to its end. The keys now run the same commands, which also undo inside an open sketch.
+- A grid line's length could not be typed (#158). After its first point, a typed length (and, after Tab, an angle) places the end, and Enter places the grid, as for walls.
+
 ## [0.9.0] - 2026-11-02
 
 ### Added
@@ -367,7 +381,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Closing the last open view tab crashed the application.
 - Per-wall volumes in schedules were wrong for walls joined at corners; they are now computed exactly.
 
-[Unreleased]: https://github.com/francisreboucas/constructcad/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/francisreboucas/constructcad/compare/v0.9.1...HEAD
+[0.9.1]: https://github.com/francisreboucas/constructcad/compare/v0.9.0...v0.9.1
 [0.9.0]: https://github.com/francisreboucas/constructcad/compare/v0.8.0...v0.9.0
 [0.8.0]: https://github.com/francisreboucas/constructcad/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/francisreboucas/constructcad/compare/v0.6.1...v0.7.0
