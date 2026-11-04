@@ -15,6 +15,9 @@
 //! Pieces brought in from other tools (IFC import) may be fixed polyhedral
 //! meshes instead, and the definition then remembers the IFC class the
 //! object had, so it is written back as the same class.
+//!
+//! A script piece ([`ComponentShape::Script`]) is Lua source that returns
+//! other pieces; see [`crate::component_script`].
 
 use crate::MepData;
 use crate::expr::{self, ExprError};
@@ -66,7 +69,7 @@ impl ComponentKind {
     }
 }
 
-/// Unit of a parameter value.
+/// Unit or kind of a parameter value.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
 pub enum ParamKind {
     /// Meters.
@@ -75,31 +78,108 @@ pub enum ParamKind {
     /// Degrees.
     Angle,
     Number,
+    /// Text (in [`ComponentParam::text`]).
+    Text,
+    /// Yes or no: `value` 1 or 0, so expressions can read it.
+    Boolean,
+    /// One of [`ComponentParam::choices`], by key (in `text`).
+    Choice,
+    /// A project material, by name (in `text`).
+    Material,
 }
 
 impl ParamKind {
+    /// The numeric kinds, the ones a hand-made parameter can take.
     pub const ALL: [ParamKind; 3] = [ParamKind::Length, ParamKind::Angle, ParamKind::Number];
+    /// Every kind.
+    pub const EVERY: [ParamKind; 7] = [
+        ParamKind::Length,
+        ParamKind::Angle,
+        ParamKind::Number,
+        ParamKind::Text,
+        ParamKind::Boolean,
+        ParamKind::Choice,
+        ParamKind::Material,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
             ParamKind::Length => "param-kind-length",
             ParamKind::Angle => "param-kind-angle",
             ParamKind::Number => "param-kind-number",
+            ParamKind::Text => "param-kind-text",
+            ParamKind::Boolean => "param-kind-boolean",
+            ParamKind::Choice => "param-kind-choice",
+            ParamKind::Material => "param-kind-material",
         }
+    }
+
+    /// The value is text (`ComponentParam::text`), not a number.
+    pub fn is_text(self) -> bool {
+        matches!(self, ParamKind::Text | ParamKind::Choice | ParamKind::Material)
+    }
+
+    /// The name used by commands and scripts.
+    pub fn name(self) -> &'static str {
+        match self {
+            ParamKind::Length => "length",
+            ParamKind::Angle => "angle",
+            ParamKind::Number => "number",
+            ParamKind::Text => "text",
+            ParamKind::Boolean => "boolean",
+            ParamKind::Choice => "choice",
+            ParamKind::Material => "material",
+        }
+    }
+
+    pub fn from_name(name: &str) -> Option<ParamKind> {
+        ParamKind::EVERY.into_iter().find(|k| k.name() == name)
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ComponentParam {
     /// Name used in expressions (see [`expr::is_valid_name`]).
     pub name: String,
-    /// Value of this type.
+    /// Value of this type (1 or 0 for booleans; unused by text kinds).
     pub value: f64,
     #[serde(default)]
     pub kind: ParamKind,
     /// Elements may override the value.
     #[serde(default)]
     pub instance: bool,
+    /// Shown instead of the name when set.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub label: String,
+    /// Value of this type for text, choice (the key) and material (the name) parameters.
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub text: String,
+    /// The options of a choice parameter.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub choices: Vec<crate::component_script::ParamChoice>,
+    /// Declared by a script piece: kept in step with it, not renamed by hand.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub from_script: bool,
+}
+
+impl ComponentParam {
+    /// A numeric parameter of this type.
+    pub fn number(name: impl Into<String>, value: f64, kind: ParamKind) -> ComponentParam {
+        ComponentParam { name: name.into(), value, kind, ..Default::default() }
+    }
+
+    /// The label shown: the label, or the name.
+    pub fn display(&self) -> &str {
+        if self.label.is_empty() { &self.name } else { &self.label }
+    }
+
+    /// Whether `text` is a value this parameter can take (a choice's key).
+    pub fn accepts_text(&self, text: &str) -> bool {
+        match self.kind {
+            ParamKind::Choice => self.choices.iter().any(|c| c.key == text),
+            k => k.is_text(),
+        }
+    }
 }
 
 /// Geometry of a piece; every field is an expression.
@@ -128,6 +208,10 @@ pub enum ComponentShape {
     /// Fixed polyhedral surface (not parametric): vertices in the component
     /// frame and faces as counter-clockwise (seen from outside) index loops.
     Mesh { vertices: Vec<[f64; 3]>, faces: Vec<Vec<u32>> },
+    /// Lua source whose `geometry` function returns the pieces (see
+    /// [`crate::component_script`]); they take this piece's material and
+    /// flags where they set none.
+    Script { source: String },
 }
 
 impl ComponentShape {
@@ -173,7 +257,7 @@ impl ComponentShape {
                 out.push(("depth", depth));
                 out
             }
-            ComponentShape::Mesh { .. } => Vec::new(),
+            ComponentShape::Mesh { .. } | ComponentShape::Script { .. } => Vec::new(),
         }
     }
 
@@ -210,7 +294,7 @@ impl ComponentShape {
                 out.extend([offset, depth]);
                 out
             }
-            ComponentShape::Mesh { .. } => Vec::new(),
+            ComponentShape::Mesh { .. } | ComponentShape::Script { .. } => Vec::new(),
         }
     }
 
@@ -453,6 +537,9 @@ pub struct ComponentDef {
     /// Planes kept halfway between two others (EQ).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub equals: Vec<crate::component_ref::RefEqual>,
+    /// Points elements move with grips, declared by script pieces.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub hotspots: Vec<crate::component_script::Hotspot>,
 }
 
 /// An IFC entity class with its predefined and object types.
@@ -502,6 +589,8 @@ pub enum PartError {
     },
     /// A size is zero or negative, or a profile has fewer than 3 points.
     Degenerate,
+    /// A script piece failed (its last pieces that worked may still be shown).
+    Script(String),
 }
 
 impl std::fmt::Display for PartError {
@@ -509,6 +598,7 @@ impl std::fmt::Display for PartError {
         match self {
             PartError::Expr { field, error } => write!(f, "{field}: {error}"),
             PartError::Degenerate => write!(f, "zero or negative size"),
+            PartError::Script(message) => write!(f, "script: {message}"),
         }
     }
 }
@@ -521,16 +611,51 @@ impl ComponentDef {
         self.params.iter().find(|p| p.name == name)
     }
 
-    /// Parameter values with instance `overrides` applied (only to instance
-    /// parameters; non-finite overrides are ignored).
+    /// Numeric parameter values (booleans as 1 or 0) with instance
+    /// `overrides` applied (only to instance parameters; non-finite
+    /// overrides are ignored). Text parameters are left out.
     pub fn values(&self, overrides: &BTreeMap<String, f64>) -> BTreeMap<String, f64> {
         self.params
             .iter()
+            .filter(|p| !p.kind.is_text())
             .map(|p| {
                 let v = overrides.get(&p.name).copied().filter(|v| p.instance && v.is_finite()).unwrap_or(p.value);
                 (p.name.clone(), v)
             })
             .collect()
+    }
+
+    /// Text, choice and material values with instance `overrides` applied
+    /// (only to instance parameters, and only values the parameter accepts).
+    pub fn texts(&self, overrides: &BTreeMap<String, String>) -> BTreeMap<String, String> {
+        self.params
+            .iter()
+            .filter(|p| p.kind.is_text())
+            .map(|p| {
+                let v = overrides.get(&p.name).filter(|v| p.instance && p.accepts_text(v)).unwrap_or(&p.text);
+                (p.name.clone(), v.clone())
+            })
+            .collect()
+    }
+
+    /// Hotspot positions with the element's `moved` ones applied (finite only).
+    pub fn hotspot_positions(&self, moved: &BTreeMap<String, [f64; 3]>) -> BTreeMap<String, DVec3> {
+        self.hotspots
+            .iter()
+            .map(|h| {
+                let p = moved.get(&h.name).filter(|p| p.iter().all(|v| v.is_finite())).unwrap_or(&h.position);
+                (h.name.clone(), DVec3::from_array(*p))
+            })
+            .collect()
+    }
+
+    pub fn hotspot(&self, name: &str) -> Option<&crate::component_script::Hotspot> {
+        self.hotspots.iter().find(|h| h.name == name)
+    }
+
+    /// Whether any piece is a script.
+    pub fn has_script(&self) -> bool {
+        self.items.iter().any(|i| matches!(i.shape, ComponentShape::Script { .. }))
     }
 
     /// Width and height of the opening a door or window cuts (`None` for
@@ -590,38 +715,47 @@ impl ComponentDef {
 
     /// Resolve every piece with `extra` names defined too (a door's
     /// [`WALL_THICKNESS`]); parameters of the same name win. Pieces also
-    /// read the reference planes.
+    /// read the reference planes. Script pieces fail here: they need
+    /// [`ComponentDef::resolve_with`].
     pub fn resolve_in(
         &self,
         overrides: &BTreeMap<String, f64>,
         extra: &[(&str, f64)],
     ) -> (Vec<ComponentPart>, Vec<(usize, PartError)>) {
-        let scope = self.scope(overrides, extra);
+        let ctx = ResolveCtx { overrides, extra, ..ResolveCtx::default() };
+        self.resolve_with(&ctx)
+    }
+
+    /// Resolve every piece, script pieces through `ctx.scripts`.
+    pub fn resolve_with(&self, ctx: &ResolveCtx) -> (Vec<ComponentPart>, Vec<(usize, PartError)>) {
+        let scope = self.scope(ctx.overrides, ctx.extra);
         let lookup = |name: &str| scope.get(name);
         let mut parts = Vec::new();
         let mut errors = Vec::new();
+        let mut input = None;
         for (i, item) in self.items.iter().enumerate() {
-            let resolved = match &item.shape {
-                ComponentShape::Mesh { vertices, faces } => resolve_mesh(vertices, faces),
-                ComponentShape::Profile { .. }
-                | ComponentShape::Revolution { .. }
-                | ComponentShape::Sweep { .. }
-                | ComponentShape::Blend { .. } => resolve_profile(&item.shape, &lookup),
-                shape => resolve_shape(shape, &lookup).map(|(footprint, z0, z1)| (footprint, z0, z1, Vec::new())),
-            };
-            match resolved {
-                Ok((footprint, z0, z1, faces)) => parts.push(ComponentPart {
-                    item: i,
-                    footprint,
-                    z0,
-                    z1,
-                    material: item.material.clone(),
-                    in_plan: item.in_plan || item.plan_only,
-                    void: item.void && !item.plan_only,
-                    plan_only: item.plan_only,
-                    detail: item.detail,
-                    faces,
-                }),
+            if let ComponentShape::Script { source } = &item.shape {
+                let input = input.get_or_insert_with(|| crate::component_script::ScriptInput {
+                    numbers: scope.values.clone(),
+                    texts: self.texts(ctx.texts),
+                    hotspots: self.hotspot_positions(ctx.hotspots),
+                });
+                let owner = crate::component_script::ScriptOwner { piece: i, ..ctx.owner };
+                let result = ctx.scripts.eval(source, input, owner);
+                if let Some(error) = result.error {
+                    errors.push((i, PartError::Script(error)));
+                }
+                for sub in result.items.iter().flat_map(|items| items.iter()) {
+                    let sub = merged_item(item, sub);
+                    match resolve_item(&sub, &|_: &str| None) {
+                        Ok(r) => parts.push(part(i, &sub, r)),
+                        Err(e) => errors.push((i, e)),
+                    }
+                }
+                continue;
+            }
+            match resolve_item(item, &lookup) {
+                Ok(r) => parts.push(part(i, item, r)),
                 Err(e) => errors.push((i, e)),
             }
         }
@@ -692,6 +826,80 @@ impl ComponentDef {
                 *e = replace_name(e, old, new);
             }
         }
+    }
+}
+
+/// What resolving reads besides the definition.
+pub struct ResolveCtx<'a> {
+    /// Numeric (and boolean) instance values.
+    pub overrides: &'a BTreeMap<String, f64>,
+    /// Text, choice and material instance values.
+    pub texts: &'a BTreeMap<String, String>,
+    /// Moved hotspots.
+    pub hotspots: &'a BTreeMap<String, [f64; 3]>,
+    /// Names defined besides the parameters (a door's wall thickness).
+    pub extra: &'a [(&'a str, f64)],
+    pub scripts: &'a dyn crate::component_script::ScriptEval,
+    /// Whose pieces these are (for the last script result that worked).
+    pub owner: crate::component_script::ScriptOwner,
+}
+
+static EMPTY_NUMBERS: BTreeMap<String, f64> = BTreeMap::new();
+static EMPTY_TEXTS: BTreeMap<String, String> = BTreeMap::new();
+static EMPTY_POINTS: BTreeMap<String, [f64; 3]> = BTreeMap::new();
+
+impl Default for ResolveCtx<'_> {
+    fn default() -> Self {
+        ResolveCtx {
+            overrides: &EMPTY_NUMBERS,
+            texts: &EMPTY_TEXTS,
+            hotspots: &EMPTY_POINTS,
+            extra: &[],
+            scripts: &crate::component_script::NoScripts,
+            owner: Default::default(),
+        }
+    }
+}
+
+/// Resolve one piece that is not a script.
+fn resolve_item(item: &ComponentItem, lookup: &dyn Fn(&str) -> Option<f64>) -> Result<ResolvedMesh, PartError> {
+    match &item.shape {
+        ComponentShape::Mesh { vertices, faces } => resolve_mesh(vertices, faces),
+        ComponentShape::Profile { .. }
+        | ComponentShape::Revolution { .. }
+        | ComponentShape::Sweep { .. }
+        | ComponentShape::Blend { .. } => resolve_profile(&item.shape, lookup),
+        ComponentShape::Script { .. } => Err(PartError::Script("a script cannot return a script piece".into())),
+        shape => resolve_shape(shape, lookup).map(|(footprint, z0, z1)| (footprint, z0, z1, Vec::new())),
+    }
+}
+
+fn part(item_index: usize, item: &ComponentItem, (footprint, z0, z1, faces): ResolvedMesh) -> ComponentPart {
+    ComponentPart {
+        item: item_index,
+        footprint,
+        z0,
+        z1,
+        material: item.material.clone(),
+        in_plan: item.in_plan || item.plan_only,
+        void: item.void && !item.plan_only,
+        plan_only: item.plan_only,
+        detail: item.detail,
+        faces,
+    }
+}
+
+/// A piece a script returned, with the script piece's material and flags
+/// where it sets none.
+fn merged_item(script: &ComponentItem, sub: &ComponentItem) -> ComponentItem {
+    ComponentItem {
+        name: sub.name.clone(),
+        shape: sub.shape.clone(),
+        material: if sub.material.is_empty() { script.material.clone() } else { sub.material.clone() },
+        in_plan: sub.in_plan && script.in_plan,
+        void: sub.void || script.void,
+        plan_only: sub.plan_only || script.plan_only,
+        detail: if sub.detail.is_all() { script.detail } else { sub.detail },
     }
 }
 
@@ -865,7 +1073,8 @@ fn resolve_shape(
         | ComponentShape::Profile { .. }
         | ComponentShape::Revolution { .. }
         | ComponentShape::Sweep { .. }
-        | ComponentShape::Blend { .. } => Err(PartError::Degenerate),
+        | ComponentShape::Blend { .. }
+        | ComponentShape::Script { .. } => Err(PartError::Degenerate),
     }
 }
 
@@ -882,6 +1091,7 @@ pub fn library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, ComponentDef)
         value,
         kind: ParamKind::Length,
         instance: false,
+        ..Default::default()
     };
     let bx = |name: &str,
               x: String,
@@ -1230,6 +1440,7 @@ pub fn mep_library(n: &dyn Fn(&str) -> String) -> Vec<(String, String, Component
         value,
         kind: ParamKind::Length,
         instance: false,
+        ..Default::default()
     };
     let sizes = |width: f64, depth: f64, height: f64| vec![length(&w, width), length(&d, depth), length(&h, height)];
     let piece = |name: &str, shape: ComponentShape, material: &str| ComponentItem {

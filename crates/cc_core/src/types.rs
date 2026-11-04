@@ -240,6 +240,9 @@ pub struct TypeInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// A project holds few types, so the size of the component variant does not
+// matter; boxing its definition would only add indirection.
+#[allow(clippy::large_enum_variant)]
 pub enum TypeData {
     Wall {
         layers: Vec<Layer>,

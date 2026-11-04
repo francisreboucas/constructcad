@@ -363,6 +363,7 @@ impl Command for SkpImport {
                     overrides: Default::default(),
                     properties: Vec::new(),
                     system: None,
+                    ..Default::default()
                 };
                 elements.push(add_element(e, level, type_id, ElementKind::Component(component)).0);
             }

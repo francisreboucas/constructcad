@@ -1022,7 +1022,7 @@ impl Railing {
 }
 
 /// A placed parametric component (see [`crate::component`]).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Component {
     /// Insertion point in plan.
     pub position: DVec2,
@@ -1039,4 +1039,10 @@ pub struct Component {
     /// The system or circuit it is connected to (an electrical device's circuit).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub system: Option<crate::SystemId>,
+    /// Values of instance text, choice and material parameters that differ from the type.
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub text_overrides: std::collections::BTreeMap<String, String>,
+    /// Hotspots moved away from where the type has them (component frame).
+    #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+    pub hotspots: std::collections::BTreeMap<String, [f64; 3]>,
 }

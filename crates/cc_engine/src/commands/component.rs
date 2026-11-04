@@ -233,7 +233,7 @@ impl Command for ComponentParamAdd {
         let name = edit_def(s, &self.type_ref, &[], |def| {
             let name = check_name(def, &self.name)?;
             let instance = self.instance.unwrap_or(false);
-            def.params.push(ComponentParam { name: name.clone(), value, kind, instance });
+            def.params.push(ComponentParam { name: name.clone(), value, kind, instance, ..Default::default() });
             Ok(name)
         })?;
         Ok(json!({ "name": name }))
@@ -568,7 +568,13 @@ fn label(def: &mut ComponentDef, index: usize, label: &str) -> Result<()> {
     d.label = Some(label.to_string());
     if def.param(label).is_none() {
         let name = check_name(def, label)?;
-        def.params.push(ComponentParam { name, value: distance, kind: ParamKind::Length, instance: false });
+        def.params.push(ComponentParam {
+            name,
+            value: distance,
+            kind: ParamKind::Length,
+            instance: false,
+            ..Default::default()
+        });
     }
     let below = scope.get(&to).zip(scope.get(&from)).is_some_and(|(t, f)| t < f);
     let Some(plane) = def.ref_planes.iter_mut().find(|p| p.name == to) else {

@@ -135,6 +135,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 overrides: Default::default(),
                 properties: Vec::new(),
                 system: None,
+                ..Default::default()
             };
             add(e, type_id, "", ElementKind::Component(c));
         };

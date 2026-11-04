@@ -319,7 +319,7 @@ mod tests {
     use crate::component::{ComponentItem, ComponentParam, ComponentShape, ParamKind};
 
     fn param(name: &str, value: f64) -> ComponentParam {
-        ComponentParam { name: name.into(), value, kind: ParamKind::Length, instance: false }
+        ComponentParam { name: name.into(), value, kind: ParamKind::Length, instance: false, ..Default::default() }
     }
 
     fn plane(name: &str, axis: PlaneAxis, at: &str) -> RefPlane {

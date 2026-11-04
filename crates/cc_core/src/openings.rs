@@ -66,7 +66,7 @@ impl OpeningNames {
 }
 
 fn length(name: &str, value: f64) -> ComponentParam {
-    ComponentParam { name: name.to_string(), value, kind: ParamKind::Length, instance: false }
+    ComponentParam { name: name.to_string(), value, kind: ParamKind::Length, instance: false, ..Default::default() }
 }
 
 /// A box piece from its corner and sizes (expressions).

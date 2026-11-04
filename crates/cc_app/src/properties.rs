@@ -1214,7 +1214,11 @@ pub fn param_value(value: &mut f64, kind: cc_core::ParamKind) -> DragValue<'_> {
     match kind {
         cc_core::ParamKind::Length => crate::properties::length_drag(value).speed(0.01),
         cc_core::ParamKind::Angle => DragValue::new(value).speed(1.0).suffix("°"),
-        cc_core::ParamKind::Number => DragValue::new(value).speed(0.1),
+        cc_core::ParamKind::Boolean => DragValue::new(value).range(0.0..=1.0).speed(1.0),
+        cc_core::ParamKind::Number
+        | cc_core::ParamKind::Text
+        | cc_core::ParamKind::Choice
+        | cc_core::ParamKind::Material => DragValue::new(value).speed(0.1),
     }
 }
 

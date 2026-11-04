@@ -2050,6 +2050,7 @@ impl<'a> Importer<'a> {
             base_offset: origin.z - elevation,
             overrides,
             properties,
+            ..Default::default()
         };
         self.add_element(id, e, level, type_id, Self::tag(e), ElementKind::Component(c));
         true

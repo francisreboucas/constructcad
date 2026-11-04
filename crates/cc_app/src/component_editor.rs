@@ -60,6 +60,7 @@ impl Editor {
             value,
             kind: ParamKind::Length,
             instance: false,
+            ..Default::default()
         };
         let def = ComponentDef {
             kind: ComponentKind::Generic,
@@ -163,6 +164,7 @@ fn part_error(e: &PartError) -> String {
     match e {
         PartError::Expr { field, error } => format!("{}: {error}", tr(&format!("comp-field-{field}"))),
         PartError::Degenerate => t!("comp-err-degenerate"),
+        PartError::Script(message) => message.clone(),
     }
 }
 
@@ -394,7 +396,13 @@ fn params_table(ui: &mut Ui, ed: &mut Editor) {
             name = format!("P{k}");
         }
         ed.refs.push(name.clone());
-        ed.def.params.push(ComponentParam { name, value: 0.5, kind: ParamKind::Length, instance: false });
+        ed.def.params.push(ComponentParam {
+            name,
+            value: 0.5,
+            kind: ParamKind::Length,
+            instance: false,
+            ..Default::default()
+        });
     }
 }
 
@@ -572,6 +580,11 @@ fn shape_fields(
     lookup: &dyn Fn(&str) -> Option<f64>,
 ) {
     match shape {
+        ComponentShape::Script { source } => {
+            ui.label(theme::muted(t!("comp-field-script")));
+            ui.add(egui::TextEdit::multiline(source).code_editor().desired_rows(12).desired_width(f32::INFINITY));
+            ui.end_row();
+        }
         ComponentShape::Box { x, y, z, width, depth, height } => {
             field(ui, &t!("comp-field-x"), x);
             field(ui, &t!("comp-field-y"), y);

@@ -220,6 +220,7 @@ impl Project {
                             repairs += 1;
                         }
                     }
+                    repairs += repair_scripted(def);
                     let fix_nonnegative = |v: &mut f64| {
                         let bad = !(v.is_finite() && *v >= 0.0);
                         if bad {
@@ -381,9 +382,11 @@ impl Project {
         // Component overrides and imported properties must be finite.
         for e in self.elements.values_mut() {
             if let ElementKind::Component(c) = &mut e.kind {
-                let before = c.overrides.len();
+                let before = c.overrides.len() + c.text_overrides.len() + c.hotspots.len();
                 c.overrides.retain(|_, v| v.is_finite());
-                repairs += before - c.overrides.len();
+                c.text_overrides.retain(|_, v| v.len() <= crate::component_script::MAX_TEXT_LEN);
+                c.hotspots.retain(|_, p| p.iter().all(|v| v.is_finite()));
+                repairs += before - (c.overrides.len() + c.text_overrides.len() + c.hotspots.len());
                 repairs += crate::properties::repair_sets(&mut c.properties);
             }
         }
@@ -607,6 +610,62 @@ impl Project {
     }
 }
 
+/// Script sources, text values, choices and hotspots of a component
+/// definition within their limits; the number of repairs.
+fn repair_scripted(def: &mut crate::ComponentDef) -> usize {
+    use crate::component_script::{MAX_CHOICES, MAX_HOTSPOTS, MAX_SCRIPT_LEN, MAX_TEXT_LEN, truncate};
+    let mut repairs = 0;
+    for item in &mut def.items {
+        if let crate::ComponentShape::Script { source } = &mut item.shape
+            && source.len() > MAX_SCRIPT_LEN
+        {
+            source.clear();
+            repairs += 1;
+        }
+    }
+    for p in &mut def.params {
+        repairs += usize::from(truncate(&mut p.label, MAX_TEXT_LEN)) + usize::from(truncate(&mut p.text, MAX_TEXT_LEN));
+        if p.choices.len() > MAX_CHOICES {
+            p.choices.truncate(MAX_CHOICES);
+            repairs += 1;
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        let before = p.choices.len();
+        p.choices
+            .retain(|c| c.key.len() <= MAX_TEXT_LEN && c.label.len() <= MAX_TEXT_LEN && seen.insert(c.key.clone()));
+        repairs += before - p.choices.len();
+        match p.kind {
+            crate::ParamKind::Boolean if p.value != 0.0 && p.value != 1.0 => {
+                p.value = 1.0;
+                repairs += 1;
+            }
+            crate::ParamKind::Choice if !p.accepts_text(&p.text) => {
+                p.text = p.choices.first().map(|c| c.key.clone()).unwrap_or_default();
+                repairs += 1;
+            }
+            _ => {}
+        }
+    }
+    if def.hotspots.len() > MAX_HOTSPOTS {
+        def.hotspots.truncate(MAX_HOTSPOTS);
+        repairs += 1;
+    }
+    let mut seen = std::collections::BTreeSet::new();
+    let before = def.hotspots.len();
+    def.hotspots.retain(|h| seen.insert(h.name.clone()));
+    repairs += before - def.hotspots.len();
+    for h in &mut def.hotspots {
+        repairs += usize::from(truncate(&mut h.label, MAX_TEXT_LEN));
+        for v in &mut h.position {
+            if !v.is_finite() {
+                *v = 0.0;
+                repairs += 1;
+            }
+        }
+    }
+    repairs
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, Wall};
@@ -812,6 +871,7 @@ mod tests {
                 overrides,
                 properties: Vec::new(),
                 system: None,
+                ..Default::default()
             });
             p.elements.insert(
                 id,
@@ -839,5 +899,37 @@ mod tests {
         old.ensure_annotation_types();
         assert_eq!(old.types_of(Category::Component).count(), 16);
         assert!(old.materials.iter().any(|m| m.name == "Tecido"));
+    }
+
+    #[test]
+    fn scripted_components_are_kept_within_limits() {
+        use crate::component_script::{Hotspot, MAX_SCRIPT_LEN, ParamChoice};
+        let mut p = Project::from_template();
+        let ty = p.default_type(Category::Component).unwrap();
+        let Some(crate::TypeData::Component { def, .. }) = p.types.get_mut(&ty).map(|t| &mut t.data) else {
+            panic!("no component type")
+        };
+        def.items[0].shape = crate::ComponentShape::Script { source: "x".repeat(MAX_SCRIPT_LEN + 1) };
+        let choice = |key: &str| ParamChoice { key: key.into(), label: String::new() };
+        def.params.push(crate::ComponentParam {
+            name: "finish".into(),
+            kind: crate::ParamKind::Choice,
+            text: "missing".into(),
+            choices: vec![choice("a"), choice("b"), choice("a")],
+            ..Default::default()
+        });
+        def.params.push(crate::ComponentParam::number("on", 7.0, crate::ParamKind::Boolean));
+        let spot = |name: &str, x: f64| Hotspot { name: name.into(), position: [x, 0.0, 0.0], ..Default::default() };
+        def.hotspots = vec![spot("h", f64::NAN), spot("h", 1.0)];
+        // Long source, duplicate choice, choice value, boolean, duplicate hotspot, NaN position.
+        assert_eq!(p.repair(), 6);
+        let Some(crate::TypeData::Component { def, .. }) = p.types.get(&ty).map(|t| &t.data) else { panic!() };
+        assert!(matches!(&def.items[0].shape, crate::ComponentShape::Script { source } if source.is_empty()));
+        let finish = def.param("finish").unwrap();
+        assert_eq!((finish.text.as_str(), finish.choices.len()), ("a", 2));
+        assert_eq!(def.param("on").unwrap().value, 1.0);
+        assert_eq!(def.hotspots.len(), 1);
+        assert_eq!(def.hotspots[0].position, [0.0; 3]);
+        assert_eq!(p.repair(), 0, "repair is idempotent");
     }
 }

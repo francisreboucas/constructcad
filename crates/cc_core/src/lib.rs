@@ -9,6 +9,7 @@ pub mod cad;
 pub mod component;
 pub mod component_file;
 pub mod component_ref;
+pub mod component_script;
 pub mod dim_line;
 pub mod dim_refs;
 mod document;
@@ -45,8 +46,11 @@ mod view;
 pub mod wall_ops;
 
 pub use cad::{CadColorMode, CadDrawing, CadImport, CadLayer, CadPrim, CadUnit};
-pub use component::{ComponentDef, ComponentItem, ComponentKind, ComponentParam, ComponentShape, ParamKind};
+pub use component::{
+    ComponentDef, ComponentItem, ComponentKind, ComponentParam, ComponentShape, ParamKind, ResolveCtx,
+};
 pub use component_ref::{PlaneAxis, RefDimension, RefEqual, RefLine, RefPlane};
+pub use component_script::{Hotspot, HotspotShape, ParamChoice, ScriptEval, ScriptInput, ScriptOwner, ScriptResult};
 pub use dim_refs::{DimRef, Projection, RefAnchor, RefHeight, RefTarget};
 pub use document::{Document, EditCtx, Transaction};
 pub use element::{
