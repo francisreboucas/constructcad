@@ -812,6 +812,7 @@ pub(crate) fn template_json(p: &Project, t: &ViewTemplate) -> Value {
         "phase_filter": t.phase_filter.and_then(|f| p.phase_filter(f)).map(|f| json!({"id": f.id.0, "name": f.name})),
         "detail": t.detail.name(),
         "visual_style": t.visual_style.map_or("default", |s| s.name()),
+        "underlay": t.underlay,
         "graphics": graphics_json(p, &t.graphics),
         "views": p.views.values().filter(|v| v.template == Some(t.id)).map(|v| v.id.0).collect::<Vec<_>>(),
     })
@@ -933,9 +934,13 @@ pub struct TemplateSet {
     /// `consistent_colors`, `textures`, or `default` (each view's usual style).
     #[serde(default)]
     pub visual_style: Option<String>,
+    /// Plans: other levels' plans drawn under them, merged like `view_set`'s
+    /// `underlay` (e.g. `{"below": {"level": "Next", "looking": "Down"}}`).
+    #[serde(default)]
+    pub underlay: Option<Value>,
     /// Which properties the template controls: `scale`, `categories`,
     /// `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`,
-    /// `detail`, `visual_style` (true/false).
+    /// `detail`, `visual_style`, `underlay` (true/false).
     #[serde(default)]
     pub include: Option<Value>,
 }
@@ -983,6 +988,13 @@ impl Command for TemplateSet {
         }
         if let Some(patch) = &self.include {
             t.include = patch_value(&t.include, patch)?;
+        }
+        if let Some(patch) = &self.underlay {
+            t.underlay = patch_value(&t.underlay, patch)?;
+            let levels: Vec<_> = p.levels.iter().map(|l| l.id).collect();
+            if t.underlay.clone().repair(|l| levels.contains(&l)) > 0 {
+                return Err(EngineError::not_found("level"));
+            }
         }
         edit(s, t!("tx-template-modify"), |e| {
             e.templates_mut().insert(id, t);

@@ -343,8 +343,8 @@ impl Project {
         };
         let plan = add_view(&mut p, &n("tpl-level-ground"), 50, ViewKind::floor_plan(ground));
         add_view(&mut p, &n("tpl-level-first"), 50, ViewKind::floor_plan(first));
-        add_view(&mut p, &n("tpl-level-ground"), 50, ViewKind::CeilingPlan { level: ground, cut_height: 1.2 });
-        add_view(&mut p, &n("tpl-level-first"), 50, ViewKind::CeilingPlan { level: first, cut_height: 1.2 });
+        add_view(&mut p, &n("tpl-level-ground"), 50, ViewKind::ceiling_plan(ground));
+        add_view(&mut p, &n("tpl-level-first"), 50, ViewKind::ceiling_plan(first));
         let threed = add_view(
             &mut p,
             "{3D}",

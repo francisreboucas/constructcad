@@ -824,7 +824,7 @@ impl<'a> Importer<'a> {
             add_view(&mut self.p, name, ViewKind::floor_plan(*level));
         }
         for (level, name) in &levels {
-            add_view(&mut self.p, name, ViewKind::CeilingPlan { level: *level, cut_height: 1.2 });
+            add_view(&mut self.p, name, ViewKind::ceiling_plan(*level));
         }
         self.p.ensure_annotation_types();
         self.p.ensure_uids();

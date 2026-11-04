@@ -310,7 +310,14 @@ mod tests {
                 cc_core::ViewId(999),
                 "",
                 50,
-                ViewKind::FloorPlan { level, cut_height: 1.2, structural: false, structure_tags: false, mep },
+                ViewKind::FloorPlan {
+                    level,
+                    cut_height: 1.2,
+                    structural: false,
+                    structure_tags: false,
+                    mep,
+                    underlay: Default::default(),
+                },
             )
         };
         let d = crate::generate(&doc.project, &geom, &plan(Some(MepDiscipline::Plumbing))).unwrap();
@@ -343,6 +350,7 @@ mod tests {
                 structural: false,
                 structure_tags: false,
                 mep: Some(MepDiscipline::Plumbing),
+                underlay: Default::default(),
             },
             ..plan(None)
         };

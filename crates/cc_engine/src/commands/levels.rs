@@ -52,7 +52,7 @@ impl Command for LevelCreate {
             levels.push(Level { id, name: name.clone(), elevation });
             levels.sort_by(|a, b| a.elevation.total_cmp(&b.elevation));
             if plans {
-                for kind in [ViewKind::floor_plan(id), ViewKind::CeilingPlan { level: id, cut_height: 1.2 }] {
+                for kind in [ViewKind::floor_plan(id), ViewKind::ceiling_plan(id)] {
                     let vid = ViewId(e.alloc_id());
                     e.add_view(View::new(vid, name.clone(), 50, kind));
                 }
@@ -167,6 +167,19 @@ impl Command for LevelDelete {
             for id in masses {
                 if let Some(ElementKind::Mass(m)) = e.element_mut(id).map(|x| &mut x.kind) {
                     m.floors.retain(|l| *l != level);
+                }
+            }
+            // Underlays showing the level stop showing it.
+            let shown: Vec<_> = e
+                .project()
+                .views
+                .values()
+                .filter(|v| v.kind.underlay().is_some_and(|u| u.clone().repair(|l| l != level) > 0))
+                .map(|v| v.id)
+                .collect();
+            for v in shown {
+                if let Some(u) = e.view_mut(v).and_then(|v| v.kind.underlay_mut()) {
+                    u.repair(|l| l != level);
                 }
             }
             e.levels_mut().retain(|l| l.id != level);

@@ -82,7 +82,8 @@ pub use types::{
 };
 pub use units::{AreaUnit, LengthUnit, NumberStyle, SlopeUnit, Units, VolumeUnit};
 pub use view::{
-    CameraState, DetailLevel, Direction, MepDiscipline, SheetSize, View, ViewCategory, ViewKind, Viewport, VisualStyle,
+    CameraState, DetailLevel, Direction, Looking, MepDiscipline, SheetSize, Underlay, UnderlayLevel, UnderlayPlan,
+    View, ViewCategory, ViewKind, Viewport, VisualStyle,
 };
 
 pub use glam::{DVec2, DVec3};

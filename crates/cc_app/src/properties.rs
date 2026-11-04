@@ -981,6 +981,74 @@ fn top_rows(ui: &mut Ui, state: &mut AppState, el: &Element, top: cc_core::WallT
     }
 }
 
+/// The rows of an underlay ([`cc_core::Underlay`]): the plan below and the
+/// plan above (none, the next level, or a level), each looking down or up,
+/// and whether it is printed. `own` is the view's level (left out of the
+/// choices), `None` for a template. Returns whether the user changed it.
+pub fn underlay_rows(
+    ui: &mut Ui,
+    state: &AppState,
+    salt: u64,
+    own: Option<cc_core::LevelId>,
+    enabled: bool,
+    u: &mut cc_core::Underlay,
+) -> bool {
+    use cc_core::{Looking, UnderlayLevel, UnderlayPlan};
+    let levels: Vec<_> =
+        state.project().levels.iter().filter(|l| Some(l.id) != own).map(|l| (l.id, l.name.clone())).collect();
+    let before = *u;
+    for (below, slot) in [(true, &mut u.below), (false, &mut u.above)] {
+        let next = if below { t!("underlay-next-below") } else { t!("underlay-next-above") };
+        let name = |level: Option<UnderlayLevel>| match level {
+            None => t!("underlay-none"),
+            Some(UnderlayLevel::Next) => next.clone(),
+            Some(UnderlayLevel::Level(id)) => {
+                levels.iter().find(|l| l.0 == id).map_or_else(|| "?".to_string(), |l| l.1.clone())
+            }
+        };
+        let mut level = slot.map(|p| p.level);
+        let label = if below { t!("prop-underlay-below") } else { t!("prop-underlay-above") };
+        row(ui, &label, |ui| {
+            ui.add_enabled_ui(enabled, |ui| {
+                egui::ComboBox::from_id_salt(("underlay", below, salt)).selected_text(name(level)).show_ui(ui, |ui| {
+                    ui.selectable_value(&mut level, None, name(None));
+                    ui.selectable_value(&mut level, Some(UnderlayLevel::Next), name(Some(UnderlayLevel::Next)));
+                    for (id, lname) in &levels {
+                        ui.selectable_value(&mut level, Some(UnderlayLevel::Level(*id)), lname);
+                    }
+                });
+            });
+        });
+        let looking = slot.map(|p| p.looking).unwrap_or_default();
+        *slot = level.map(|level| UnderlayPlan { level, looking });
+        if let Some(plan) = slot.as_mut() {
+            let mut looking = plan.looking;
+            row(ui, &t!("prop-underlay-looking"), |ui| {
+                ui.add_enabled_ui(enabled, |ui| {
+                    egui::ComboBox::from_id_salt(("underlay-looking", below, salt))
+                        .selected_text(tr(looking.key()))
+                        .show_ui(ui, |ui| {
+                            for l in Looking::ALL {
+                                ui.selectable_value(&mut looking, l, tr(l.key()));
+                            }
+                        });
+                });
+            });
+            plan.looking = looking;
+        }
+    }
+    let mut printed = u.printed;
+    row(ui, &t!("prop-underlay-printed"), |ui| ui.add_enabled(enabled, egui::Checkbox::without_text(&mut printed)));
+    u.printed = printed;
+    *u != before
+}
+
+/// The patch of `view_set` or `template_set` that gives a view or template
+/// `underlay` (`null` clears it).
+pub fn underlay_patch(u: &cc_core::Underlay) -> serde_json::Value {
+    if u.is_empty() { serde_json::Value::Null } else { serde_json::to_value(u).unwrap_or_default() }
+}
+
 /// Number, name, height and computed area of a room.
 /// Drag value for a length stored in meters, shown and typed in the
 /// project's length unit (a typed unit symbol overrides it).
@@ -2014,7 +2082,7 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
     }
 
     match &view.kind {
-        ViewKind::FloorPlan { level, cut_height, .. } | ViewKind::CeilingPlan { level, cut_height } => {
+        ViewKind::FloorPlan { level, cut_height, .. } | ViewKind::CeilingPlan { level, cut_height, .. } => {
             if let ViewKind::FloorPlan { structural, structure_tags, .. } = view.kind {
                 let locked = crate::graphics_dialog::controlled(state, id, "structural");
                 section(ui, "structure-display", t!("section-structural"), |ui| {
@@ -2054,6 +2122,22 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
                 }
                 finish(state, &r);
             });
+            // Other levels' plans under this one.
+            if let Some(u) = view.kind.underlay() {
+                let mut u = *u;
+                let locked = crate::graphics_dialog::controlled(state, id, "underlay");
+                let level = *level;
+                section(ui, "underlay", t!("section-underlay"), |ui| {
+                    if underlay_rows(ui, state, id.0, Some(level), !locked, &mut u) {
+                        let command = cc_engine::commands::views::ViewSet {
+                            view: cc_engine::Ref::Id(id.0),
+                            params: Some(serde_json::json!({ "underlay": underlay_patch(&u) })),
+                            ..Default::default()
+                        };
+                        crate::actions::run_command(state, command);
+                    }
+                });
+            }
         }
         ViewKind::Section { depth, .. } => {
             section(ui, "extents", t!("section-extents"), |ui| {

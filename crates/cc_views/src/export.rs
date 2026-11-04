@@ -534,6 +534,7 @@ pub fn view_on_paper(drawing: &Drawing2D, scale: u32, margin: f64) -> (Drawing2D
             fit_elements: drawing.fit_elements,
             background: drawing.background.clone(),
             tags: Vec::new(),
+            underlay: drawing.underlay,
         },
         hi - lo + DVec2::splat(2.0 * margin),
     )
