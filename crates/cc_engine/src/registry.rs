@@ -30,10 +30,10 @@ pub trait Command: DeserializeOwned + JsonSchema {
 /// A command as listed by the catalog.
 #[derive(Debug, Clone, Serialize)]
 pub struct CommandInfo {
-    pub name: &'static str,
+    pub name: String,
     pub kind: CommandKind,
     /// Area of the catalog (project, queries, elements…).
-    pub group: &'static str,
+    pub group: String,
     pub description: String,
     /// JSON Schema (draft 7, no references) of the parameters object.
     pub input_schema: Value,
@@ -58,7 +58,7 @@ fn info<C: Command>(group: &'static str) -> CommandInfo {
         o.remove("description");
         o.entry("properties").or_insert_with(|| serde_json::json!({}));
     }
-    CommandInfo { name: C::NAME, kind: C::KIND, group, description, input_schema }
+    CommandInfo { name: C::NAME.to_string(), kind: C::KIND, group: group.to_string(), description, input_schema }
 }
 
 fn run<C: Command>(session: &mut Session, args: Value) -> Result<Value> {
@@ -81,6 +81,16 @@ macro_rules! registry {
                 }
             )*)*
             Err(EngineError::new(ErrorCode::UnknownCommand, format!("unknown command: {name}")))
+        }
+
+        /// The kind of a built-in command, without building the catalog.
+        pub fn command_kind(name: &str) -> Option<CommandKind> {
+            $($(
+                if name == <$c as Command>::NAME {
+                    return Some(<$c as Command>::KIND);
+                }
+            )*)*
+            None
         }
     };
 }

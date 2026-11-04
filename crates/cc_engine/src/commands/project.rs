@@ -39,7 +39,8 @@ impl Command for ProjectOpen {
     const KIND: CommandKind = CommandKind::File;
     fn run(self, s: &mut Session) -> Result<Value> {
         let (opened, repairs) = Session::open(&self.path)?;
-        *s = opened;
+        // Replace the document only: plugins and the running command stay.
+        s.replace(opened.doc);
         let mut out = summary(s);
         out["repairs"] = json!(repairs);
         Ok(out)

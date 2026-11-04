@@ -27,6 +27,10 @@ pub struct Session {
     temporary: HashMap<ViewId, cc_core::TemporaryVisibility>,
     /// Counts changes of `temporary` (3D views rebuild their meshes on it).
     temporary_revision: u64,
+    /// Commands added at run time (plugins), kept when the document is replaced.
+    extension: Option<Box<dyn crate::Extension>>,
+    /// How many commands are running (a plugin command runs others).
+    nesting: u32,
 }
 
 /// A command recorded in a macro.
@@ -62,6 +66,8 @@ impl Session {
             sheets: HashMap::new(),
             temporary: HashMap::new(),
             temporary_revision: 0,
+            extension: None,
+            nesting: 0,
         }
     }
 
@@ -75,7 +81,11 @@ impl Session {
 
     /// Replace the document (new, open, import), dropping derived data.
     pub fn replace(&mut self, doc: Document) {
+        let extension = self.extension.take();
+        let nesting = self.nesting;
         *self = Self::new(doc);
+        self.extension = extension;
+        self.nesting = nesting;
     }
 
     pub fn project(&self) -> &Project {
@@ -328,7 +338,10 @@ impl Session {
     }
 
     fn record(&mut self, name: &str, args: &Value, merge_key: Option<u64>, depth: usize) {
-        let kind = crate::describe(name).map(|c| c.kind);
+        if self.recording.is_none() {
+            return;
+        }
+        let kind = self.kind_of(name);
         let Some(rec) = &mut self.recording else { return };
         // Edits only: replaying a macro should not open, save or export files.
         if kind != Some(crate::CommandKind::Edit) {
@@ -344,19 +357,107 @@ impl Session {
         }
     }
 
+    /// Set the source of commands beyond the built-in catalog (plugins), or
+    /// remove it with `None`; returns the one it replaces.
+    pub fn set_extension(&mut self, extension: Option<Box<dyn crate::Extension>>) -> Option<Box<dyn crate::Extension>> {
+        std::mem::replace(&mut self.extension, extension)
+    }
+
+    pub fn extension(&self) -> Option<&dyn crate::Extension> {
+        self.extension.as_deref()
+    }
+
+    /// The extension's messages for the user since the last call.
+    pub fn take_extension_messages(&mut self) -> Vec<String> {
+        self.extension.as_mut().map(|e| e.take_messages()).unwrap_or_default()
+    }
+
+    /// Whether a command is running (a plugin command running others).
+    pub fn is_nested(&self) -> bool {
+        self.nesting > 0
+    }
+
+    /// Every command this session runs: the built-in catalog, then the
+    /// extension's commands.
+    pub fn commands(&self) -> Vec<crate::CommandInfo> {
+        let mut all = crate::catalog();
+        if let Some(ext) = &self.extension {
+            all.extend(ext.commands());
+        }
+        all
+    }
+
+    /// The catalog entry of one command, built-in or from the extension.
+    pub fn describe(&self, name: &str) -> Option<crate::CommandInfo> {
+        if crate::extension::is_extension_name(name) {
+            self.extension.as_ref()?.commands().into_iter().find(|c| c.name == name)
+        } else {
+            crate::describe(name)
+        }
+    }
+
+    /// The kind of a command, built-in or from the extension.
+    pub fn kind_of(&self, name: &str) -> Option<crate::CommandKind> {
+        if crate::extension::is_extension_name(name) {
+            self.extension.as_ref()?.commands().into_iter().find(|c| c.name == name).map(|c| c.kind)
+        } else {
+            crate::command_kind(name)
+        }
+    }
+
     /// Run the command `name` with JSON `args`. A panic inside the command
-    /// becomes an internal error and the document is kept.
+    /// becomes an internal error and the document is kept. Commands of the
+    /// extension (names with `__`) are one undo step however many commands
+    /// they run, and leave nothing behind when they fail.
     pub fn execute(&mut self, name: &str, args: Value) -> Result<Value> {
         let depth = self.doc.undo_depth();
         let merge_key = self.merge_key;
-        let recorded_args = self.recording.is_some().then(|| args.clone());
-        let result = guard(|| crate::registry::dispatch(self, name, args)).and_then(|r| r);
+        // Commands run by another command are part of it, not steps of a macro.
+        let recorded_args = (self.recording.is_some() && self.nesting == 0).then(|| args.clone());
+        let outer = self.nesting;
+        self.nesting = outer.saturating_add(1);
+        let result = if crate::extension::is_extension_name(name) {
+            self.execute_extension(name, args, depth)
+        } else {
+            guard(|| crate::registry::dispatch(self, name, args)).and_then(|r| r)
+        };
+        self.nesting = outer;
         if let (Ok(_), Some(args)) = (&result, recorded_args) {
             self.record(name, &args, merge_key, depth);
         }
         if let Err(EngineError { code: ErrorCode::Internal, .. }) = &result {
             // Undo whatever the failed command left behind.
             while self.doc.undo_depth() > depth && self.doc.undo() {}
+        }
+        result
+    }
+
+    fn execute_extension(&mut self, name: &str, args: Value, depth: usize) -> Result<Value> {
+        let Some(mut ext) = self.extension.take() else {
+            let message = if self.nesting > 1 {
+                format!("{name}: a plugin command cannot run inside another plugin command")
+            } else {
+                format!("unknown command: {name}")
+            };
+            return Err(EngineError::new(ErrorCode::UnknownCommand, message));
+        };
+        // Its edits are squashed into one step: none merges with an earlier one.
+        self.merge_key = None;
+        self.doc.break_merge();
+        let result = guard(|| ext.run(self, name, args));
+        if self.extension.is_none() {
+            self.extension = Some(ext);
+        }
+        let result = match result {
+            Ok(Some(r)) => r,
+            Ok(None) => Err(EngineError::new(ErrorCode::UnknownCommand, format!("unknown command: {name}"))),
+            Err(e) => Err(e),
+        };
+        match &result {
+            Ok(_) => {
+                self.doc.squash_since(depth, name);
+            }
+            Err(_) => self.undo_to(depth),
         }
         result
     }

@@ -155,7 +155,7 @@ If you do not have Revit, independent third-party tools can convert `.rvt` files
 
 ## Automation (command line and MCP)
 
-Everything ConstructCAD does is meant to be reachable without the interface. The engine (`cc_engine`) exposes the operations as named commands with JSON parameters and a JSON Schema each; the `ccad` tool runs them from the command line, from scripts, or for AI agents as an [MCP](https://modelcontextprotocol.io/) server. The same catalog serves all three. The [automation guide](docs/automation.md) explains it in full and the [command reference](docs/commands.md) lists every command with its parameters.
+Everything ConstructCAD does is meant to be reachable without the interface. The engine (`cc_engine`) exposes the operations as named commands with JSON parameters and a JSON Schema each; the `ccad` tool runs them from the command line, from scripts, or for AI agents as an [MCP](https://modelcontextprotocol.io/) server. The same catalog serves all three. The [automation guide](docs/automation.md) explains it in full and the [command reference](docs/commands.md) lists every command with its parameters. Lua 5.4 scripts call the same commands with variables and loops, and plugins (a folder with a `plugin.toml` and Lua code) add their own commands to the catalog, each one undo step; see [Lua scripts](docs/automation.md#lua-scripts) and [Plugins](docs/automation.md#plugins).
 
 ```sh
 ccad commands                                   # list the commands
@@ -189,6 +189,7 @@ crates/
   cc_ifc     IFC4 export and IFC2X3/IFC4 import: STEP writer and parser, model mapping
   cc_skp     SketchUp (.skp) reader and writer (MIT-licensed, see its LICENSE)
   cc_engine  every operation as a named command with a JSON Schema, on a session without GUI
+  cc_lua     Lua 5.4 scripts and plugins (sandboxed) over the engine's commands
   cc_cli     `ccad`: command line, scripts and MCP server over the engine
   cc_app     eframe/egui application: ribbon, browser, properties, tools, sheets
 assets/i18n  translations (pt-BR, en); interface text is never hard-coded

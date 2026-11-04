@@ -1,0 +1,9 @@
+# An example plugin (see docs/automation.md, "Plugins").
+id = "quick_rooms"
+name = "Quick rooms"
+version = "0.1.0"
+api = 1
+description = "Rectangular rooms in one step, and wall totals by type."
+authors = ["ConstructCAD contributors"]
+license = "GPL-3.0-or-later"
+homepage = "https://github.com/francisreboucas/constructcad"

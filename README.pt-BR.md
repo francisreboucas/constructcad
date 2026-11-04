@@ -147,7 +147,7 @@ Navegação 2D: roda do mouse dá zoom e o botão do meio faz pan. Navegação 3
 
 ## Automação (linha de comando e MCP)
 
-Tudo o que o ConstructCAD faz deve poder ser acionado sem a interface. O motor (`cc_engine`) expõe as operações como comandos nomeados com parâmetros JSON e um esquema JSON cada; a ferramenta `ccad` os executa pela linha de comando, por scripts ou, para agentes de IA, como servidor [MCP](https://modelcontextprotocol.io/). O mesmo catálogo atende os três. O [guia de automação](docs/automacao.md) explica tudo em detalhe e a [referência de comandos](docs/commands.md) lista cada comando com seus parâmetros.
+Tudo o que o ConstructCAD faz deve poder ser acionado sem a interface. O motor (`cc_engine`) expõe as operações como comandos nomeados com parâmetros JSON e um esquema JSON cada; a ferramenta `ccad` os executa pela linha de comando, por scripts ou, para agentes de IA, como servidor [MCP](https://modelcontextprotocol.io/). O mesmo catálogo atende os três. O [guia de automação](docs/automacao.md) explica tudo em detalhe e a [referência de comandos](docs/commands.md) lista cada comando com seus parâmetros. Scripts em Lua 5.4 chamam os mesmos comandos com variáveis e laços, e plugins (uma pasta com um `plugin.toml` e código Lua) acrescentam seus próprios comandos ao catálogo, cada um um passo de desfazer; veja [Scripts Lua](docs/automacao.md#scripts-lua) e [Plugins](docs/automacao.md#plugins).
 
 ```sh
 ccad commands                                   # lista os comandos
@@ -180,6 +180,7 @@ crates/
   cc_render  renderizador 3D offscreen em wgpu
   cc_ifc     exportação IFC4 e importação IFC2X3/IFC4: escritor e leitor STEP, mapeamento do modelo
   cc_engine  cada operação como comando nomeado com esquema JSON, numa sessão sem GUI
+  cc_lua     scripts e plugins em Lua 5.4 (em sandbox) sobre os comandos do motor
   cc_cli     `ccad`: linha de comando, scripts e servidor MCP sobre o motor
   cc_app     aplicativo eframe/egui: ribbon, navegador, propriedades, ferramentas, folhas
 assets/i18n  traduções (pt-BR, en); textos de interface nunca ficam fixos no código

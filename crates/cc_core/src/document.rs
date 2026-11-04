@@ -106,6 +106,17 @@ impl Transaction {
         }
     }
 
+    /// Drop the changes whose "after" state equals their "before" (an
+    /// element added and removed again in merged steps).
+    fn prune(&mut self) {
+        self.elements.retain(|_, c| c.0 != c.1);
+        self.views.retain(|_, c| c.0 != c.1);
+        self.types.retain(|_, c| c.0 != c.1);
+        if self.settings.as_ref().is_some_and(|c| c.0 == c.1) {
+            self.settings = None;
+        }
+    }
+
     pub fn is_empty(&self) -> bool {
         self.elements.is_empty() && self.views.is_empty() && self.types.is_empty() && self.settings.is_none()
     }
@@ -723,12 +734,35 @@ impl Document {
         self.edit_impl(name.into(), Some(merge_key), f)
     }
 
-    /// End coalescing so the next merged edit starts a new undo step.
     /// Number of undoable transactions.
     pub fn undo_depth(&self) -> usize {
         self.undo.len()
     }
 
+    /// Fold the undo steps recorded since undo depth `depth` into one step
+    /// named `name` (a command made of other commands, undone at once).
+    /// Changes that cancel out are dropped, and so is the step if nothing is
+    /// left; returns whether a step remains.
+    pub fn squash_since(&mut self, depth: usize, name: impl Into<String>) -> bool {
+        if depth >= self.undo.len() {
+            return false;
+        }
+        let mut steps = self.undo.split_off(depth).into_iter();
+        let Some(mut tx) = steps.next() else { return false };
+        for newer in steps {
+            tx.merge(newer);
+        }
+        tx.prune();
+        tx.name = name.into();
+        self.last_merge_key = None;
+        if tx.is_empty() {
+            return false;
+        }
+        self.undo.push(tx);
+        true
+    }
+
+    /// End coalescing so the next merged edit starts a new undo step.
     pub fn break_merge(&mut self) {
         self.last_merge_key = None;
     }
@@ -842,6 +876,29 @@ mod tests {
     use super::*;
     use crate::{Category, ElementKind, Hosted, Wall};
     use glam::DVec2;
+
+    #[test]
+    fn squashed_steps_undo_at_once() {
+        let mut doc = Document::new(Project::from_template());
+        let before = doc.project.clone();
+        let depth = doc.undo_depth();
+        doc.edit("a", |e| e.info_mut().name = "one".into());
+        doc.edit("b", |e| e.info_mut().name = "two".into());
+        assert!(doc.squash_since(depth, "both"));
+        assert_eq!(doc.undo_depth(), depth + 1);
+        assert!(doc.undo());
+        assert_eq!(doc.project, before);
+        assert!(doc.redo());
+        assert_eq!(doc.project.info.name, "two");
+        // Steps that cancel out leave no step.
+        let depth = doc.undo_depth();
+        let name = doc.project.info.name.clone();
+        doc.edit("c", |e| e.info_mut().name = "three".into());
+        doc.edit("d", |e| e.info_mut().name = name);
+        assert!(!doc.squash_since(depth, "none"));
+        assert_eq!(doc.undo_depth(), depth);
+        assert!(!doc.squash_since(depth + 5, "past the end"));
+    }
 
     #[test]
     fn rejected_edits_leave_no_trace() {
