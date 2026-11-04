@@ -119,6 +119,7 @@ pub enum Icon {
     DrawArcCenter,
     DrawArcTangent,
     EditBoundary,
+    EditProfile,
     Revolution,
     Sweep,
     Blend,
@@ -158,7 +159,7 @@ pub enum Icon {
 
 impl Icon {
     #[cfg(test)]
-    pub const ALL: [Icon; 143] = [
+    pub const ALL: [Icon; 144] = [
         Icon::New,
         Icon::Open,
         Icon::Save,
@@ -267,6 +268,7 @@ impl Icon {
         Icon::DrawArcCenter,
         Icon::DrawArcTangent,
         Icon::EditBoundary,
+        Icon::EditProfile,
         Icon::Revolution,
         Icon::Sweep,
         Icon::Blend,
@@ -415,6 +417,7 @@ impl Icon {
             Icon::DrawArcCenter => include_str!("../../../assets/icons/ui/draw-arc-center.svg"),
             Icon::DrawArcTangent => include_str!("../../../assets/icons/ui/draw-arc-tangent.svg"),
             Icon::EditBoundary => include_str!("../../../assets/icons/ui/edit-boundary.svg"),
+            Icon::EditProfile => include_str!("../../../assets/icons/ui/edit-profile.svg"),
             Icon::Revolution => include_str!("../../../assets/icons/ui/revolution.svg"),
             Icon::Sweep => include_str!("../../../assets/icons/ui/sweep.svg"),
             Icon::Blend => include_str!("../../../assets/icons/ui/blend.svg"),

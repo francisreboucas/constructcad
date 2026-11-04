@@ -10,6 +10,7 @@ use crate::registry::{Command, CommandKind};
 use crate::session::Session;
 use crate::t;
 use cc_core::profile_sweep::{MAX_PATH_POINTS, Sweep, baseboard, check_profile};
+use cc_core::sketch::Sketch;
 use cc_core::{Category, ElementKind, ElementType, ElementTypeId, Project, TypeData};
 use glam::DVec2;
 use schemars::JsonSchema;
@@ -24,25 +25,28 @@ pub fn new_sweep_type(p: &Project, id: ElementTypeId) -> ElementType {
         data: TypeData::Sweep {
             profile: baseboard(),
             material: p.materials.first().map(|m| m.name.clone()).unwrap_or_default(),
+            sketch: None,
         },
         info: Default::default(),
         uid: Default::default(),
     }
 }
 
-/// A profile from points or curves (one of them), checked.
-fn profile_from(points: Option<&[Point]>, curves: Option<&[CurveArg]>) -> Result<Option<Vec<DVec2>>> {
-    let profile = match (points, curves) {
+/// A profile from points or curves (one of them), checked, with the curves
+/// it was drawn with (kept with the type, so arcs stay arcs when it is edited again).
+type Profile = (Vec<DVec2>, Option<Sketch>);
+fn profile_from(points: Option<&[Point]>, curves: Option<&[CurveArg]>) -> Result<Option<Profile>> {
+    let (profile, sketch) = match (points, curves) {
         (Some(_), Some(_)) => return Err(EngineError::invalid("give profile or curves, not both")),
-        (Some(pts), None) => pts.iter().map(|p| point(*p)).collect::<Result<Vec<_>>>()?,
+        (Some(pts), None) => (pts.iter().map(|p| point(*p)).collect::<Result<Vec<_>>>()?, None),
         (None, Some(curves)) => {
             let sketch = super::sketch::sketch_of(curves)?;
-            super::sketch::outline(&sketch)?
+            (super::sketch::outline(&sketch)?, Some(sketch))
         }
         (None, None) => return Ok(None),
     };
     check_profile(&profile).map_err(|p| EngineError::invalid(p.message()))?;
-    Ok(Some(profile))
+    Ok(Some((profile, sketch)))
 }
 
 /// Create a swept profile: the profile of its type carried along `path` in
@@ -144,9 +148,10 @@ impl Command for SweepTypeCreate {
         let id = edit(s, t!("tx-create-sweep-type"), |e| {
             let id = ElementTypeId(e.alloc_id());
             let mut ty = new_sweep_type(e.project(), id);
-            if let TypeData::Sweep { profile: p, material: m } = &mut ty.data {
-                if let Some(profile) = profile {
+            if let TypeData::Sweep { profile: p, material: m, sketch: k } = &mut ty.data {
+                if let Some((profile, sketch)) = profile {
                     *p = profile;
+                    *k = sketch;
                 }
                 if let Some(material) = material {
                     *m = material;
@@ -162,7 +167,8 @@ impl Command for SweepTypeCreate {
 }
 
 /// Redraw the profile of a sweep type, as points `[x, y]` or `curves`; every
-/// sweep of the type follows.
+/// sweep of the type follows. The type keeps the curves (`type_get` shows
+/// them as its `sketch`), so arcs stay arcs when the profile is edited again.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SweepProfileSet {
@@ -181,7 +187,7 @@ impl Command for SweepProfileSet {
     const NAME: &'static str = "sweep_profile_set";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        let profile = profile_from(self.profile.as_deref(), self.curves.as_deref())?
+        let (profile, sketch) = profile_from(self.profile.as_deref(), self.curves.as_deref())?
             .ok_or_else(|| EngineError::invalid("give profile or curves"))?;
         let p = s.project();
         let id = refs::element_type(p, &self.type_ref)?;
@@ -190,8 +196,9 @@ impl Command for SweepProfileSet {
         }
         let points = profile.len();
         edit(s, t!("tx-modify-type"), |e| {
-            if let Some(TypeData::Sweep { profile: p, .. }) = e.type_mut(id).map(|t| &mut t.data) {
+            if let Some(TypeData::Sweep { profile: p, sketch: k, .. }) = e.type_mut(id).map(|t| &mut t.data) {
                 *p = profile;
+                *k = sketch;
             }
             Ok(())
         })?;

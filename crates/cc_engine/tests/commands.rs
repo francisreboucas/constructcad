@@ -2993,10 +2993,23 @@ fn sweeps_carry_a_profile_along_a_path() {
     let expected = 4.0 * (0.0036 - std::f64::consts::PI * 0.0036 / 4.0);
     let v = volume(&mut s, id(&molding)).unwrap();
     assert!((v - expected).abs() < 2e-5, "{v} vs {expected}");
+    // The type keeps the curves (the arc as an arc) to edit the profile again (#166).
+    let sketch = |s: &mut Session| run(s, "type_get", json!({"type": crown["id"]}))["params"]["sketch"].clone();
+    let kept = sketch(&mut s);
+    assert_eq!(kept["curves"].as_array().map(Vec::len), Some(3), "{kept}");
+    assert!(kept.to_string().contains("Arc"), "{kept}");
+    run(&mut s, "sweep_profile_set", json!({"type": crown["id"], "curves": cove}));
+    assert_eq!(sketch(&mut s), kept);
+    // A profile changed without its curves leaves them behind.
+    let square = json!([[0, 0], [0.06, 0], [0.06, 0.06], [0, 0.06]]);
+    run(&mut s, "type_set", json!({"type": crown["id"], "params": {"profile": square}}));
+    assert!(sketch(&mut s).is_null());
+    run(&mut s, "sweep_profile_set", json!({"type": crown["id"], "curves": cove}));
     // Redrawn by points: a fascia board 2.5 × 20 cm.
     let fascia = json!([[0, 0], [0.025, 0], [0.025, 0.2], [0, 0.2]]);
     run(&mut s, "sweep_profile_set", json!({"type": crown["id"], "profile": fascia}));
     assert!(volume(&mut s, id(&molding)).is_some_and(|v| (v - 4.0 * 0.005).abs() < 1e-9));
+    assert!(sketch(&mut s).is_null(), "points drop the curves");
 
     // Refused: a crossing profile, both points and curves, a short path, a profile on a wall type.
     let wall_type = run(&mut s, "types_list", json!({"category": "wall"}))[0]["id"].clone();

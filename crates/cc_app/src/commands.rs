@@ -91,6 +91,8 @@ pub enum UiCommand {
     SketchCancel,
     /// Open the sketch of the selected floor, ceiling, roof or mass.
     EditBoundary,
+    /// Open the profile of the selected sweep's type in a sketch.
+    EditProfile,
     Select,
     SelectInstances,
     ColumnsAtGrids,
@@ -269,6 +271,7 @@ impl UiCommand {
             SketchFinish,
             SketchCancel,
             EditBoundary,
+            EditProfile,
         ]);
         all.extend([AlignGridEnds, ColumnsAtGrids, BeamsOnGrids, BeamsBetweenColumns, StructuralSchedules]);
         all.extend([FootingsUnderColumns, StripFootingsUnderWalls, FoundationSlab, SlabJoinSupports]);
@@ -402,6 +405,7 @@ impl UiCommand {
             SketchFinish => Icon::Finish,
             SketchCancel => Icon::Close,
             EditBoundary => Icon::EditBoundary,
+            EditProfile => Icon::EditProfile,
             ComponentLibrary => Icon::Library,
             Select => Icon::Select,
             SelectInstances => Icon::SelectInstances,
@@ -558,6 +562,7 @@ impl UiCommand {
             SketchFinish => t!("sketch-finish-mode"),
             SketchCancel => t!("sketch-cancel-mode"),
             EditBoundary => t!("edit-boundary"),
+            EditProfile => t!("edit-profile"),
             LoadComponent => t!("action-load-component"),
             ComponentLibrary => t!("action-component-library"),
             Select => t!("tool-select"),
@@ -725,6 +730,7 @@ impl UiCommand {
             SketchFinish => t!("cmd-desc-sketch-finish-mode"),
             SketchCancel => t!("cmd-desc-sketch-cancel-mode"),
             EditBoundary => t!("cmd-desc-edit-boundary"),
+            EditProfile => t!("cmd-desc-edit-profile"),
             LoadComponent => t!("cmd-desc-load-component"),
             ComponentLibrary => t!("cmd-desc-component-library"),
             Select => t!("cmd-desc-select"),
@@ -997,6 +1003,7 @@ impl UiCommand {
             CompEqual => "component_equal_add",
             CompConnector => "component_connector_add",
             SketchFinish | EditBoundary => "sketch_set",
+            EditProfile => "sweep_profile_set",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
             ComponentLibrary => "component_library_list",
@@ -1097,6 +1104,7 @@ impl UiCommand {
                 state.sketch.as_ref().is_some_and(|s| s.selected.is_empty()).then(|| t!("msg-select-first"))
             }
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
+            EditProfile if crate::profile_sketch::target(state).is_none() => Some(t!("why-select-sweep")),
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
@@ -1496,6 +1504,7 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         SketchFinish => crate::sketch_mode::finish(state),
         SketchCancel => crate::sketch_mode::cancel(state),
         EditBoundary => crate::sketch_mode::edit_boundary(state),
+        EditProfile => crate::profile_sketch::edit_selected(state),
         SelectInstances => crate::actions::select_instances(state),
         Group => crate::actions::group_selection(state),
         ColumnsAtGrids => crate::actions::columns_at_grids(state),

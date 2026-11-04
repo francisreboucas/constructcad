@@ -42,6 +42,8 @@ pub enum Target {
     Edit { id: ElementId },
     /// A piece of the component environment (see [`Session::piece`]).
     Piece,
+    /// The profile of a sweep type (*Edit Profile*, see [`crate::profile_sketch`]).
+    Profile { type_id: ElementTypeId },
 }
 
 /// How clicks draw.
@@ -437,6 +439,7 @@ pub fn finish(state: &mut AppState) {
             crate::component_sketch::finish(state);
             return;
         }
+        Target::Profile { .. } => false,
     };
     let checked = if allows_openings { sketch.profile().map(|_| ()) } else { sketch.outline().map(|_| ()) };
     if let Err(e) = checked {
@@ -460,6 +463,18 @@ pub fn finish(state: &mut AppState) {
                 return;
             };
             create(state, category, type_id, level, curves)
+        }
+        Target::Profile { type_id } => {
+            let command = cc_engine::commands::sweep::SweepProfileSet {
+                type_ref: Ref::Id(type_id.0),
+                profile: None,
+                curves: Some(curves),
+            };
+            if crate::actions::run_command(state, command).is_some() {
+                state.sketch = None;
+                state.set_tool(Tool::Select);
+            }
+            return;
         }
         Target::Piece => None,
     };
@@ -559,7 +574,7 @@ pub fn pick_walls(state: &mut AppState) {
     let category = match state.sketch.as_ref().map(|s| s.target) {
         Some(Target::New { category, .. }) => category,
         Some(Target::Edit { id }) => state.project().element(id).map_or(Category::Floor, |e| e.category()),
-        Some(Target::Piece) | None => return,
+        Some(Target::Piece | Target::Profile { .. }) | None => return,
     };
     let outward = if category == Category::Ceiling { -1.0 } else { 1.0 };
     match crate::tools::walls_loop(state.project(), level, outward) {
@@ -1099,6 +1114,10 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             t!("sketch-title-piece", "kind" => what.label(state))
         }
         (Some(Target::Edit { .. }), _) => t!("sketch-title-edit", "category" => what),
+        (Some(Target::Profile { type_id }), _) => {
+            let name = state.project().element_type(type_id).map(|t| t.name.clone()).unwrap_or_default();
+            t!("sketch-title-profile", "type" => name)
+        }
         _ => t!("sketch-title-new", "category" => what),
     };
     ui.horizontal(|ui| {
@@ -1125,7 +1144,8 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             &[&[Move, CopyElements, Rotate], &[MirrorPick, MirrorDraw, Offset], &[TrimCorner, TrimExtend, Split]],
         );
         // Walls are picked in plans only.
-        let tools: &[_] = if piece.is_some() { &[Delete] } else { &[SketchPickWalls, Delete] };
+        let profile = matches!(state.sketch.as_ref().map(|s| s.target), Some(Target::Profile { .. }));
+        let tools: &[_] = if piece.is_some() || profile { &[Delete] } else { &[SketchPickWalls, Delete] };
         crate::ribbon::env_group(ui, state, t!("group-sketch-tools"), tools);
         crate::ribbon::env_group(ui, state, t!("group-mode"), &[SketchFinish, SketchCancel]);
     });

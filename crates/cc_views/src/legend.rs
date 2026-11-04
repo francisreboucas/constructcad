@@ -176,7 +176,7 @@ pub fn legend(project: &Project, types: &[ElementTypeId], scale: u32) -> Drawing
                     d.line(o + DVec2::new(x, 0.0), o + DVec2::new(x, *height), LineStyle::Thin, None);
                 }
             }
-            TypeData::Sweep { profile, material } => {
+            TypeData::Sweep { profile, material, .. } => {
                 // The profile's section, enlarged to read at the legend's scale.
                 let (lo, hi) = profile
                     .iter()
