@@ -183,15 +183,19 @@ impl Session {
         Some(d)
     }
 
-    /// Drawing of a view as printed: without temporary hiding or isolation.
+    /// Drawing of a view as printed: without temporary hiding or isolation,
+    /// and without its underlay unless the view prints it.
     pub fn printed_drawing(&mut self, view: ViewId) -> Option<Rc<Drawing2D>> {
-        if !self.temporary.contains_key(&view) {
-            return self.drawing(view);
-        }
-        self.sync_units();
-        let key = self.sync_view(view);
-        let v = self.doc.project.view(view)?;
-        Some(Rc::new(cc_views::generate_labeled(&self.doc.project, self.geom_of(key), v, &crate::i18n::tr)?))
+        let d = if self.temporary.contains_key(&view) {
+            self.sync_units();
+            let key = self.sync_view(view);
+            let v = self.doc.project.view(view)?;
+            Rc::new(cc_views::generate_labeled(&self.doc.project, self.geom_of(key), v, &crate::i18n::tr)?)
+        } else {
+            self.drawing(view)?
+        };
+        let printed = self.doc.project.view(view).and_then(|v| v.kind.underlay()).is_some_and(|u| u.printed);
+        Some(if d.underlay > 0 && !printed { Rc::new(d.without_underlay()) } else { d })
     }
 
     /// What is temporarily hidden or isolated in `view`.

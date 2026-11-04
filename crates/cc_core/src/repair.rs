@@ -506,6 +506,9 @@ impl Project {
                 }
                 _ => {}
             }
+            if let Some(u) = view.kind.underlay_mut() {
+                repairs += u.repair(|l| levels.contains(&l));
+            }
             if view.scale == 0 {
                 view.scale = 100;
                 repairs += 1;
@@ -520,7 +523,7 @@ impl Project {
         }
         repairs += self.repair_phases();
         for t in self.templates.values_mut() {
-            repairs += t.repair(&self.filters, &self.phase_filters);
+            repairs += t.repair(&self.filters, &self.phase_filters, &levels);
         }
         let elements = &self.elements;
         let exists = |id: crate::ElementId| elements.contains_key(&id);

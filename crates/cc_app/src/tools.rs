@@ -1965,8 +1965,9 @@ fn typed_end(state: &AppState, a: DVec2, p: DVec2) -> DVec2 {
 fn measure_tool(ui: &Ui, resp: &Response, painter: &Painter, state: &mut AppState, xf: &Xf, drawing: &Drawing2D) {
     let Some(raw) = resp.hover_pos().map(|p| xf.to_world(p)) else { return };
     let shift = ui.input(|i| i.modifiers.shift);
+    // The view's own linework (not its underlay).
     let ends: Vec<DVec2> = drawing
-        .prims
+        .own_prims()
         .iter()
         .filter_map(|p| match p {
             cc_views::Prim::Line { a, b, .. } => Some([*a, *b]),
@@ -2092,9 +2093,9 @@ fn dimension_tool(
     match mode {
         DimensionMode::Aligned | DimensionMode::Linear | DimensionMode::Ordinate => {
             let shift = ui.input(|i| i.modifiers.shift);
-            // Snap to the visible linework of the view.
+            // Snap to the visible linework of the view (not its underlay).
             let ends: Vec<DVec2> = drawing
-                .prims
+                .own_prims()
                 .iter()
                 .filter_map(|p| match p {
                     cc_views::Prim::Line { a, b, .. } => Some([*a, *b]),

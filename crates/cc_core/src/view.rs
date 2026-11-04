@@ -152,10 +152,16 @@ pub enum ViewKind {
         /// devices over the architecture, tagged. Other plans leave them out.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         mep: Option<MepDiscipline>,
+        /// Other levels' plans drawn halftone under this one.
+        #[serde(default, skip_serializing_if = "Underlay::is_empty")]
+        underlay: Underlay,
     },
     CeilingPlan {
         level: LevelId,
         cut_height: f64,
+        /// Other levels' plans drawn halftone under this one.
+        #[serde(default, skip_serializing_if = "Underlay::is_empty")]
+        underlay: Underlay,
     },
     ThreeD {
         camera: CameraState,
@@ -359,9 +365,36 @@ impl ViewKind {
         )
     }
 
+    /// An ordinary ceiling plan of `level` cut at 1.20 m.
+    pub fn ceiling_plan(level: LevelId) -> Self {
+        ViewKind::CeilingPlan { level, cut_height: 1.2, underlay: Underlay::default() }
+    }
+
+    /// The underlay of a floor or ceiling plan.
+    pub fn underlay(&self) -> Option<&Underlay> {
+        match self {
+            ViewKind::FloorPlan { underlay, .. } | ViewKind::CeilingPlan { underlay, .. } => Some(underlay),
+            _ => None,
+        }
+    }
+
+    pub fn underlay_mut(&mut self) -> Option<&mut Underlay> {
+        match self {
+            ViewKind::FloorPlan { underlay, .. } | ViewKind::CeilingPlan { underlay, .. } => Some(underlay),
+            _ => None,
+        }
+    }
+
     /// An ordinary floor plan of `level` cut at 1.20 m.
     pub fn floor_plan(level: LevelId) -> Self {
-        ViewKind::FloorPlan { level, cut_height: 1.2, structural: false, structure_tags: false, mep: None }
+        ViewKind::FloorPlan {
+            level,
+            cut_height: 1.2,
+            structural: false,
+            structure_tags: false,
+            mep: None,
+            underlay: Underlay::default(),
+        }
     }
 }
 
@@ -426,5 +459,105 @@ impl View {
     /// Whether the view can be placed on a sheet.
     pub fn placeable(&self) -> bool {
         !matches!(self.kind, ViewKind::Sheet { .. } | ViewKind::Schedule { .. })
+    }
+}
+
+/// Other levels' plans drawn halftone under a floor or ceiling plan, for
+/// reference while drawing: a plan below and one above, each seen looking
+/// down (as a floor plan) or up (as a ceiling plan). They are not picked,
+/// selected or snapped to, and are printed only when `printed`.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct Underlay {
+    /// The plan of a level below.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub below: Option<UnderlayPlan>,
+    /// The plan of a level above.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub above: Option<UnderlayPlan>,
+    /// Show it on sheets and in exports too (by default only on screen).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub printed: bool,
+}
+
+/// One plan shown under a view: which level, and from which side.
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct UnderlayPlan {
+    pub level: UnderlayLevel,
+    #[serde(default)]
+    pub looking: Looking,
+}
+
+/// The level of an underlay: the next one (below or above the view's
+/// level, so a template works for every level), or a given level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum UnderlayLevel {
+    #[default]
+    Next,
+    Level(LevelId),
+}
+
+/// Which way a plan looks: down (a floor plan) or up (a ceiling plan).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum Looking {
+    #[default]
+    Down,
+    Up,
+}
+
+impl Looking {
+    pub const ALL: [Looking; 2] = [Looking::Down, Looking::Up];
+
+    /// The translation key of its name.
+    pub fn key(self) -> &'static str {
+        match self {
+            Looking::Down => "underlay-looking-down",
+            Looking::Up => "underlay-looking-up",
+        }
+    }
+}
+
+impl Underlay {
+    pub fn is_empty(&self) -> bool {
+        self.below.is_none() && self.above.is_none() && !self.printed
+    }
+
+    /// The levels shown under a plan of `level` and how they are seen,
+    /// lowest first: the next level is the nearest below (or above) by
+    /// elevation, a given level is shown when it still exists.
+    pub fn plans(&self, levels: &[crate::Level], level: LevelId) -> Vec<(LevelId, Looking)> {
+        let Some(own) = levels.iter().find(|l| l.id == level).map(|l| l.elevation) else { return Vec::new() };
+        let next = |below: bool| {
+            levels
+                .iter()
+                .filter(|l| if below { l.elevation < own } else { l.elevation > own })
+                .min_by(|a, b| {
+                    let (da, db) = ((a.elevation - own).abs(), (b.elevation - own).abs());
+                    da.total_cmp(&db)
+                })
+                .map(|l| l.id)
+        };
+        let resolve = |plan: &Option<UnderlayPlan>, below: bool| {
+            let p = (*plan)?;
+            let id = match p.level {
+                UnderlayLevel::Next => next(below)?,
+                UnderlayLevel::Level(id) => levels.iter().find(|l| l.id == id && id != level)?.id,
+            };
+            Some((id, p.looking))
+        };
+        [resolve(&self.below, true), resolve(&self.above, false)].into_iter().flatten().collect()
+    }
+
+    /// Drop references to levels that no longer exist; returns how many.
+    pub fn repair(&mut self, exists: impl Fn(LevelId) -> bool) -> usize {
+        let mut n = 0;
+        for slot in [&mut self.below, &mut self.above] {
+            if let Some(UnderlayPlan { level: UnderlayLevel::Level(id), .. }) = slot
+                && !exists(*id)
+            {
+                *slot = None;
+                n += 1;
+            }
+        }
+        n
     }
 }

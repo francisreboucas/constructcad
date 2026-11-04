@@ -509,6 +509,8 @@ pub struct TemplateIncludes {
     pub detail: bool,
     /// The visual style.
     pub visual_style: bool,
+    /// Plans: the underlay (other levels' plans drawn under them).
+    pub underlay: bool,
 }
 
 impl Default for TemplateIncludes {
@@ -523,6 +525,7 @@ impl Default for TemplateIncludes {
             phase_filter: true,
             detail: true,
             visual_style: true,
+            underlay: true,
         }
     }
 }
@@ -553,6 +556,9 @@ pub struct ViewTemplate {
     /// `None`: views keep the usual style of their kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub visual_style: Option<crate::VisualStyle>,
+    /// Plans: other levels' plans drawn under them.
+    #[serde(default, skip_serializing_if = "crate::Underlay::is_empty")]
+    pub underlay: crate::Underlay,
 }
 
 fn default_cut() -> f64 {
@@ -578,6 +584,7 @@ impl ViewTemplate {
             phase_filter: view.phase_filter,
             detail: view.detail,
             visual_style: view.visual_style,
+            underlay: view.kind.underlay().copied().unwrap_or_default(),
         };
         match &view.kind {
             ViewKind::FloorPlan { cut_height, structural, structure_tags, mep, .. } => {
@@ -628,6 +635,11 @@ impl ViewTemplate {
         if inc.visual_style {
             view.visual_style = self.visual_style;
         }
+        if inc.underlay
+            && let Some(u) = view.kind.underlay_mut()
+        {
+            *u = self.underlay;
+        }
         match &mut view.kind {
             ViewKind::FloorPlan { cut_height, structural, structure_tags, mep, .. } => {
                 if inc.cut_height {
@@ -651,6 +663,7 @@ impl ViewTemplate {
         &mut self,
         filters: &BTreeMap<FilterId, ViewFilter>,
         phase_filters: &BTreeMap<crate::PhaseFilterId, crate::PhaseFilter>,
+        levels: &[crate::LevelId],
     ) -> usize {
         let mut n = self.graphics.repair(filters, Some(&|_| false));
         if self.phase_filter.is_some_and(|f| !phase_filters.contains_key(&f)) {
@@ -665,7 +678,7 @@ impl ViewTemplate {
             self.cut_height = 1.2;
             n += 1;
         }
-        n
+        n + self.underlay.repair(|l| levels.contains(&l))
     }
 }
 

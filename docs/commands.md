@@ -2047,12 +2047,13 @@ No parameters.
 | `cut_height` | number | optional | Plans: cut plane height, meters. |
 | `detail` | string | optional | Detail level: `coarse`, `medium` or `fine`. |
 | `discipline` | string | optional | Floor plans: `none`, `plumbing` or `electrical` (services over a faint architecture). |
-| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail`, `visual_style` (true/false). |
+| `include` | JSON | optional | Which properties the template controls: `scale`, `categories`, `filters`, `cut_height`, `discipline`, `structural`, `phase_filter`, `detail`, `visual_style`, `underlay` (true/false). |
 | `name` | string | optional | New name. |
 | `phase_filter` | id or name | optional | Phase filter (id or name), or `null` for none. |
 | `scale` | integer | optional | Scale denominator. |
 | `structural` | boolean | optional | Floor plans: structural (formwork) display. |
 | `structure_tags` | boolean | optional | Floor plans: tag beams and columns. |
+| `underlay` | JSON | optional | Plans: other levels' plans drawn under them, merged like `view_set`'s `underlay` (e.g. `{"below": {"level": "Next", "looking": "Down"}}`). |
 | `visual_style` | string | optional | Visual style: `wireframe`, `hidden_line`, `shaded`, `consistent_colors`, `textures`, or `default` (each view's usual style). |
 
 ### `template_delete`

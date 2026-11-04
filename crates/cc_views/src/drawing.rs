@@ -206,6 +206,10 @@ pub struct Drawing2D {
     pub background: std::collections::BTreeSet<ElementId>,
     /// Tags that can be dragged: where each is and how far it was moved.
     pub tags: Vec<TagHandle>,
+    /// How many of the first `prims` are the plans of other levels drawn
+    /// under a plan ([`cc_core::Underlay`]): halftone, with no element, not
+    /// picked or snapped to.
+    pub underlay: usize,
 }
 
 /// A tag of an element in a view, as drawn: picked within `half` of
@@ -219,6 +223,16 @@ pub struct TagHandle {
 }
 
 impl Drawing2D {
+    /// The primitives of the view itself, without its underlay.
+    pub fn own_prims(&self) -> &[Prim] {
+        self.prims.get(self.underlay..).unwrap_or_default()
+    }
+
+    /// The drawing without its underlay (printed when the view says so).
+    pub fn without_underlay(&self) -> Drawing2D {
+        Drawing2D { prims: self.own_prims().to_vec(), underlay: 0, ..self.clone() }
+    }
+
     /// The tag at `p` (the last drawn on top), if any.
     pub fn tag_at(&self, p: DVec2) -> Option<TagHandle> {
         self.tags.iter().rev().find(|t| (p - t.center).abs().cmple(t.half).all()).copied()

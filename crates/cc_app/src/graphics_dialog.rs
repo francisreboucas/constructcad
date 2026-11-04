@@ -1117,6 +1117,16 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
         }
         ui.end_row();
 
+        changed |= ui.checkbox(&mut include.underlay, "").changed();
+        ui.label(t!("section-underlay"));
+        let mut u = t.underlay;
+        ui.vertical(|ui| {
+            if crate::properties::underlay_rows(ui, state, id.0, None, true, &mut u) {
+                set.underlay = Some(crate::properties::underlay_patch(&u));
+            }
+        });
+        ui.end_row();
+
         changed |= ui.checkbox(&mut include.categories, "").changed();
         ui.label(t!("vg-categories-graphics"));
         if ui.button(t!("vg-edit")).clicked() {
@@ -1199,6 +1209,7 @@ fn template_form(ui: &mut Ui, state: &mut AppState, t: cc_core::ViewTemplate, ac
         || set.structural.is_some()
         || set.structure_tags.is_some()
         || set.phase_filter.is_some()
+        || set.underlay.is_some()
         || set.include.is_some();
     if any {
         run(state, Some(key(("template", id))), set);
@@ -1280,6 +1291,7 @@ pub fn controlled(state: &AppState, view: ViewId, what: &str) -> bool {
         "cut_height" => t.include.cut_height,
         "discipline" => t.include.discipline,
         "structural" => t.include.structural,
+        "underlay" => t.include.underlay,
         _ => false,
     }
 }

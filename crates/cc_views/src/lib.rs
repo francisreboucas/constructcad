@@ -65,7 +65,7 @@ pub fn generate_temporary(
     temporary: Option<&cc_core::TemporaryVisibility>,
 ) -> Option<Drawing2D> {
     let mut d = match &view.kind {
-        ViewKind::FloorPlan { level, cut_height, .. } | ViewKind::CeilingPlan { level, cut_height } => {
+        ViewKind::FloorPlan { level, cut_height, .. } | ViewKind::CeilingPlan { level, cut_height, .. } => {
             let ceiling = matches!(view.kind, ViewKind::CeilingPlan { .. });
             let (structural, tags, services) = match view.kind {
                 ViewKind::FloorPlan { structural, structure_tags, mep, .. } => {
@@ -114,7 +114,49 @@ pub fn generate_temporary(
     annotate::dimensions(&mut d, project, view.id, view.scale);
     notes::notes(&mut d, project, view.id, view.scale);
     graphics::apply(&mut d, &mut graphics::Resolver::new(project, geom, view, temporary), view.scale);
+    underlay(&mut d, project, geom, view);
     Some(d)
+}
+
+/// The plans of the levels a floor or ceiling plan shows under itself
+/// ([`cc_core::Underlay`]), first in `d` and counted in `d.underlay`: the
+/// model only (no annotations or texts), with the view's category
+/// visibility, every line in the faint pen and fills faded, belonging to no
+/// element.
+fn underlay(d: &mut Drawing2D, project: &Project, geom: &ModelGeometry, view: &View) {
+    let (Some(level), Some(u)) = (view.level(), view.kind.underlay()) else { return };
+    let cut_height = match view.kind {
+        ViewKind::FloorPlan { cut_height, .. } | ViewKind::CeilingPlan { cut_height, .. } => cut_height,
+        _ => return,
+    };
+    let mut under = Vec::new();
+    for (other, looking) in u.plans(&project.levels, level) {
+        let ceiling = looking == cc_core::Looking::Up;
+        let mut p = plan_of(project, geom, other, cut_height, (ceiling, false), view.scale, view.detail);
+        joins::merge(project, &mut p);
+        graphics::apply(&mut p, &mut graphics::Resolver::new(project, geom, view, None), view.scale);
+        under.extend(p.prims.into_iter().filter_map(underlay_prim));
+    }
+    d.underlay = under.len();
+    d.prims.splice(0..0, under);
+}
+
+/// A primitive of an underlay: the model's lines in the faint pen, its
+/// fills faded to white (invisible ones, texts, pictures and the markers of
+/// sections and elevations left out), none of them belonging to an element.
+fn underlay_prim(prim: Prim) -> Option<Prim> {
+    prim.element()?;
+    match prim {
+        Prim::Line { a, b, .. } => Some(Prim::Line { a, b, style: LineStyle::Faint, element: None, pen: None }),
+        Prim::Fill { pts, color, .. } if color[3] >= 8 => {
+            let mut color = color;
+            for c in color.iter_mut().take(3) {
+                *c = (f64::from(*c) + (255.0 - f64::from(*c)) * 0.75).round() as u8;
+            }
+            Some(Prim::Fill { pts, color, element: None, cut: false })
+        }
+        _ => None,
+    }
 }
 
 /// Whether a view can hold imported CAD drawings: plans, ceiling plans,
@@ -161,6 +203,47 @@ mod tests {
         let project = cc_core::from_ron(include_str!("../../../examples/casa_simples.ccad")).unwrap();
         let geom = ModelGeometry::build(&project);
         (project, geom)
+    }
+
+    /// Issue #154: the plan of the level below drawn halftone under a plan,
+    /// belonging to no element; none under the lowest level.
+    #[test]
+    fn plans_show_the_level_below_halftone() {
+        let (mut project, _) = sample();
+        let (ground, first) = (project.levels[0].id, project.levels[1].id);
+        let below = cc_core::Underlay {
+            below: Some(cc_core::UnderlayPlan { level: cc_core::UnderlayLevel::Next, looking: cc_core::Looking::Down }),
+            ..Default::default()
+        };
+        for v in project.views.values_mut() {
+            if let Some(u) = v.kind.underlay_mut() {
+                *u = below;
+            }
+        }
+        let geom = ModelGeometry::build(&project);
+        let plan = |level| project.views_of(ViewCategory::FloorPlan).find(|v| v.level() == Some(level)).unwrap();
+        let upper = generate(&project, &geom, plan(first)).unwrap();
+        assert!(upper.underlay > 20, "the ground floor's walls: {}", upper.underlay);
+        for prim in &upper.prims[..upper.underlay] {
+            assert_eq!(prim.element(), None);
+            if let Prim::Line { style, .. } = prim {
+                assert_eq!(*style, LineStyle::Faint);
+            }
+        }
+        assert!(upper.own_prims().iter().any(|p| p.element().is_some()), "its own model over it");
+        assert_eq!(upper.without_underlay().prims.len(), upper.prims.len() - upper.underlay);
+        // Nothing is below the ground floor.
+        assert_eq!(generate(&project, &geom, plan(ground)).unwrap().underlay, 0);
+        // A level of its own: looking up, as a ceiling plan.
+        let up = cc_core::Underlay {
+            above: Some(cc_core::UnderlayPlan {
+                level: cc_core::UnderlayLevel::Level(first),
+                looking: cc_core::Looking::Up,
+            }),
+            ..Default::default()
+        };
+        assert_eq!(up.plans(&project.levels, ground), vec![(first, cc_core::Looking::Up)]);
+        assert!(up.plans(&project.levels, first).is_empty(), "not itself");
     }
 
     #[test]

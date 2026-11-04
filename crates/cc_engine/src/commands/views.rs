@@ -73,17 +73,20 @@ impl Command for ViewCreate {
         let (name, scale, kind, tx) = match self.kind.as_str() {
             "floor_plan" | "ceiling_plan" => {
                 let level = refs::level_or_first(p, self.level.as_ref())?;
-                let kind = if self.kind == "floor_plan" {
-                    ViewKind::floor_plan(level)
-                } else {
-                    ViewKind::CeilingPlan { level, cut_height: 1.2 }
-                };
+                let kind =
+                    if self.kind == "floor_plan" { ViewKind::floor_plan(level) } else { ViewKind::ceiling_plan(level) };
                 (p.level_name(level).to_string(), 50, kind, t!("tx-new-view"))
             }
             "structural_plan" => {
                 let level = refs::level_or_first(p, self.level.as_ref())?;
-                let kind =
-                    ViewKind::FloorPlan { level, cut_height: 1.2, structural: true, structure_tags: true, mep: None };
+                let kind = ViewKind::FloorPlan {
+                    level,
+                    cut_height: 1.2,
+                    structural: true,
+                    structure_tags: true,
+                    mep: None,
+                    underlay: Default::default(),
+                };
                 let name = t!("default-structural-plan-name", "level" => p.level_name(level));
                 (name, 50, kind, t!("tx-new-view"))
             }
@@ -101,6 +104,7 @@ impl Command for ViewCreate {
                     structural: false,
                     structure_tags: false,
                     mep: Some(discipline),
+                    underlay: Default::default(),
                 };
                 (name, 50, kind, t!("tx-new-view"))
             }
@@ -218,7 +222,7 @@ fn capitalized(s: &str) -> String {
 /// `view_get` shows them (merged: cut height, section depth, legend types,
 /// schedule fields, sort, filter and totals, sheet number and size,
 /// viewport positions…).
-#[derive(Debug, Deserialize, Serialize, JsonSchema)]
+#[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ViewSet {
     pub view: Ref,
@@ -259,6 +263,12 @@ impl Command for ViewSet {
         let kind = self.params.as_ref().map(|patch| patch_variant(&view.kind, patch)).transpose()?;
         if kind.as_ref().is_some_and(|k| std::mem::discriminant(k) != std::mem::discriminant(&view.kind)) {
             return Err(EngineError::invalid("params cannot change the kind of view"));
+        }
+        // An underlay shows levels of the project.
+        if let Some(u) = kind.as_ref().and_then(|k| k.underlay())
+            && u.clone().repair(|l| p.levels.iter().any(|x| x.id == l)) > 0
+        {
+            return Err(EngineError::not_found("level"));
         }
         if let Some(n) = &self.name
             && n.trim().is_empty()
