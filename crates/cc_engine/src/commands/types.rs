@@ -38,8 +38,10 @@ pub(crate) fn validate(def: &ComponentDef) -> Result<()> {
     if let Some(c) = def.connectors.iter().enumerate().find(|(i, _)| !resolved.iter().any(|k| k.index == *i)) {
         return Err(EngineError::invalid(format!("connector '{}': invalid position or diameter", c.1.name)));
     }
-    let (_, errors) = def.resolve_in(&Default::default(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
-    if let Some((i, e)) = errors.first() {
+    let (_, errors) = cc_geom::resolve_pieces(def, &Default::default(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
+    // A script that fails at run time keeps its last pieces and is reported
+    // where it is used (`component_script_set` refuses one that does not load).
+    if let Some((i, e)) = errors.iter().find(|(_, e)| !matches!(e, cc_core::component::PartError::Script(_))) {
         let piece = def.items.get(*i).map_or(String::new(), |it| it.name.clone());
         return Err(EngineError::invalid(format!("piece '{piece}': {e}")));
     }

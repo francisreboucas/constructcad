@@ -149,7 +149,7 @@ fn validate(ed: &Editor) -> Result<(), String> {
     if let Some((_, c)) = ed.def.connectors.iter().enumerate().find(|(i, _)| !resolved.iter().any(|k| k.index == *i)) {
         return Err(t!("comp-err-connector", "name" => c.name));
     }
-    let (_, errors) = ed.def.resolve_in(&Default::default(), PREVIEW_WALL);
+    let (_, errors) = cc_geom::resolve_pieces(&ed.def, &Default::default(), PREVIEW_WALL);
     if let Some((i, e)) = errors.first() {
         let piece = ed.def.items.get(*i).map_or(String::new(), |it| it.name.clone());
         return Err(t!("comp-err-piece", "piece" => piece, "error" => part_error(e)));
@@ -432,7 +432,7 @@ fn rename_in_items(def: &mut ComponentDef, old: &str, new: &str) {
 
 fn pieces(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
     section(ui, t!("comp-pieces"));
-    let (_, errors) = ed.def.resolve_in(&Default::default(), PREVIEW_WALL);
+    let (_, errors) = cc_geom::resolve_pieces(&ed.def, &Default::default(), PREVIEW_WALL);
     ui.horizontal_wrapped(|ui| {
         for (i, item) in ed.def.items.iter().enumerate() {
             let label = if errors.iter().any(|(e, _)| *e == i) {
@@ -777,7 +777,7 @@ fn preview(ui: &mut Ui, ed: &Editor) {
     ui.label(theme::title(t!("comp-preview")));
     let mut solids = cc_geom::resolve_component_in(&ed.def, &Default::default(), PREVIEW_WALL);
     solids.retain(|p| !p.plan_only);
-    let (all, _) = ed.def.resolve_in(&Default::default(), PREVIEW_WALL);
+    let (all, _) = cc_geom::resolve_pieces(&ed.def, &Default::default(), PREVIEW_WALL);
     let pieces: Vec<(usize, bool, Vec<Vec<DVec3>>)> = solids
         .iter()
         .map(|p| (p.item, false, cc_geom::component::faces_of(p)))

@@ -1529,7 +1529,7 @@ fn component_tool(
     let rotation = state.interaction.rotation;
     if let Some(cc_core::TypeData::Component { def, .. }) = state.project().element_type(type_id).map(|t| &t.data) {
         let rot = DVec2::from_angle(rotation.to_radians());
-        let (parts, _) = def.resolve(&Default::default());
+        let (parts, _) = cc_geom::resolve_pieces(def, &Default::default(), &[]);
         for part in parts.iter().filter(|p| p.in_plan && !p.void) {
             let outline: Vec<Pos2> = part.footprint.iter().map(|p| xf.to_screen(s.point + rot.rotate(*p))).collect();
             painter.add(egui::Shape::closed_line(outline, Stroke::new(1.5, PREVIEW)));

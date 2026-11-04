@@ -1079,16 +1079,15 @@ impl<'a> Exporter<'a> {
         let project = self.project;
         for e in project.elements.values() {
             let ElementKind::Component(c) = &e.kind else { continue };
-            let Some(TypeData::Component { def, .. }) = project.element_type(e.type_id).map(|t| &t.data) else {
-                continue;
-            };
+            let Some(ty) = project.element_type(e.type_id) else { continue };
+            let TypeData::Component { def, .. } = &ty.data else { continue };
             let Some(storey) = self.storey_placement(e.level) else { continue };
             let rot = DVec2::from_angle(c.rotation_deg.to_radians());
             let placement = self.local_placement(
                 Some(storey),
                 Frame::horizontal(DVec3::new(c.position.x, c.position.y, c.base_offset), rot),
             );
-            let mut parts = cc_geom::resolve_component(def, &c.overrides);
+            let mut parts = cc_geom::resolve_instance(ty, def, e, Some(c), &[]);
             parts.retain(|p| !p.plan_only);
             // Shapes mix no representation types: with any mesh piece, all pieces are face sets.
             let tessellated = parts.iter().any(|p| !p.faces.is_empty());

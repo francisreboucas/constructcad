@@ -616,6 +616,14 @@ fn key_of(source: u64, input: &ScriptInput) -> u64 {
     h.finish()
 }
 
+/// The cache shared by everything in the process that resolves components.
+/// Scripts are pure, so sharing it only saves runs; the last pieces that
+/// worked are kept per owner.
+pub fn shared() -> &'static ScriptCache {
+    static SHARED: std::sync::OnceLock<ScriptCache> = std::sync::OnceLock::new();
+    SHARED.get_or_init(ScriptCache::new)
+}
+
 impl ScriptCache {
     pub fn new() -> ScriptCache {
         ScriptCache::default()

@@ -12,5 +12,5 @@ pub mod convert;
 pub mod object;
 pub mod sandbox;
 
-pub use object::{Declarations, ScriptCache, ScriptError, declare, evaluate};
+pub use object::{Declarations, ScriptCache, ScriptError, declare, evaluate, shared};
 pub use sandbox::{Limits, Sandbox};

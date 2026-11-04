@@ -775,6 +775,7 @@ name = "cc_geom"
 version = "0.9.1"
 dependencies = [
  "cc_core",
+ "cc_script",
  "earcutr",
  "glam",
 ]

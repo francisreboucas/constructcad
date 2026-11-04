@@ -33,7 +33,7 @@ pub use build::{
     BoxPart, FRAME_COLOR, FoundationGeom, HostedPart, ModelGeometry, WorldConnector, column_outline,
     component_connectors, component_parts, hosted_parts, opening_parts,
 };
-pub use component::{resolve_component, resolve_component_in};
+pub use component::{instance_errors, resolve_component, resolve_component_in, resolve_instance, resolve_pieces};
 pub use cut::{clip_polygon, face_plane_segments};
 pub use mep::{SegmentGeom, segment_geom};
 pub use mesh::{MeshPlan, mesh_plan, plan_edges};

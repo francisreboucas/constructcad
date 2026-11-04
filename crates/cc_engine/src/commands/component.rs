@@ -184,7 +184,8 @@ impl Command for ComponentGet {
                 Some(json!({ "id": tid.0, "name": t.name, "values": values }))
             })
             .collect();
-        let (_, piece_errors) = def.resolve_in(&BTreeMap::new(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
+        let (_, piece_errors) =
+            cc_geom::resolve_pieces(&def, &BTreeMap::new(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
         let mut problems = def.ref_problems();
         problems.extend(
             piece_errors.iter().map(|(i, e)| {
