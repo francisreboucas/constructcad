@@ -547,13 +547,23 @@ impl<'a> EditCtx<'a> {
         }
     }
 
-    /// Elements whose outline this edit changed without their sketch drop it
+    /// Elements (and sweep types) whose outline this edit changed without their sketch drop it
     /// (see [`crate::sketch`]).
     fn sync_sketches(&mut self) {
         let ids: Vec<ElementId> = self.tx.elements.keys().copied().collect();
         for id in ids {
             if let Some(e) = self.project.elements.get_mut(&id) {
                 e.drop_stale_sketch();
+            }
+        }
+        // Sweep types whose profile changed without its curves.
+        let types: Vec<ElementTypeId> = self.tx.types.keys().copied().collect();
+        for id in types {
+            if let Some(crate::TypeData::Sweep { profile, sketch, .. }) =
+                self.project.types.get_mut(&id).map(|t| &mut t.data)
+                && sketch.as_ref().is_some_and(|s| !s.makes(profile, &[]))
+            {
+                *sketch = None;
             }
         }
     }

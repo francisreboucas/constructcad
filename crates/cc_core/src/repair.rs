@@ -196,9 +196,14 @@ impl Project {
                     repairs += usize::from(fix_positive(width, 1.2)) + usize::from(fix_positive(thickness, 0.15));
                     repairs += rules.repair();
                 }
-                TypeData::Sweep { profile, .. } => {
+                TypeData::Sweep { profile, sketch, .. } => {
                     if crate::profile_sweep::check_profile(profile).is_err() {
                         *profile = crate::profile_sweep::baseboard();
+                        repairs += 1;
+                    }
+                    // Curves that no longer draw the profile are left behind.
+                    if sketch.as_ref().is_some_and(|s| !s.makes(profile, &[])) {
+                        *sketch = None;
                         repairs += 1;
                     }
                 }
@@ -603,6 +608,26 @@ impl Project {
 mod tests {
     use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, Wall};
     use glam::DVec2;
+
+    /// A sweep type's curves that do not draw its profile (a crafted or
+    /// hand-edited file) are dropped on load; curves that do are kept.
+    #[test]
+    fn sweep_profile_curves_that_do_not_draw_the_profile_are_dropped() {
+        use crate::TypeData;
+        use crate::sketch::Sketch;
+        let mut p = Project::from_template();
+        let id = crate::ElementTypeId(p.alloc_id());
+        let square = vec![DVec2::ZERO, DVec2::new(0.1, 0.0), DVec2::new(0.1, 0.1), DVec2::new(0.0, 0.1)];
+        let data = |sketch| TypeData::Sweep { profile: square.clone(), material: String::new(), sketch };
+        let ty =
+            |data| crate::ElementType { id, name: "S".into(), data, info: Default::default(), uid: Default::default() };
+        p.types.insert(id, ty(data(Some(Sketch::from_polygons(&square, &[])))));
+        assert_eq!(p.repair(), 0, "curves that draw it stay");
+        let other = Sketch::from_polygons(&[DVec2::ZERO, DVec2::new(1.0, 0.0), DVec2::new(0.0, 1.0)], &[]);
+        p.types.insert(id, ty(data(Some(other))));
+        assert_eq!(p.repair(), 1);
+        assert!(matches!(p.element_type(id).map(|t| &t.data), Some(TypeData::Sweep { sketch: None, .. })));
+    }
 
     #[test]
     fn invalid_elements_and_references_are_removed() {

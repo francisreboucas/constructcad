@@ -710,7 +710,7 @@ fn structure_parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
             });
         }
         TypeData::Sweep { ref profile, .. } => {
-            // The profile's extent; it is drawn with `sweep_profile_set` (points or curves).
+            // The profile's extent; *Edit Profile* draws it in a sketch.
             crate::table::section(ui, "type-dimensions", t!("section-dimensions"), |ui| {
                 let (lo, hi) = profile
                     .iter()
@@ -722,7 +722,14 @@ fn structure_parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
                     crate::table::readonly_row(ui, &t!("col-height"), cc_views::format::length(hi.y - lo.y));
                 }
                 crate::table::readonly_row(ui, &t!("prop-sweep-points"), profile.len().to_string());
-                ui.label(crate::theme::muted(t!("hint-sweep-profile")));
+                ui.add_space(4.0);
+                if ui.button(t!("edit-profile")).on_hover_text(t!("cmd-desc-edit-profile")).clicked() {
+                    // The dialog's edits are kept; the profile opens in the sketch.
+                    crate::dialog::session::commit(state);
+                    state.dialogs.type_editor = None;
+                    state.dialogs.type_rename = None;
+                    crate::profile_sketch::open(state, tid);
+                }
             });
         }
         TypeData::Railing { height, post_spacing, .. } => {

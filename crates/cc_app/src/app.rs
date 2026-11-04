@@ -500,6 +500,11 @@ impl ConstructApp {
                     crate::component_env::panel(ui, state);
                     return;
                 }
+                // A profile being sketched: only its picked curve's properties.
+                if crate::profile_sketch::is_open(state) {
+                    properties::show(ui, state);
+                    return;
+                }
                 let h = ui.available_height();
                 egui::Panel::top("browser")
                     .frame(egui::Frame::new().fill(PALETTE.panel))
@@ -514,6 +519,10 @@ impl ConstructApp {
         egui::CentralPanel::no_frame().frame(central).show(ui, |ui| {
             if self.state.component_env.is_some() {
                 crate::component_env::central(ui, &mut self.state);
+                return;
+            }
+            if crate::profile_sketch::is_open(&self.state) {
+                crate::profile_sketch::central(ui, &mut self.state);
                 return;
             }
             if self.dock.iter_all_tabs().next().is_none() {

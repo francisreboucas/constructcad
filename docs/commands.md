@@ -881,7 +881,7 @@ No parameters.
 
 ### `sweep_profile_set`
 
-*edit* — Redraw the profile of a sweep type, as points `[x, y]` or `curves`; every sweep of the type follows.
+*edit* — Redraw the profile of a sweep type, as points `[x, y]` or `curves`; every sweep of the type follows. The type keeps the curves (`type_get` shows them as its `sketch`), so arcs stay arcs when the profile is edited again.
 
 | Parameter | Type | | Description |
 |---|---|---|---|

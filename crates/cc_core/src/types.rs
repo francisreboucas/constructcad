@@ -368,6 +368,10 @@ pub enum TypeData {
     Sweep {
         profile: Vec<glam::DVec2>,
         material: String,
+        /// The curves the profile was drawn with (arcs kept as arcs), dropped
+        /// when the profile is changed without them.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sketch: Option<crate::sketch::Sketch>,
     },
     /// Shaft openings (no properties of their own).
     Shaft {},

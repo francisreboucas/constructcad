@@ -30,6 +30,7 @@ mod paint;
 mod palette;
 mod phases_dialog;
 mod preferences;
+mod profile_sketch;
 mod properties;
 mod recovery;
 mod ribbon;
