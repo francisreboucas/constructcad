@@ -437,6 +437,7 @@ detail-medium = Moyen
 detail-fine = Élevé
 comp-env-detail = Visible en
 prop-level = Niveau
+prop-base-constraint = Contrainte de base
 prop-category = Catégorie
 prop-base-offset = Décalage de la base
 prop-height = Hauteur

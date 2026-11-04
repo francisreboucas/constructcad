@@ -107,9 +107,10 @@ fn patched(
 }
 
 /// Change several elements at once, in one undo step: a new level (doors
-/// and windows of a wall follow it) and the same `params` merged into each
-/// (as `element_set` takes them, e.g. `{"base_offset": -1.5}` for columns).
-/// Every element must take the change, or none changes.
+/// and windows of a wall follow it), the same `params` merged into each
+/// (as `element_set` takes them, e.g. `{"base_offset": -1.5}` for columns),
+/// and the same mark or comments. Every element must take the change, or
+/// none changes.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ElementsSet {
@@ -121,6 +122,12 @@ pub struct ElementsSet {
     /// Fields of the elements' parameters to change.
     #[serde(default)]
     pub params: Option<Value>,
+    /// New mark of every element.
+    #[serde(default)]
+    pub mark: Option<String>,
+    /// New comments of every element.
+    #[serde(default)]
+    pub comments: Option<String>,
 }
 
 impl Command for ElementsSet {
@@ -158,6 +165,16 @@ impl Command for ElementsSet {
             for (id, kind) in kinds {
                 if let Some(x) = e.element_mut(id) {
                     x.kind = kind;
+                }
+            }
+            for id in &ids {
+                if let Some(x) = e.element_mut(*id) {
+                    if let Some(mark) = &self.mark {
+                        x.mark.clone_from(mark);
+                    }
+                    if let Some(comments) = &self.comments {
+                        x.comments.clone_from(comments);
+                    }
                 }
             }
             Ok(())

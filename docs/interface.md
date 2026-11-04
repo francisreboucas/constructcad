@@ -103,7 +103,7 @@ Tags of doors, windows, beams, columns and footings can be dragged to another sp
 
 ## Editing several elements
 
-With several elements of one category selected, the properties palette shows their *Type* and *Level* and the parameters they share (base and top offsets, the height where the top is free, sill height, overhang, rotation, *Structural*, *Room Bounding*, flips). A value that differs among them shows *‹varies›* (an indeterminate box for on/off ones); choosing or typing one sets it on all of them in one undo step (the command `elements_set`; types through `elements_set_type`). A mixed selection shows how many of each category and *Delete*.
+With several elements of one category selected, the properties palette shows their *Type* and *Level* (*Base Constraint* for walls, columns, stairs, ramps and shafts) and the parameters they share: the walls' *Location Line*, the base offset, the *Top Constraint* (unconnected, or up to a level; walls made unconnected keep their height) with its offset or the *Unconnected Height*, sill height, overhang, rotation, *Structural*, *Room Bounding*, the walls' joins at their ends, flips, and the identity data (*Mark* and *Comments*). A value that differs among them shows *‹varies›* (an indeterminate box for on/off ones); choosing or typing one sets it on all of them in one undo step (the command `elements_set`; types through `elements_set_type`). A mixed selection shows how many of each category and *Delete*.
 
 ## Selecting in 3D views
 
