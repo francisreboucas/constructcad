@@ -2265,6 +2265,7 @@ plug-loading = ກຳລັງອ່ານດັດຊະນີປລັກອ�
 plug-index-failed = ບໍ່ສາມາດອ່ານດັດຊະນີປລັກອິນ: { $message }
 plug-index-empty = ດັດຊະນີບໍ່ມີປລັກອິນໃດເລີຍ.
 plug-incompatible = ຕ້ອງການ ConstructCAD ເວີຊັນໃໝ່ກວ່ານີ້.
+plug-needs-app = ຕ້ອງການ ConstructCAD { $version } ຫຼື ໃໝ່ກວ່າ (ເວີຊັນນີ້ແມ່ນ { $current }).
 plug-install = ຕິດຕັ້ງ
 plug-update = ອັບເດດເປັນ { $version }
 plug-installed-version = ຕິດຕັ້ງແລ້ວ ({ $version })

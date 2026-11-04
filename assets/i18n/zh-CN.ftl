@@ -2263,6 +2263,7 @@ plug-loading = 正在读取插件索引…
 plug-index-failed = 无法读取插件索引：{ $message }
 plug-index-empty = 索引中没有插件。
 plug-incompatible = 需要更新版本的 ConstructCAD。
+plug-needs-app = 需要 ConstructCAD { $version } 或更高版本（当前为 { $current }）。
 plug-install = 安装
 plug-update = 更新到 { $version }
 plug-installed-version = 已安装（{ $version }）

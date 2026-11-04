@@ -1780,3 +1780,28 @@ fn available_plugins_install_or_report() {
     assert!(matches!(notice, Some(Err(_))), "{notice:?}");
     assert!(!harness.state().prefs.plugins_files.contains("stairs_plus"), "no permission for a failed install");
 }
+
+/// A plugin that needs a newer ConstructCAD shows its version and why it
+/// cannot be installed, with no Install button.
+#[test]
+fn available_plugins_say_what_they_need() {
+    let mut state = sample_state();
+    let index = cc_lua::store::Index::parse(
+        br#"{"format": 1, "plugins": [{"id": "future", "name": "Future tool",
+             "versions": [{"version": "2.0.0", "api": 1, "url": "https://example.org/f.zip", "sha256": "00",
+                           "min_app": "99.0.0"}]}]}"#,
+    )
+    .unwrap();
+    crate::plugins_ui::set_index(&mut state, index);
+    crate::plugins_ui::open(&mut state);
+    let mut harness = app_harness(state);
+    harness.get_by_label_contains("Future tool").click();
+    harness.run();
+    let needs = t!("plug-needs-app", "version" => "99.0.0", "current" => env!("CARGO_PKG_VERSION"));
+    assert!(harness.query_by_label(&needs).is_some(), "says what it needs");
+    assert!(
+        harness.query_by_label(&t!("plug-version", "version" => "2.0.0")).is_some()
+            || harness.query_by_label_contains("2.0.0").is_some()
+    );
+    assert!(harness.query_by_label(&t!("plug-install")).is_none());
+}

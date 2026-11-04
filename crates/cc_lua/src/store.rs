@@ -103,6 +103,15 @@ impl Index {
 }
 
 impl IndexPlugin {
+    /// The newest version, whether this build can run it or not.
+    pub fn newest(&self) -> Option<&IndexVersion> {
+        self.versions
+            .iter()
+            .filter_map(|v| parse_version(&v.version).map(|n| (n, v)))
+            .max_by_key(|(n, _)| *n)
+            .map(|(_, v)| v)
+    }
+
     /// The newest version this build can run: plugin API at most
     /// [`API_VERSION`], `min_app` at most `app`, an https archive.
     pub fn best(&self, app: (u64, u64, u64)) -> Option<&IndexVersion> {

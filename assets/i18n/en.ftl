@@ -2263,6 +2263,7 @@ plug-loading = Reading the plugin index…
 plug-index-failed = The plugin index could not be read: { $message }
 plug-index-empty = The index lists no plugins.
 plug-incompatible = It needs a newer version of ConstructCAD.
+plug-needs-app = It needs ConstructCAD { $version } or newer (this is { $current }).
 plug-install = Install
 plug-update = Update to { $version }
 plug-installed-version = Installed ({ $version })

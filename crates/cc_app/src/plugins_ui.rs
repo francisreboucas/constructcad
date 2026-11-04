@@ -472,7 +472,10 @@ fn header(
     description: &str,
 ) {
     ui.label(theme::title(name));
-    let mut facts = vec![t!("plug-version", "version" => version)];
+    let mut facts = Vec::new();
+    if !version.is_empty() {
+        facts.push(t!("plug-version", "version" => version));
+    }
     if !authors.is_empty() {
         facts.push(t!("plug-by", "authors" => authors.join(", ")));
     }
@@ -516,7 +519,8 @@ fn available_tab(ui: &mut Ui, ctx: &Context, state: &mut AppState) {
         .filter(|p| matches_search(&state.plugins.search, &[&p.name, &p.id, &p.description, &p.tags.join(" ")]))
         .map(|p| {
             let best = p.best(app_version());
-            let label = format!("{}  ·  {}", p.name, best.map_or("–", |v| v.version.as_str()));
+            let shown = best.or_else(|| p.newest());
+            let label = format!("{}  ·  {}", p.name, shown.map_or("", |v| v.version.as_str()));
             (p.id.clone(), label, best.is_none())
         })
         .collect();
@@ -532,15 +536,24 @@ fn available_tab(ui: &mut Ui, ctx: &Context, state: &mut AppState) {
             return;
         };
         let best = plugin.best(app_version());
-        let version = best.map_or_else(String::new, |v| v.version.clone());
+        // An incompatible plugin shows its newest version and what it needs.
+        let shown = best.or_else(|| plugin.newest());
+        let version = shown.map_or_else(String::new, |v| v.version.clone());
         let homepage = plugin.homepage.clone().or_else(|| plugin.repository.clone()).unwrap_or_default();
         header(ui, &plugin.name, &version, &plugin.authors, &plugin.license, &homepage, &plugin.description);
-        if let Some(notes) = best.and_then(|v| v.notes.as_ref()) {
+        if let Some(notes) = shown.and_then(|v| v.notes.as_ref()) {
             ui.label(theme::muted(notes).size(11.5));
         }
         ui.add_space(6.0);
         let Some(best) = best else {
-            ui.label(RichText::new(t!("plug-incompatible")).color(PALETTE.warning));
+            let current = env!("CARGO_PKG_VERSION");
+            let why = match shown.and_then(|v| v.min_app.clone()) {
+                Some(min) if shown.is_some_and(|v| v.api <= cc_lua::API_VERSION) => {
+                    t!("plug-needs-app", "version" => min, "current" => current)
+                }
+                _ => t!("plug-incompatible"),
+            };
+            ui.label(RichText::new(why).color(PALETTE.warning));
             return;
         };
         let asks_files = best.permissions.iter().any(|p| p == "files");

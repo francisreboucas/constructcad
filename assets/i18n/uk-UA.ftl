@@ -2264,6 +2264,7 @@ plug-loading = Читання індексу плагінів…
 plug-index-failed = Не вдалося прочитати індекс плагінів: { $message }
 plug-index-empty = Індекс не містить жодного плагіна.
 plug-incompatible = Потрібна новіша версія ConstructCAD.
+plug-needs-app = Потрібен ConstructCAD { $version } або новіший (це { $current }).
 plug-install = Встановити
 plug-update = Оновити до { $version }
 plug-installed-version = Встановлено ({ $version })

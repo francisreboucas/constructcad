@@ -2263,6 +2263,7 @@ plug-loading = 正在讀取外掛索引…
 plug-index-failed = 無法讀取外掛索引：{ $message }
 plug-index-empty = 索引中沒有外掛。
 plug-incompatible = 需要較新版本的 ConstructCAD。
+plug-needs-app = 需要 ConstructCAD { $version } 或更新版本（目前為 { $current }）。
 plug-install = 安裝
 plug-update = 更新至 { $version }
 plug-installed-version = 已安裝（{ $version }）
