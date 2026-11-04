@@ -819,6 +819,7 @@ name = "cc_script"
 version = "0.9.1"
 dependencies = [
  "cc_core",
+ "glam",
  "mlua",
  "serde_json",
 ]
