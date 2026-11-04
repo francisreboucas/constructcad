@@ -9,10 +9,11 @@ Tudo o que o ConstructCAD faz num modelo pode ser feito sem a interface. O **mot
   aplicativo     ──▶│                              │
   ccad (CLI)     ──▶│  cc_engine: Session +        │──▶ o modelo (.ccad)
   agentes (MCP)  ──▶│  catálogo de comandos        │
+  scripts Lua    ──▶│  (+ comandos de plugins)     │
                      └──────────────────────────────┘
 ```
 
-Uma parede desenhada com o mouse, um `ccad run wall_create …` e um agente de IA chamando a ferramenta `wall_create` executam o mesmo código, com os mesmos padrões, verificações e desfazer. A lista completa de comandos e parâmetros está na [referência de comandos](commands.md) (em inglês, gerada do próprio catálogo).
+Uma parede desenhada com o mouse, um `ccad run wall_create …`, um script Lua chamando `ccad.run("wall_create", …)` e um agente de IA chamando a ferramenta `wall_create` executam o mesmo código, com os mesmos padrões, verificações e desfazer. A lista completa de comandos e parâmetros está na [referência de comandos](commands.md) (em inglês, gerada do próprio catálogo); [plugins](#plugins) acrescentam seus próprios comandos ao catálogo.
 
 ## Conceitos
 
@@ -86,6 +87,7 @@ ccad -p casa.ccad --save run cad_layers_set id=120 'layers=["COTAS", "TEXTOS"]' 
 | `rejected` | a edição deixaria o modelo inválido ou não é permitida (fixado, em uso…) |
 | `io` | falha ao ler ou gravar um arquivo |
 | `internal` | um defeito; o projeto fica como estava |
+| `script` | um script ou plugin Lua falhou: erro de sintaxe ou de execução, ou um limite atingido |
 
 ## Linha de comando: `ccad`
 
@@ -97,11 +99,15 @@ ccad [opções] schema <comando>     o esquema JSON dos parâmetros de um comand
 ccad reference                     a referência de comandos em Markdown
 ccad [opções] run <comando> [args] executa um comando
 ccad [opções] script <arquivo|->   executa um script de comandos
+ccad [opções] lua <arquivo|-> [args] executa um script Lua
+ccad [opções] plugins              lista os plugins carregados com --plugins
 ccad [opções] mcp                  serve os comandos por MCP (stdio)
 
 -p, --project <arquivo>   abre um projeto antes (.ccad, ou .ifc para importar)
 --save                    salva o projeto no fim (no próprio arquivo)
 --save-as <arquivo>       salva o projeto no fim em <arquivo>
+--plugins <pasta>         carrega o plugin da <pasta>, ou cada plugin das suas
+                          subpastas (pode repetir)
 --lang <código>           idioma dos nomes padrão e mensagens (também CCAD_LANG):
                           en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW ou zh-CN
 ```
@@ -156,7 +162,107 @@ Pisos, forros, telhados, radiers e massas recebem o contorno como `curves` em ve
 {"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
 ```
 
-Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, chame `ccad run` a partir de um script de shell ou use um agente via MCP.
+Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, escreva um [script Lua](#scripts-lua), chame `ccad run` a partir de um script de shell ou use um agente via MCP.
+
+## Scripts Lua
+
+`ccad lua <arquivo>` executa um script em [Lua 5.4](https://www.lua.org/manual/5.4/) sobre a sessão. O script chama comandos com `ccad.run`, guarda os resultados em variáveis e faz laços, então o id criado num passo pode ser usado no seguinte. Os argumentos (nas mesmas formas do `run`: pares `chave=valor`, um objeto JSON, `@arquivo.json`) ficam em `ccad.args`; o que ele imprime vai para a saída padrão e o que ele retorna é impresso como JSON.
+
+[`examples/small_house.lua`](../examples/small_house.lua) constrói a casa pequena acima, com as medidas dos argumentos:
+
+```lua
+local w = ccad.args.width or 8
+local d = ccad.args.depth or 6
+local corners = { { 0, 0 }, { w, 0 }, { w, d }, { 0, d } }
+local outer = {}
+for i = 1, 4 do
+  outer[i] = ccad.run("wall_create", { start = corners[i], ["end"] = corners[i % 4 + 1], height = 2.8 }).id
+end
+ccad.run("door_create", { wall = outer[1], offset = w / 4 })
+…
+```
+
+```sh
+ccad --save-as casa.ccad lua examples/small_house.lua width=10 depth=7
+```
+
+A tabela `ccad`:
+
+| | |
+|---|---|
+| `ccad.run(nome, args)` | executa um comando e devolve o resultado como tabela Lua; gera um erro se ele falhar |
+| `ccad.try(nome, args)` | o mesmo, mas devolve `nil, err` na falha (`err.code`, `err.message`; veja [Erros](#conceitos)) |
+| `ccad.commands()` | os comandos: `name`, `kind`, `group` e `description` de cada um |
+| `ccad.describe(nome)` | um comando, com o esquema JSON dos parâmetros em `schema` |
+| `ccad.args` | os argumentos do script (também `...`) |
+| `ccad.null` | o `null` do JSON (o `nil` do Lua omite o campo) |
+| `ccad.array(t)` | marca `t` como lista, para que uma tabela vazia vá como `[]` e não `{}` |
+| `ccad.json.encode(v)`, `ccad.json.decode(s)` | texto JSON de e para valores Lua |
+| `ccad.version`, `ccad.api` | a versão do ConstructCAD e a da API de plugins (1) |
+
+Argumentos e resultados são JSON: objetos são tabelas com chaves de texto, listas são sequências (`{ 0, 0 }` é um ponto), e `end`, palavra reservada do Lua, se escreve `["end"]`. Um número inteiro calculado com `/` (que em Lua sempre dá um número real) vai como inteiro, então `10 / 2` funciona onde se espera um id ou uma contagem.
+
+**O sandbox.** Os scripts rodam num Lua restrito: as bibliotecas `table`, `string`, `math`, `utf8` e `coroutine` e as funções básicas, sem `io`, `os`, `debug`, `package`, `require`, `load`, `dofile` nem `loadfile`. Um script só chega ao projeto pelos comandos, e a arquivos só pelos comandos que os leem ou gravam. Cada execução tem um limite de 500 milhões de instruções Lua e 256 MB de memória; passando deles, ela para com um erro `script` (capturar esse erro com `pcall` não faz o script continuar). Cada comando que um script executa é um passo de desfazer.
+
+## Plugins
+
+Um plugin é uma pasta com um manifesto `plugin.toml` e código Lua que acrescenta comandos ao catálogo. Os comandos dele são listados e executados como os nativos, pelo `ccad run`, por scripts, por scripts Lua e por agentes MCP, e se chamam `<id do plugin>__<comando>` (dois sublinhados, que os nomes nativos nunca têm).
+
+```sh
+ccad --plugins examples/plugins commands                # o catálogo, com os comandos dos plugins
+ccad --plugins examples/plugins plugins                 # os plugins, as permissões e os comandos deles
+ccad --plugins examples/plugins run quick_rooms__rectangle_room width=4 depth=3 name=Escritório door=south
+claude mcp add constructcad -- ccad mcp --plugins /caminho/para/plugins
+```
+
+`--plugins` recebe a pasta de um plugin ou uma pasta de pastas de plugins, e pode ser repetido. Um plugin que não carrega é informado na saída de erro e fica de fora; o que os plugins imprimem também vai para a saída de erro.
+
+### Escrevendo um plugin
+
+[`examples/plugins/quick_rooms`](../examples/plugins/quick_rooms) é um exemplo completo. `plugin.toml`:
+
+```toml
+id = "quick_rooms"          # letras minúsculas, dígitos e sublinhados simples, até 32
+name = "Quick rooms"
+version = "0.1.0"
+api = 1                     # a API de plugins para a qual ele foi escrito
+description = "Rectangular rooms in one step, and wall totals by type."
+authors = ["…"]
+license = "GPL-3.0-or-later"
+homepage = "https://…"
+main = "main.lua"           # o padrão
+permissions = []            # ou ["files"], veja abaixo
+```
+
+`main.lua` roda uma vez quando o plugin carrega e registra comandos com `ccad.command`:
+
+```lua
+local rect = require("lib.rect")   -- lib/rect.lua na pasta do plugin
+
+ccad.command {
+  name = "rectangle_room",         -- o comando é quick_rooms__rectangle_room
+  title = "Rectangular room",
+  description = "Four walls around a rectangle, its floor and its room.",
+  kind = "edit",                   -- "query", "edit" (o padrão) ou "file"
+  params = {                       -- um esquema JSON dos argumentos
+    properties = { width = { type = "number" }, depth = { type = "number" } },
+    required = { "width", "depth" },
+  },
+  run = function(args)
+    local p = rect.corners(0, 0, args.width, args.depth)
+    for i = 1, 4 do ccad.run("wall_create", { start = p[i], ["end"] = p[i % 4 + 1] }) end
+    return { room = ccad.run("room_create", { point = { args.width / 2, args.depth / 2 } }).id }
+  end,
+}
+```
+
+- `run` recebe os argumentos numa tabela e devolve o resultado do comando (uma tabela, um valor ou nada). Argumentos `required` que faltam são recusados antes de ele rodar; `error("mensagem", 0)` faz o comando falhar com essa mensagem.
+- **Um passo de desfazer:** quantos comandos um comando de plugin executar, ele é desfeito de uma vez, e quando falha (um erro, um `ccad.run` que falhou, um limite atingido) tudo o que ele fez é desfeito.
+- **O que um comando pode executar:** um comando `query` só consulta; um `edit` consulta e edita; comandos que leem ou gravam arquivos (importar, exportar, salvar) precisam da permissão `files`, e só com ela se declara um comando do tipo `file`. Abrir ou criar um projeto, `undo`, `redo` e `language_set` não rodam dentro de um comando de plugin, nem o comando de outro plugin.
+- **O sandbox** é o dos [scripts Lua](#scripts-lua), com o limite contado por comando; cada plugin tem o seu próprio estado Lua, que guarda as variáveis entre um comando e outro. `require("a.b")` carrega `a/b.lua` da pasta do plugin (uma vez; arquivos fora da pasta são recusados), e `ccad.plugin` tem o `id`, o `name` e a `version` dele. `ccad.run` só funciona enquanto um comando roda, não enquanto o plugin carrega.
+- **As permissões** são concedidas por quem carrega o plugin: `ccad --plugins` concede o que o manifesto pede, já que você indicou a pasta.
+
+Os plugins são compartilhados pelo índice da comunidade, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): uma entrada por plugin, com de onde baixar cada versão e o checksum dela, enviada por pull request. O gerenciador de plugins do aplicativo (um passo seguinte) vai instalar a partir dele.
 
 ## Macros no aplicativo
 
@@ -212,5 +318,7 @@ Toda funcionalidade de usuário nasce como comando do motor; o aplicativo chama 
 4. Teste-o em `crates/cc_engine/tests/commands.rs` por `Session::execute`.
 5. Gere a referência de novo: `cargo run -p cc_cli -- reference > docs/commands.md` (um teste falha enquanto ela estiver desatualizada).
 6. No aplicativo, chame-o com `Session::run(Comando { … })`, `actions::run_command` ou os auxiliares de `engine_edit` (use `Session::run_merged` para valores arrastados). Isso também o torna gravável em macros.
+
+Comandos acrescentados durante a execução implementam `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) e são postos na sessão com `Session::set_extension`; `cc_lua::PluginHost` é a dos plugins Lua. `Session::commands`, `describe` e `kind_of` cobrem os dois, e `Session::execute` roda um comando de extensão como um passo de desfazer (`Document::squash_since`).
 
 Os detalhes de arquitetura estão em [AGENTS.md](../AGENTS.md).

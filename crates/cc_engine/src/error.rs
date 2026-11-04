@@ -17,6 +17,9 @@ pub enum ErrorCode {
     Io,
     /// An internal error (a bug); the session is kept as it was.
     Internal,
+    /// A Lua script or plugin failed: a syntax or run-time error, or one of
+    /// its limits (instructions, memory) reached.
+    Script,
 }
 
 /// A command failure: a code for programs and a message for people.

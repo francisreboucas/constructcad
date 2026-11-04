@@ -28,13 +28,13 @@ pub struct Palette {
 }
 
 struct EngineCommand {
-    name: &'static str,
+    name: String,
     description: String,
     schema: serde_json::Value,
 }
 
 struct Form {
-    name: &'static str,
+    name: String,
     description: String,
     args: String,
     result: Option<Result<String, String>>,
@@ -362,7 +362,7 @@ fn search(ui: &mut egui::Ui, state: &mut AppState, palette: &mut Palette, keep: 
         Action::Engine(i) => {
             if let Some(command) = palette.catalog.get(i) {
                 palette.form = Some(Form {
-                    name: command.name,
+                    name: command.name.clone(),
                     description: command.description.clone(),
                     args: skeleton(&command.schema),
                     result: None,
@@ -423,7 +423,7 @@ fn engine_form(ui: &mut egui::Ui, state: &mut AppState, mut form: Form) -> Optio
     ui.horizontal(|ui| {
         let (icon, _) = ui.allocate_exact_size(vec2(18.0, 18.0), Sense::hover());
         icons::paint(ui.painter(), icon, Icon::MacroRun, p.text);
-        ui.label(RichText::new(form.name).monospace().strong().color(p.text));
+        ui.label(RichText::new(form.name.as_str()).monospace().strong().color(p.text));
     });
     ui.label(theme::muted(&form.description));
     ui.add_space(4.0);
@@ -451,7 +451,7 @@ fn engine_form(ui: &mut egui::Ui, state: &mut AppState, mut form: Form) -> Optio
     });
     if run {
         form.result = Some(match serde_json::from_str::<serde_json::Value>(&form.args) {
-            Ok(args) => match state.session.execute(form.name, args) {
+            Ok(args) => match state.session.execute(&form.name, args) {
                 Ok(out) => Ok(serde_json::to_string_pretty(&out).unwrap_or_default()),
                 Err(e) => Err(e.message),
             },

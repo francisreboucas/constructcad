@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["crates/cc_core", "crates/cc_geom", "crates/cc_views", "crates/cc_render", "crates/cc_ifc", "crates/cc_cad", "crates/cc_skp", "crates/cc_engine", "crates/cc_cli", "crates/cc_app"]
+members = ["crates/cc_core", "crates/cc_geom", "crates/cc_views", "crates/cc_render", "crates/cc_ifc", "crates/cc_cad", "crates/cc_skp", "crates/cc_engine", "crates/cc_lua", "crates/cc_cli", "crates/cc_app"]
 
 [workspace.package]
 version = "0.9.1"
@@ -18,6 +18,7 @@ cc_ifc = { path = "crates/cc_ifc" }
 cc_cad = { path = "crates/cc_cad" }
 cc_skp = { path = "crates/cc_skp" }
 cc_engine = { path = "crates/cc_engine" }
+cc_lua = { path = "crates/cc_lua" }
 
 eframe = { version = "0.36.2", default-features = false, features = ["wgpu", "default_fonts", "persistence", "accesskit", "links", "x11", "wayland"] }
 egui = "0.36.2"
@@ -54,6 +55,11 @@ encoding_rs = "0.8"
 ureq = { version = "3.5.0", default-features = false, features = ["rustls"] }
 # SHA-256 of downloaded updates (cc_app), checked against the release's SHA256SUMS.txt.
 sha2 = "0.10.9"
+
+# Lua scripts and plugins (cc_lua): Lua 5.4 built from source (MIT), no system Lua.
+mlua = { version = "0.11", features = ["lua54", "vendored", "serde"] }
+# Plugin manifests (cc_lua), the version already in the lock file.
+toml = { version = "1.1.8", default-features = false, features = ["parse", "serde"] }
 
 # Robustness rules (see AGENTS.md): no unsafe, and no panics outside tests.
 [workspace.lints.rust]

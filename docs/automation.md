@@ -9,10 +9,11 @@ Everything ConstructCAD does to a model can be done without the interface. The *
   desktop app ──▶│                              │
   ccad (CLI)  ──▶│  cc_engine: Session +        │──▶ the model (.ccad)
   MCP agents  ──▶│  catalog of commands         │
+  Lua scripts ──▶│  (+ plugin commands)         │
                  └──────────────────────────────┘
 ```
 
-A wall drawn with the mouse, a `ccad run wall_create …` and an AI agent calling the `wall_create` tool run the same code, with the same defaults, checks and undo. The full list of commands with their parameters is in the [command reference](commands.md).
+A wall drawn with the mouse, a `ccad run wall_create …`, a Lua script calling `ccad.run("wall_create", …)` and an AI agent calling the `wall_create` tool run the same code, with the same defaults, checks and undo. The full list of commands with their parameters is in the [command reference](commands.md); [plugins](#plugins) add their own commands to the catalog.
 
 ## Concepts
 
@@ -86,6 +87,7 @@ ccad -p house.ccad --save run cad_layers_set id=120 'layers=["DIM", "TEXT"]' vis
 | `rejected` | the edit would leave the model invalid, or is not allowed (pinned, in use…) |
 | `io` | reading or writing a file failed |
 | `internal` | a bug; the project is kept as it was |
+| `script` | a Lua script or plugin failed: a syntax or run-time error, or a limit reached |
 
 ## Command line: `ccad`
 
@@ -97,11 +99,15 @@ ccad [options] schema <command>     the JSON Schema of a command's parameters
 ccad reference                      the command reference in Markdown
 ccad [options] run <command> [args] run one command
 ccad [options] script <file|->      run a script of commands
+ccad [options] lua <file|-> [args]  run a Lua script
+ccad [options] plugins              list the plugins loaded with --plugins
 ccad [options] mcp                  serve the commands over MCP (stdio)
 
 -p, --project <file>   open a project (.ccad, or .ifc to import) first
 --save                 save the project afterwards (to its file)
 --save-as <file>       save the project afterwards to <file>
+--plugins <folder>     load the plugin in <folder>, or each plugin in its
+                       subfolders (repeatable)
 --lang <code>          language of default names and messages (also CCAD_LANG):
                        en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW or zh-CN
 ```
@@ -156,7 +162,108 @@ Floors, ceilings, roofs, foundation slabs and masses take their outline as `curv
 {"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
 ```
 
-Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, call `ccad run` from a shell script or use an agent over MCP.
+Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, write a [Lua script](#lua-scripts), call `ccad run` from a shell script or use an agent over MCP.
+
+## Lua scripts
+
+`ccad lua <file>` runs a [Lua 5.4](https://www.lua.org/manual/5.4/) script over the session. The script calls commands with `ccad.run`, keeps their results in variables and loops, so an id created by one step can be used by the next. Its arguments (the same forms as `run`: `key=value` pairs, a JSON object, `@file.json`) are `ccad.args`; what it prints goes to standard output and what it returns is printed as JSON.
+
+[`examples/small_house.lua`](../examples/small_house.lua) builds the small house above, sized by its arguments:
+
+```lua
+local w = ccad.args.width or 8
+local d = ccad.args.depth or 6
+local corners = { { 0, 0 }, { w, 0 }, { w, d }, { 0, d } }
+local outer = {}
+for i = 1, 4 do
+  outer[i] = ccad.run("wall_create", { start = corners[i], ["end"] = corners[i % 4 + 1], height = 2.8 }).id
+end
+ccad.run("door_create", { wall = outer[1], offset = w / 4 })
+…
+```
+
+```sh
+ccad --save-as house.ccad lua examples/small_house.lua width=10 depth=7
+```
+
+The `ccad` table:
+
+| | |
+|---|---|
+| `ccad.run(name, args)` | runs a command and returns its result as a Lua table; raises an error if it fails |
+| `ccad.try(name, args)` | the same, but returns `nil, err` on failure (`err.code`, `err.message`; see [Errors](#concepts)) |
+| `ccad.commands()` | the commands: `name`, `kind`, `group`, `description` each |
+| `ccad.describe(name)` | one command, with the JSON Schema of its parameters as `schema` |
+| `ccad.args` | the script's arguments (also `...`) |
+| `ccad.null` | JSON `null` (Lua's `nil` leaves a field out) |
+| `ccad.array(t)` | marks `t` as a list, so that an empty table is sent as `[]` rather than `{}` |
+| `ccad.json.encode(v)`, `ccad.json.decode(s)` | JSON text to and from Lua values |
+| `ccad.version`, `ccad.api` | the ConstructCAD version and the plugin API version (1) |
+
+Arguments and results are JSON: objects are tables with string keys, arrays are sequences (`{ 0, 0 }` is a point), `end` is a Lua keyword and is written `["end"]`. A whole number computed with `/` (which always gives a float in Lua) is sent as an integer, so `10 / 2` works where an id or count is expected.
+
+**The sandbox.** Scripts run in a restricted Lua: the `table`, `string`, `math`, `utf8` and `coroutine` libraries and the base functions, without `io`, `os`, `debug`, `package`, `require`, `load`, `dofile` or `loadfile`. A script reaches the project only through commands, and files only through the commands that read or write them. A run has a budget of 500 million Lua instructions and 256 MB of memory; past them it stops with a `script` error (catching that error with `pcall` does not keep the script going). Each command a script runs is its own undo step.
+
+## Plugins
+
+A plugin is a folder with a `plugin.toml` manifest and Lua code that adds commands to the catalog. Its commands are listed and run like the built-in ones, by `ccad run`, scripts, Lua scripts and MCP agents, and are named `<plugin id>__<command>` (two underscores, which built-in names never contain).
+
+```sh
+ccad --plugins examples/plugins commands                # the catalog, with the plugins' commands
+ccad --plugins examples/plugins plugins                 # the plugins, their permissions and commands
+ccad --plugins examples/plugins run quick_rooms__rectangle_room width=4 depth=3 name=Office door=south
+claude mcp add constructcad -- ccad mcp --plugins /path/to/plugins
+```
+
+`--plugins` takes a plugin's folder or a folder of plugin folders, and can be repeated. A plugin that fails to load is reported on standard error and left out; what plugins print also goes to standard error.
+
+### Writing a plugin
+
+[`examples/plugins/quick_rooms`](../examples/plugins/quick_rooms) is a complete example. `plugin.toml`:
+
+```toml
+id = "quick_rooms"          # lowercase letters, digits and single underscores, up to 32
+name = "Quick rooms"
+version = "0.1.0"
+api = 1                     # the plugin API it is written for
+description = "Rectangular rooms in one step, and wall totals by type."
+authors = ["…"]
+license = "GPL-3.0-or-later"
+homepage = "https://…"
+main = "main.lua"           # the default
+permissions = []            # or ["files"], see below
+```
+
+`main.lua` runs once when the plugin loads and registers commands with `ccad.command`:
+
+```lua
+local rect = require("lib.rect")   -- lib/rect.lua in the plugin's folder
+
+ccad.command {
+  name = "rectangle_room",         -- the command is quick_rooms__rectangle_room
+  title = "Rectangular room",
+  description = "Four walls around a rectangle, its floor and its room.",
+  kind = "edit",                   -- "query", "edit" (the default) or "file"
+  params = {                       -- a JSON Schema of the arguments
+    properties = { width = { type = "number" }, depth = { type = "number" } },
+    required = { "width", "depth" },
+  },
+  run = function(args)
+    local p = rect.corners(0, 0, args.width, args.depth)
+    for i = 1, 4 do ccad.run("wall_create", { start = p[i], ["end"] = p[i % 4 + 1] }) end
+    return { room = ccad.run("room_create", { point = { args.width / 2, args.depth / 2 } }).id }
+  end,
+}
+```
+
+- `run` gets the arguments as a table and returns the command's result (a table, a value or nothing). Missing `required` arguments are refused before it runs; `error("message", 0)` fails the command with that message.
+- **One undo step:** however many commands a plugin command runs, it is undone at once, and when it fails (an error, a failed `ccad.run`, a limit reached) everything it did is undone.
+- **What a command may run:** a `query` command only queries; an `edit` command queries and edits; commands that read or write files (import, export, save) need the `files` permission, and a command of kind `file` can only be declared with it. Opening or creating a project, `undo`, `redo` and `language_set` cannot run inside a plugin command, nor can another plugin's command.
+- **The sandbox** is that of [Lua scripts](#lua-scripts), with the budget counted per command; each plugin has its own Lua state, which keeps its variables between commands. `require("a.b")` loads `a/b.lua` from the plugin's folder (once; files outside the folder are refused), and `ccad.plugin` holds its `id`, `name` and `version`. `ccad.run` works only while a command runs, not while the plugin loads.
+- **Permissions** are granted by whoever loads the plugin: `ccad --plugins` grants what the manifest asks for, since you named the folder.
+
+Plugins are shared through the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. The app's plugin manager (a later step) will install from it.
+
 
 ## Macros in the app
 
@@ -212,5 +319,7 @@ Every user-facing feature starts as an engine command; the app calls it rather t
 4. Test it in `crates/cc_engine/tests/commands.rs` through `Session::execute`.
 5. Regenerate the reference: `cargo run -p cc_cli -- reference > docs/commands.md` (a test fails while it is stale).
 6. In the app, call it with `Session::run(Command { … })`, `actions::run_command` or the `engine_edit` helpers (use `Session::run_merged` for dragged values). That also makes it recordable in macros.
+
+Commands added at run time implement `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) and are set on the session with `Session::set_extension`; `cc_lua::PluginHost` is the one for Lua plugins. `Session::commands`, `describe` and `kind_of` cover both, and `Session::execute` runs an extension command as one undo step (`Document::squash_since`).
 
 Architecture details are in [AGENTS.md](../AGENTS.md).

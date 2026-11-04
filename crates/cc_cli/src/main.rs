@@ -1,6 +1,7 @@
 //! `ccad`: ConstructCAD without a GUI. Runs engine commands from the
 //! command line, from scripts, or for AI agents as an MCP server; all three
-//! use the engine's one command catalog.
+//! use the engine's one command catalog, plus the commands of the plugins
+//! loaded with `--plugins`.
 
 mod mcp;
 
@@ -19,6 +20,8 @@ Usage:
   ccad reference                      the command reference in Markdown
   ccad [options] run <command> [args] run one command
   ccad [options] script <file|->      run a script of commands
+  ccad [options] lua <file|-> [args]  run a Lua script
+  ccad [options] plugins              list the plugins loaded with --plugins
   ccad [options] mcp                  serve the commands over MCP (stdio)
 
 Arguments of `run`: a JSON object, @file.json, - (standard input), or
@@ -28,10 +31,18 @@ key=value pairs whose values are JSON or plain text, e.g.
 A script is a JSON array of {\"command\": ..., \"args\": {...}} objects, or one
 such object per line; it stops at the first error.
 
+A Lua script calls commands with ccad.run(name, args) and gets its arguments
+(same forms as `run`) as ccad.args; what it prints goes to standard output,
+what it returns is printed as JSON.
+
 Options:
   -p, --project <file>   open a project (.ccad, or .ifc to import) first
   --save                 save the project afterwards (to its file)
   --save-as <file>       save the project afterwards to <file>
+  --plugins <folder>     load the plugin in <folder>, or each plugin in its
+                         subfolders (repeatable); their commands are named
+                         <plugin>__<command> and get the permissions their
+                         plugin.toml asks for
   --lang <code>          language of default names (default: the system's):
                          en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW or zh-CN
   -V, --version          the version
@@ -44,11 +55,12 @@ struct Options {
     project: Option<PathBuf>,
     save: bool,
     save_as: Option<PathBuf>,
+    plugins: Vec<PathBuf>,
     rest: Vec<String>,
 }
 
 fn parse_options(args: Vec<String>) -> Result<Options, String> {
-    let mut o = Options { project: None, save: false, save_as: None, rest: Vec::new() };
+    let mut o = Options { project: None, save: false, save_as: None, plugins: Vec::new(), rest: Vec::new() };
     let mut it = args.into_iter();
     while let Some(a) = it.next() {
         match a.as_str() {
@@ -56,6 +68,7 @@ fn parse_options(args: Vec<String>) -> Result<Options, String> {
             "--save" => o.save = true,
             "-V" | "--version" => o.rest.push("--version".into()),
             "--save-as" => o.save_as = Some(it.next().ok_or("--save-as needs a file")?.into()),
+            "--plugins" => o.plugins.push(it.next().ok_or("--plugins needs a folder")?.into()),
             "--lang" => {
                 let code = it.next().ok_or("--lang needs a language")?;
                 let lang = cc_engine::i18n::Language::from_code(&code).ok_or(format!("unsupported language {code}"))?;
@@ -71,15 +84,40 @@ fn parse_options(args: Vec<String>) -> Result<Options, String> {
     Ok(o)
 }
 
-/// The session for the options: a new project, or the given file (`.ifc` is imported).
-fn session(project: Option<&PathBuf>) -> Result<Session, EngineError> {
+/// The plugins of `--plugins`, each granted what its manifest asks for (the
+/// user named the folders); plugins that fail to load are reported on
+/// standard error and left out.
+fn plugins(o: &Options) -> cc_lua::PluginHost {
+    let mut host = cc_lua::PluginHost::new();
+    for folder in &o.plugins {
+        for e in host.load_folder(folder, cc_lua::Limits::default(), cc_lua::Manifest::requested) {
+            eprintln!("ccad: plugin not loaded: {e}");
+        }
+    }
+    host
+}
+
+/// The session for the options: a new project, or the given file (`.ifc`
+/// is imported), with the plugins of `--plugins`.
+fn session(o: &Options) -> Result<Session, EngineError> {
     let mut s = Session::default();
-    if let Some(path) = project {
+    if !o.plugins.is_empty() {
+        s.set_extension(Some(Box::new(plugins(o))));
+        flush_messages(&mut s);
+    }
+    if let Some(path) = &o.project {
         let is_ifc = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("ifc"));
         let command = if is_ifc { "ifc_import" } else { "project_open" };
         s.execute(command, json!({ "path": path }))?;
     }
     Ok(s)
+}
+
+/// What plugins printed, on standard error (standard output carries results).
+fn flush_messages(s: &mut Session) {
+    for line in s.take_extension_messages() {
+        eprintln!("{line}");
+    }
 }
 
 fn read_input(spec: &str) -> Result<String, String> {
@@ -161,7 +199,10 @@ fn main() -> ExitCode {
             ExitCode::SUCCESS
         }
         "commands" => {
-            let list: Vec<Value> = cc_engine::catalog()
+            let mut s = Session::default();
+            s.set_extension(Some(Box::new(plugins(&o))));
+            let list: Vec<Value> = s
+                .commands()
                 .iter()
                 .map(|c| json!({"name": c.name, "kind": c.kind, "description": c.description}))
                 .collect();
@@ -172,24 +213,35 @@ fn main() -> ExitCode {
             print!("{}", cc_engine::reference::markdown());
             ExitCode::SUCCESS
         }
-        "schema" => match rest.first().and_then(|n| cc_engine::describe(n)) {
-            Some(info) => {
-                print(&serde_json::to_value(&info).unwrap_or_default());
-                ExitCode::SUCCESS
+        "schema" => {
+            let mut s = Session::default();
+            s.set_extension(Some(Box::new(plugins(&o))));
+            match rest.first().and_then(|n| s.describe(n)) {
+                Some(info) => {
+                    print(&serde_json::to_value(&info).unwrap_or_default());
+                    ExitCode::SUCCESS
+                }
+                None => usage_error("schema needs a known command name"),
             }
-            None => usage_error("schema needs a known command name"),
-        },
+        }
+        "plugins" => {
+            let host = plugins(&o);
+            print(&host.summary());
+            ExitCode::SUCCESS
+        }
         "run" => {
             let Some((name, args)) = rest.split_first() else { return usage_error("run needs a command") };
             let args = match parse_args(args) {
                 Ok(a) => a,
                 Err(e) => return usage_error(&format!("invalid arguments: {e}")),
             };
-            let mut s = match session(o.project.as_ref()) {
+            let mut s = match session(&o) {
                 Ok(s) => s,
                 Err(e) => return fail(&e),
             };
-            match s.execute(name, args).and_then(|out| save(&mut s, &o).map(|()| out)) {
+            let result = s.execute(name, args);
+            flush_messages(&mut s);
+            match result.and_then(|out| save(&mut s, &o).map(|()| out)) {
                 Ok(out) => {
                     print(&out);
                     ExitCode::SUCCESS
@@ -203,11 +255,13 @@ fn main() -> ExitCode {
                 Ok(s) => s,
                 Err(e) => return usage_error(&format!("invalid script: {e}")),
             };
-            let mut s = match session(o.project.as_ref()) {
+            let mut s = match session(&o) {
                 Ok(s) => s,
                 Err(e) => return fail(&e),
             };
-            let results = match cc_engine::script::run(&mut s, &steps) {
+            let results = cc_engine::script::run(&mut s, &steps);
+            flush_messages(&mut s);
+            let results = match results {
                 Ok(results) => results,
                 Err((done, failed)) => {
                     print(&json!(
@@ -229,8 +283,37 @@ fn main() -> ExitCode {
             print(&json!(results));
             ExitCode::SUCCESS
         }
+        "lua" => {
+            let Some((file, args)) = rest.split_first() else { return usage_error("lua needs a file (or -)") };
+            let source = match read_input(file) {
+                Ok(t) => t,
+                Err(e) => return usage_error(&e),
+            };
+            let args = match parse_args(args) {
+                Ok(a) => a,
+                Err(e) => return usage_error(&format!("invalid arguments: {e}")),
+            };
+            let mut s = match session(&o) {
+                Ok(s) => s,
+                Err(e) => return fail(&e),
+            };
+            let name = if file == "-" { "stdin" } else { file.as_str() };
+            let out = cc_lua::run_script(&mut s, &source, name, args, cc_lua::ScriptOptions::default());
+            flush_messages(&mut s);
+            for line in &out.output {
+                println!("{line}");
+            }
+            match out.result.and_then(|v| save(&mut s, &o).map(|()| v)) {
+                Ok(Value::Null) => ExitCode::SUCCESS,
+                Ok(v) => {
+                    print(&v);
+                    ExitCode::SUCCESS
+                }
+                Err(e) => fail(&e),
+            }
+        }
         "mcp" => {
-            let s = match session(o.project.as_ref()) {
+            let s = match session(&o) {
                 Ok(s) => s,
                 Err(e) => return fail(&e),
             };

@@ -60,8 +60,8 @@ pub fn markdown() -> String {
     let commands = catalog();
     let mut groups: Vec<&str> = Vec::new();
     for c in &commands {
-        if !groups.contains(&c.group) {
-            groups.push(c.group);
+        if !groups.contains(&c.group.as_str()) {
+            groups.push(&c.group);
         }
     }
     out.push_str("\n## Contents\n\n");

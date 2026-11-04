@@ -16,6 +16,7 @@
 mod defaults;
 pub mod dimensions;
 mod error;
+pub mod extension;
 pub mod i18n;
 pub mod reference;
 mod refs;
@@ -41,6 +42,7 @@ pub use defaults::{
     conduit_offset, default_roof_base, default_top, device_height, drain_slope, next_number, pipe_offset, walls_loop,
 };
 pub use error::{EngineError, ErrorCode, Result};
+pub use extension::Extension;
 pub use refs::{Ref, category_name};
-pub use registry::{Command, CommandInfo, CommandKind, catalog, describe};
+pub use registry::{Command, CommandInfo, CommandKind, catalog, command_kind, describe};
 pub use session::{Session, new_project};

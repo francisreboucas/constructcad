@@ -28,7 +28,7 @@ fn scratch(name: &str) -> std::path::PathBuf {
 #[test]
 fn catalog_is_well_formed() {
     let commands = catalog();
-    let mut names: Vec<&str> = commands.iter().map(|c| c.name).collect();
+    let mut names: Vec<&str> = commands.iter().map(|c| c.name.as_str()).collect();
     names.sort();
     names.dedup();
     assert_eq!(names.len(), commands.len(), "duplicate command names");
@@ -47,7 +47,7 @@ fn every_command_survives_bad_arguments() {
     for c in catalog() {
         for args in [json!({}), json!({"bogus": 1}), json!([1, 2]), json!({"id": 999_999, "ids": [999_999]})] {
             let mut s = Session::default();
-            if let Err(e) = s.execute(c.name, args.clone()) {
+            if let Err(e) = s.execute(&c.name, args.clone()) {
                 assert_ne!(e.code, ErrorCode::Internal, "{} with {args}: {}", c.name, e.message);
                 assert_ne!(e.code, ErrorCode::UnknownCommand);
             }
@@ -295,7 +295,7 @@ fn queries_change_nothing() {
     let mut s = Session::default();
     let revision = s.doc.revision();
     for c in catalog().into_iter().filter(|c| c.kind == CommandKind::Query) {
-        let _ = s.execute(c.name, json!({}));
+        let _ = s.execute(&c.name, json!({}));
     }
     assert_eq!(s.doc.revision(), revision);
 }

@@ -66,12 +66,12 @@ pub fn handle(session: &mut Session, message: Value) -> Option<Value> {
             )
         }
         "ping" => reply(id, json!({})),
-        "tools/list" => reply(id, json!({ "tools": tools() })),
+        "tools/list" => reply(id, json!({ "tools": tools(session) })),
         "tools/call" => {
             let Some(name) = params.get("name").and_then(Value::as_str) else {
                 return Some(error(id, -32602, "tools/call needs a name"));
             };
-            if cc_engine::describe(name).is_none() {
+            if session.kind_of(name).is_none() {
                 return Some(error(id, -32602, &format!("unknown tool: {name}")));
             }
             let args = params.get("arguments").cloned().unwrap_or(json!({}));
@@ -81,8 +81,9 @@ pub fn handle(session: &mut Session, message: Value) -> Option<Value> {
     })
 }
 
-fn tools() -> Vec<Value> {
-    cc_engine::catalog()
+fn tools(session: &Session) -> Vec<Value> {
+    session
+        .commands()
         .into_iter()
         .map(|c| {
             json!({
@@ -103,7 +104,12 @@ fn tools() -> Vec<Value> {
 /// A tool result: the command's JSON as text and as structured content;
 /// failures are tool errors the model can read and correct.
 fn call(session: &mut Session, name: &str, args: Value) -> Value {
-    match session.execute(name, args) {
+    let result = session.execute(name, args);
+    // What plugins printed: standard error (standard output carries the protocol).
+    for line in session.take_extension_messages() {
+        eprintln!("{line}");
+    }
+    match result {
         Ok(out) => {
             let text = serde_json::to_string_pretty(&out).unwrap_or_default();
             // Structured content must be an object.
