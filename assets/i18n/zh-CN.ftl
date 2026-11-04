@@ -122,7 +122,7 @@ tool-room = 房间
 tool-grid = 轴网
 tool-dimension = 对齐
 hint-room = 在围合房间的墙内单击以放置房间 · 封闭区域会高亮显示
-hint-grid = 单击轴线的起点和终点 · Shift = 正交
+hint-grid = 单击轴线的起点和终点 · 输入长度后按 Enter · Shift = 正交
 hint-dimension = 单击两个点，再单击尺寸线的位置 · 适用于任何二维视图
 tool-dim-linear = 线性
 tool-dim-ordinate = 坐标

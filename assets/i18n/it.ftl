@@ -122,7 +122,7 @@ tool-room = Locale
 tool-grid = Griglia
 tool-dimension = Allineata
 hint-room = Fai clic all'interno dei muri che delimitano i locali per inserire un locale · l'area racchiusa viene evidenziata
-hint-grid = Fai clic sull'inizio e sulla fine della linea di griglia · Shift = ortogonale
+hint-grid = Fai clic sull'inizio e sulla fine della linea di griglia · digita una lunghezza + Enter · Shift = ortogonale
 hint-dimension = Fai clic su due punti, poi sulla posizione della linea di quota · funziona in qualsiasi vista 2D
 tool-dim-linear = Lineare
 tool-dim-ordinate = Progressiva

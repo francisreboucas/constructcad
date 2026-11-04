@@ -122,7 +122,7 @@ tool-room = Raum
 tool-grid = Raster
 tool-dimension = Ausgerichtet
 hint-room = Innerhalb raumbegrenzender Wände klicken, um einen Raum zu setzen · die umschlossene Fläche wird hervorgehoben
-hint-grid = Anfang und Ende der Rasterlinie klicken · Umschalt = orthogonal
+hint-grid = Anfang und Ende der Rasterlinie klicken · Länge eingeben + Enter · Umschalt = orthogonal
 hint-dimension = Zwei Punkte klicken, dann die Lage der Maßlinie · funktioniert in jeder 2D-Ansicht
 tool-dim-linear = Linear
 tool-dim-ordinate = Steigend

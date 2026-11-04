@@ -122,7 +122,7 @@ tool-room = 房間
 tool-grid = 軸線
 tool-dimension = 對齊
 hint-room = 在界定房間的牆內點擊以放置房間標記 · 封閉區域會反白顯示
-hint-grid = 點擊軸線的起點和終點 · Shift = 正交
+hint-grid = 點擊軸線的起點和終點 · 輸入長度後按 Enter · Shift = 正交
 hint-dimension = 點擊兩個點，再點擊尺寸線的位置 · 適用於任何 2D 視圖
 tool-dim-linear = 線性
 tool-dim-ordinate = 座標

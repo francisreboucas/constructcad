@@ -327,10 +327,12 @@ impl AppState {
         }
     }
 
-    /// A segment is being drawn with typed input (wall, move, copy, array).
+    /// A segment is being drawn with typed input (wall, grid, move, copy, array).
     pub fn typing_segment(&self) -> bool {
-        matches!(self.tool, Tool::Wall { .. } | Tool::Move | Tool::Copy | Tool::Array | Tool::PushPull)
-            && self.interaction.anchor.is_some()
+        matches!(
+            self.tool,
+            Tool::Wall { .. } | Tool::Grid { .. } | Tool::Move | Tool::Copy | Tool::Array | Tool::PushPull
+        ) && self.interaction.anchor.is_some()
     }
 
     pub fn set_tool(&mut self, tool: Tool) {

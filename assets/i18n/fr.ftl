@@ -122,7 +122,7 @@ tool-room = Pièce
 tool-grid = Quadrillage
 tool-dimension = Alignée
 hint-room = Cliquez à l'intérieur de murs qui délimitent des pièces pour placer une pièce · la zone fermée est mise en évidence
-hint-grid = Cliquez le début et la fin de la ligne de quadrillage · Maj = orthogonal
+hint-grid = Cliquez le début et la fin de la ligne de quadrillage · saisissez une longueur + Entrée · Maj = orthogonal
 hint-dimension = Cliquez deux points, puis la position de la ligne de cote · fonctionne dans toute vue 2D
 tool-dim-linear = Linéaire
 tool-dim-ordinate = Cumulée

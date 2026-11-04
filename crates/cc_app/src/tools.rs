@@ -1917,37 +1917,47 @@ fn grid_tool(
     // The ends line up with the bubbles of the other grids.
     let s = align_grid_end(state.project(), None, anchor, raw, s, xf.scale);
     draw_snap(painter, xf, s);
+    // A typed length (and angle) places the end along the cursor's direction (issue #158).
+    let p = anchor.map_or(s.point, |a| typed_end(state, a, s.point));
     if let Some(a) = anchor {
         painter.add(egui::Shape::dashed_line(
-            &[xf.to_screen(a), xf.to_screen(s.point)],
+            &[xf.to_screen(a), xf.to_screen(p)],
             Stroke::new(1.5, PREVIEW),
             10.0,
             4.0,
         ));
-        temp_dimension(painter, xf, a, s.point, None, None, 0.0);
+        temp_dimension(painter, xf, a, p, None, Some(&state.typed), 0.0);
         // The name the grid will get (the engine's default for `grid_create`).
-        if a.distance(s.point) > 0.1 {
-            let name = cc_core::grid::next_name(create::grids(state.project()), a, s.point);
-            label(painter, xf.to_screen(s.point), format!("{} {name}", t!("tool-grid")));
+        if a.distance(p) > 0.1 {
+            let name = cc_core::grid::next_name(create::grids(state.project()), a, p);
+            label(painter, xf.to_screen(p), format!("{} {name}", t!("tool-grid")));
         }
     }
-    if resp.clicked() {
+    let enter = ui.input(|i| i.key_pressed(Key::Enter)) && !state.typed.is_empty();
+    if resp.clicked() || enter {
         match state.interaction.anchor {
-            None => state.interaction.anchor = Some(s.point),
-            Some(a) if a.distance(s.point) > 0.1 => {
+            None => state.interaction.anchor = Some(p),
+            Some(a) if a.distance(p) > 0.1 => {
                 let _ = type_id;
                 let command = create::GridCreate {
                     start: a.to_array(),
-                    end: s.point.to_array(),
+                    end: p.to_array(),
                     level: Some(Ref::Id(level.0)),
                     ..Default::default()
                 };
                 run_create(state, command);
                 state.interaction.anchor = None;
+                state.typed.clear();
             }
             _ => {}
         }
     }
+}
+
+/// The end of a segment from `a` towards the cursor point `p`: at the
+/// typed length and angle (from the X axis), if any were typed.
+fn typed_end(state: &AppState, a: DVec2, p: DVec2) -> DVec2 {
+    if state.typed.is_empty() { p } else { state.typed.apply(a, p, None) }
 }
 
 /// Measure between two references: two clicks snapped to the view's
@@ -3255,6 +3265,22 @@ mod tests {
         assert!(m.y > 7.0 && (sweep - 300.0).abs() < 1e-9, "{m} {sweep}");
         // Too short a radius.
         assert_eq!(bulge_with_radius(a, b, DVec2::new(2.0, 1.0), 1.0), None);
+    }
+
+    /// Issue #158: a grid's length can be typed after its first point.
+    #[test]
+    fn grids_take_a_typed_length() {
+        let mut state = AppState::new(cc_core::Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        let tool = Tool::for_category(state.project(), cc_core::Category::Grid).unwrap();
+        state.set_tool(tool);
+        assert!(!state.typing_segment(), "no first point yet");
+        let a = DVec2::new(1.0, 2.0);
+        state.interaction.anchor = Some(a);
+        assert!(state.typing_segment());
+        let cursor = DVec2::new(1.0, 5.0);
+        assert_eq!(typed_end(&state, a, cursor), cursor, "nothing typed: the cursor");
+        "12,5".chars().for_each(|c| state.typed.push(c));
+        assert!(typed_end(&state, a, cursor).distance(DVec2::new(1.0, 14.5)) < 1e-9);
     }
 
     #[test]
