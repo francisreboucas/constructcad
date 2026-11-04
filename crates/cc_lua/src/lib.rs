@@ -16,6 +16,7 @@ pub mod convert;
 pub mod plugin;
 pub mod sandbox;
 pub mod script;
+pub mod store;
 
 pub use api::{API_VERSION, Access};
 pub use plugin::{Manifest, Permissions, Plugin, PluginError, PluginHost};

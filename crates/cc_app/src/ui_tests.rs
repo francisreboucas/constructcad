@@ -1670,3 +1670,113 @@ fn several_walls_share_constraints_and_identity_data() {
         assert_eq!(harness.state().project().element(*id).unwrap().comments, "Existente");
     }
 }
+
+/// A plugins folder with one plugin, `room_tools`, whose command creates a wall.
+fn plugins_folder(name: &str) -> std::path::PathBuf {
+    let root = std::env::temp_dir().join(format!("ccad-plugins-ui-{}-{name}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&root);
+    let dir = root.join("room_tools");
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("plugin.toml"), "id = \"room_tools\"\nname = \"Room tools\"\nversion = \"0.3.0\"\n")
+        .unwrap();
+    std::fs::write(
+        dir.join("main.lua"),
+        "ccad.command { name = 'one_wall', description = 'A wall', \
+         run = function() print('made a wall') return ccad.run('wall_create', { start = { 0, 0 }, ['end'] = { 2, 0 } }).id end }",
+    )
+    .unwrap();
+    root
+}
+
+/// The Plugins window lists the folder's plugins; turning one off takes its
+/// commands out of the session, and the loaded plugins stay with a new document.
+#[test]
+fn plugins_window_turns_plugins_off_and_on() {
+    let mut state = sample_state();
+    state.prefs.plugin_folder = Some(plugins_folder("window"));
+    crate::plugins_ui::load(&mut state);
+    assert!(state.session.kind_of("room_tools__one_wall").is_some(), "its command joined the session");
+    state.replace_document(cc_core::Document::new(crate::actions::new_project()));
+    assert!(state.session.kind_of("room_tools__one_wall").is_some(), "kept with a new document");
+    crate::plugins_ui::open(&mut state);
+    let mut harness = app_harness(state);
+    harness.get_by_label_contains("Room tools").click();
+    harness.run();
+    assert!(harness.query_by_label_contains("room_tools__one_wall").is_some(), "its commands are listed");
+    harness.get_by_label(&t!("plug-enabled")).click();
+    harness.run();
+    assert!(harness.state().prefs.plugins_off.contains("room_tools"));
+    assert!(harness.state().session.kind_of("room_tools__one_wall").is_none(), "turned off");
+    harness.get_by_label(&t!("plug-enabled")).click();
+    harness.run();
+    assert!(harness.state().session.kind_of("room_tools__one_wall").is_some(), "turned on again");
+    // The footer's Close (the header has a close button too).
+    harness.get_all_by_label(&t!("action-close")).last().unwrap().click();
+    harness.run();
+    assert!(!harness.state().plugins.open);
+}
+
+/// Plugin Commands opens a plugin command's form in the palette, which runs
+/// it as one undo step and shows what it printed.
+#[test]
+fn plugin_commands_run_from_the_palette() {
+    let mut state = sample_state();
+    state.prefs.plugin_folder = Some(plugins_folder("palette"));
+    crate::plugins_ui::load(&mut state);
+    let walls =
+        |s: &AppState| s.project().elements.values().filter(|e| e.category() == cc_core::Category::Wall).count();
+    let before = walls(&state);
+    crate::palette::open_command(&mut state, "room_tools__one_wall");
+    let mut harness = themed_harness(state, egui::vec2(900.0, 700.0), egui::Theme::Light, |ui, state| {
+        crate::palette::show(ui.ctx(), state)
+    });
+    harness.get_by_label(&t!("palette-run")).click();
+    harness.run();
+    assert_eq!(walls(harness.state()), before + 1);
+    assert!(harness.query_by_label_contains("made a wall").is_some(), "what it printed is shown");
+}
+
+/// Installing from a local archive and removing a plugin, as the window does.
+#[test]
+fn removing_a_plugin_from_the_window() {
+    let mut state = sample_state();
+    state.prefs.plugin_folder = Some(plugins_folder("remove"));
+    crate::plugins_ui::load(&mut state);
+    crate::plugins_ui::open(&mut state);
+    let mut harness = app_harness(state);
+    harness.get_by_label_contains("Room tools").click();
+    harness.run();
+    harness.get_by_label(&t!("plug-remove")).click();
+    harness.run();
+    assert!(harness.state().plugins.listed.is_empty());
+    assert!(harness.state().session.kind_of("room_tools__one_wall").is_none());
+}
+
+/// The Available tab lists the index's plugins; installing one that cannot
+/// be downloaded (tests are offline) reports the failure.
+#[test]
+fn available_plugins_install_or_report() {
+    let mut state = sample_state();
+    state.prefs.plugin_folder = Some(plugins_folder("available"));
+    crate::plugins_ui::load(&mut state);
+    let index = cc_lua::store::Index::parse(
+        br#"{"format": 1, "plugins": [{"id": "stairs_plus", "name": "Stairs plus", "description": "More stairs.",
+             "versions": [{"version": "1.0.0", "api": 1, "url": "https://example.org/s.zip", "sha256": "00",
+                           "permissions": ["files"]}]}]}"#,
+    )
+    .unwrap();
+    crate::plugins_ui::set_index(&mut state, index);
+    crate::plugins_ui::open(&mut state);
+    let mut harness = app_harness(state);
+    harness.get_by_label_contains("Stairs plus").click();
+    harness.run();
+    assert!(harness.query_by_label(&t!("plug-files")).is_some(), "it asks for files");
+    harness.get_by_label(&t!("plug-install")).click();
+    // One frame: the install runs in a thread (a spinner keeps repainting).
+    harness.step();
+    crate::plugins_ui::finish_job(harness.state_mut());
+    harness.run();
+    let notice = harness.state().plugins.notice.clone();
+    assert!(matches!(notice, Some(Err(_))), "{notice:?}");
+    assert!(!harness.state().prefs.plugins_files.contains("stairs_plus"), "no permission for a failed install");
+}

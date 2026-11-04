@@ -16,7 +16,7 @@ use crate::t;
 use crate::table;
 use crate::theme::{self, PALETTE, ThemeChoice};
 use egui::{Align, Context, Layout, RichText, Ui};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -54,6 +54,14 @@ const PROJECTS_FOLDER_KEY: &str = "projects_folder";
 const AUTOSAVE_KEY: &str = "autosave_minutes";
 /// eframe storage key of the number of recent projects kept.
 const RECENT_COUNT_KEY: &str = "recent_count";
+/// eframe storage key of the plugins folder (empty: the default one).
+const PLUGIN_FOLDER_KEY: &str = "plugin_folder";
+/// eframe storage key of the plugins turned off (one id per line).
+const PLUGINS_OFF_KEY: &str = "plugins_off";
+/// eframe storage key of the plugins allowed to work with files (one id per line).
+const PLUGINS_FILES_KEY: &str = "plugins_files";
+/// Most plugin ids kept in each of those lists.
+const MAX_PLUGIN_IDS: usize = 1000;
 
 /// Interface scales offered (percent).
 pub const UI_SCALES: [u32; 8] = [75, 90, 100, 110, 125, 150, 175, 200];
@@ -106,6 +114,13 @@ pub struct Preferences {
     pub autosave_minutes: u32,
     /// How many recent projects the home screen lists.
     pub recent_count: usize,
+    /// Where plugins are installed and loaded from (`None`: the default
+    /// folder, see [`Preferences::plugins_dir`]).
+    pub plugin_folder: Option<PathBuf>,
+    /// Plugins turned off (by id): not loaded.
+    pub plugins_off: BTreeSet<String>,
+    /// Plugins the user allowed to work with files (the `files` permission).
+    pub plugins_files: BTreeSet<String>,
 }
 
 impl Default for Preferences {
@@ -124,6 +139,9 @@ impl Default for Preferences {
             projects_folder: None,
             autosave_minutes: 1,
             recent_count: 12,
+            plugin_folder: None,
+            plugins_off: BTreeSet::new(),
+            plugins_files: BTreeSet::new(),
         }
     }
 }
@@ -180,6 +198,16 @@ fn shortcut_lines(text: &str) -> BTreeMap<String, String> {
         .collect()
 }
 
+/// Plugin ids, one per line (invalid ones dropped, bounded).
+fn id_lines(text: &str) -> BTreeSet<String> {
+    text.lines()
+        .map(str::trim)
+        .filter(|id| cc_lua::plugin::valid_id(id))
+        .take(MAX_PLUGIN_IDS)
+        .map(str::to_string)
+        .collect()
+}
+
 fn flag(on: bool) -> String {
     if on { "1" } else { "0" }.to_string()
 }
@@ -207,6 +235,9 @@ impl Preferences {
             projects_folder: folder(get(PROJECTS_FOLDER_KEY)),
             autosave_minutes: number(AUTOSAVE_KEY).map_or(d.autosave_minutes, |v| v.min(60) as u32),
             recent_count: number(RECENT_COUNT_KEY).map_or(d.recent_count, |v| v.clamp(1, MAX_RECENT as u64) as usize),
+            plugin_folder: folder(get(PLUGIN_FOLDER_KEY)),
+            plugins_off: get(PLUGINS_OFF_KEY).map(|v| id_lines(&v)).unwrap_or_default(),
+            plugins_files: get(PLUGINS_FILES_KEY).map(|v| id_lines(&v)).unwrap_or_default(),
         }
     }
 
@@ -227,6 +258,10 @@ impl Preferences {
         set(PROJECTS_FOLDER_KEY, text(&self.projects_folder));
         set(AUTOSAVE_KEY, self.autosave_minutes.to_string());
         set(RECENT_COUNT_KEY, self.recent_count.to_string());
+        set(PLUGIN_FOLDER_KEY, text(&self.plugin_folder));
+        let ids = |set: &BTreeSet<String>| set.iter().cloned().collect::<Vec<_>>().join("\n");
+        set(PLUGINS_OFF_KEY, ids(&self.plugins_off));
+        set(PLUGINS_FILES_KEY, ids(&self.plugins_files));
     }
 
     /// Time between autosave copies, or `None` when autosave is off.
@@ -242,6 +277,14 @@ impl Preferences {
     /// The default projects folder, if set and present.
     pub fn projects_dir(&self) -> Option<&Path> {
         self.projects_folder.as_deref().filter(|p| p.is_dir())
+    }
+
+    /// The plugins folder: the one set, else `plugins` in the app's data
+    /// folder (`None` when there is none).
+    pub fn plugins_dir(&self) -> Option<PathBuf> {
+        // Tests never load the user's own plugins.
+        let default = if cfg!(test) { None } else { crate::recovery::data_dir().map(|d| d.join("plugins")) };
+        self.plugin_folder.clone().or(default)
     }
 
     /// The interface zoom factor.
@@ -731,6 +774,9 @@ fn file_locations(ui: &mut Ui, state: &mut AppState) {
     folder_row(ui, &t!("pref-macro-folder"), &mut state.prefs.macro_folder);
     folder_row(ui, &t!("pref-projects-folder"), &mut state.prefs.projects_folder);
     hint(ui, t!("pref-folders-hint"));
+    folder_row(ui, &t!("pref-plugin-folder"), &mut state.prefs.plugin_folder);
+    let default = crate::recovery::data_dir().map(|d| d.join("plugins").display().to_string()).unwrap_or_default();
+    hint(ui, t!("pref-plugin-folder-hint", "path" => default));
     group(ui, t!("lib-folders"), false);
     let folders = &mut state.prefs.library_folders;
     if folders.is_empty() {
@@ -1001,6 +1047,9 @@ mod tests {
             projects_folder: Some(PathBuf::from("/projects")),
             autosave_minutes: 0,
             recent_count: 20,
+            plugin_folder: Some(PathBuf::from("/plugins")),
+            plugins_off: BTreeSet::from(["old_tool".to_string()]),
+            plugins_files: BTreeSet::from(["exporter".to_string(), "importer".to_string()]),
         };
         let map = stored(&prefs);
         let back = Preferences::read(|k| map.get(k).cloned(), 1.0);
@@ -1024,6 +1073,7 @@ mod tests {
             (LIBRARY_KEY, lines),
             (MACRO_FOLDER_KEY, "  ".to_string()),
             (UPDATE_AUTO_KEY, "maybe".to_string()),
+            (PLUGINS_OFF_KEY, "good_id\nBad Id\n../x\n".to_string()),
         ]
         .into();
         let prefs = Preferences::read(|k| map.get(k).cloned(), f32::NAN);
@@ -1032,6 +1082,7 @@ mod tests {
         assert_eq!(prefs.autosave_minutes, 1, "unparsable: the default");
         assert_eq!(prefs.recent_count, 1);
         assert_eq!(prefs.theme, ThemeChoice::System);
+        assert_eq!(prefs.plugins_off, BTreeSet::from(["good_id".to_string()]), "invalid plugin ids dropped");
         assert_eq!(prefs.library_folders.len(), MAX_LIBRARY_FOLDERS, "bounded and deduplicated");
         assert_eq!(prefs.library_folders[0], PathBuf::from("/f0"));
         assert_eq!(prefs.macro_folder, None);

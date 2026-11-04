@@ -797,6 +797,44 @@ fn manage_tab(ui: &mut Ui, state: &mut AppState) {
         command_button(ui, state, MacroRecord);
         macro_menu(ui, state);
     });
+    group(ui, t!("group-plugins"), |ui| {
+        command_button(ui, state, Plugins);
+        plugin_menu(ui, state);
+    });
+}
+
+/// Plugin Commands: a menu of the loaded plugins' commands, by plugin;
+/// each opens its form in the command palette.
+fn plugin_menu(ui: &mut Ui, state: &mut AppState) {
+    let r = command_menu(ui, state, UiCommand::PluginCommands);
+    egui::Popup::menu(&r).show(|ui| {
+        let groups: Vec<(String, Vec<(String, String)>)> =
+            state.plugins.commands().into_iter().map(|(name, list)| (name.to_string(), list.to_vec())).collect();
+        if groups.is_empty() {
+            ui.label(theme::muted(t!("plug-menu-none")).size(12.0));
+        }
+        egui::ScrollArea::vertical().max_height(360.0).show(ui, |ui| {
+            for (plugin, commands) in groups {
+                ui.label(theme::muted(plugin).size(11.5));
+                for (name, description) in commands {
+                    let short = name.split_once("__").map_or(name.as_str(), |(_, c)| c).to_string();
+                    let mut r = ui.button(short);
+                    if !description.is_empty() {
+                        r = r.on_hover_text(description);
+                    }
+                    if r.clicked() {
+                        state.ribbon_peek = false;
+                        crate::palette::open_command(state, &name);
+                    }
+                }
+            }
+        });
+        ui.separator();
+        if ui.button(t!("action-plugins")).clicked() {
+            state.ribbon_peek = false;
+            crate::plugins_ui::open(state);
+        }
+    });
 }
 
 /// Run Macro: a menu of the macros in the macros folder (see Preferences)

@@ -74,6 +74,7 @@ impl ConstructApp {
         crate::preferences::load_language(stored, language);
         let mut state = AppState::new(Document::new(actions::new_project()));
         crate::preferences::load(&mut state, stored, cc.egui_ctx.zoom_factor());
+        crate::plugins_ui::load(&mut state);
         let mut look = crate::preferences::Look::current(&cc.egui_ctx);
         crate::preferences::sync_look(&cc.egui_ctx, &mut state.prefs, &mut look);
         state.updates.start_if_due(&cc.egui_ctx, state.prefs.check_updates);

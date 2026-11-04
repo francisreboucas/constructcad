@@ -33,6 +33,8 @@ pub fn show(ctx: &Context, state: &mut AppState) {
     crate::graphics_dialog::show(ctx, state);
     crate::phases_dialog::show(ctx, state);
     crate::library::show(ctx, state);
+    crate::plugins_ui::drain_messages(state);
+    crate::plugins_ui::show(ctx, state);
     // After the library window, which opens it over itself.
     crate::preferences::show(ctx, state);
     confirm(ctx, state);

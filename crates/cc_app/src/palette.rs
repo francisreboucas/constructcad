@@ -41,10 +41,12 @@ struct Form {
 }
 
 impl Palette {
-    pub fn new() -> Palette {
+    /// The palette over the session's commands (built-in and plugins').
+    pub fn new(session: &cc_engine::Session) -> Palette {
         // File commands (open, save, import, export) replace the document or
         // need file dialogs; their interface commands cover them.
-        let catalog = cc_engine::catalog()
+        let catalog = session
+            .commands()
             .into_iter()
             .filter(|c| c.kind != cc_engine::CommandKind::File)
             .map(|c| EngineCommand { name: c.name, description: c.description, schema: c.input_schema })
@@ -229,11 +231,25 @@ fn skeleton(schema: &serde_json::Value) -> String {
     serde_json::to_string_pretty(&Value::Object(args)).unwrap_or_else(|_| "{}".to_string())
 }
 
+/// Open the palette on the form of the engine command `name` (a plugin's
+/// command from the ribbon); nothing happens for an unknown name.
+pub fn open_command(state: &mut AppState, name: &str) {
+    let mut palette = Palette::new(&state.session);
+    let Some(command) = palette.catalog.iter().find(|c| c.name == name) else { return };
+    palette.form = Some(Form {
+        name: command.name.clone(),
+        description: command.description.clone(),
+        args: skeleton(&command.schema),
+        result: None,
+    });
+    state.palette = Some(palette);
+}
+
 /// Open or close the palette.
 pub fn toggle(state: &mut AppState) {
     state.palette = match state.palette {
         Some(_) => None,
-        None => Some(Palette::new()),
+        None => Some(Palette::new(&state.session)),
     };
 }
 
@@ -451,10 +467,16 @@ fn engine_form(ui: &mut egui::Ui, state: &mut AppState, mut form: Form) -> Optio
     });
     if run {
         form.result = Some(match serde_json::from_str::<serde_json::Value>(&form.args) {
-            Ok(args) => match state.session.execute(&form.name, args) {
-                Ok(out) => Ok(serde_json::to_string_pretty(&out).unwrap_or_default()),
-                Err(e) => Err(e.message),
-            },
+            Ok(args) => {
+                let result = state.session.execute(&form.name, args);
+                // What a plugin command printed, above its result.
+                let printed = state.session.take_extension_messages().join("\n");
+                let with = |s: String| if printed.is_empty() { s } else { format!("{printed}\n\n{s}") };
+                match result {
+                    Ok(out) => Ok(with(serde_json::to_string_pretty(&out).unwrap_or_default())),
+                    Err(e) => Err(with(e.message)),
+                }
+            }
             Err(e) => Err(t!("palette-bad-json", "error" => e)),
         });
     }
@@ -523,7 +545,7 @@ mod tests {
         let args: serde_json::Value = serde_json::from_str(&skeleton(&schema)).unwrap();
         assert_eq!(args, serde_json::json!({"view": 0, "text": "", "position": []}));
         // Every engine command offered by the palette gets valid JSON.
-        for command in Palette::new().catalog {
+        for command in Palette::new(&cc_engine::Session::default()).catalog {
             assert!(serde_json::from_str::<serde_json::Value>(&skeleton(&command.schema)).is_ok(), "{}", command.name);
         }
     }

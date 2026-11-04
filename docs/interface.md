@@ -226,9 +226,20 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 
 - **General**: the interface language, the theme (light, dark or the system's) and *Check for updates automatically* (see the update notice below).
 - **Interface**: the *Interface scale* (75–200%, everything grows: panels, icons, text; Ctrl+Plus and Ctrl+Minus change it too), the *Text size* (small, normal, large, extra large; only the text, at any scale), *Start with the ribbon collapsed*, *Detailed tooltips* (when off, command tooltips show only the name, the shortcut and why a command is unavailable, without the description and the engine command) and *Dragging in 3D views selects* (a left drag draws a selection box and Shift+drag orbits; off, the other way round).
-- **File locations**: the *Macros folder* (the macro file dialogs start there and *Manage → Run Macro* lists its macros), the *Projects folder* (where Open, Import IFC, Import CAD and the first Save of a new project start; a saved project is saved again next to itself), and the component library folders (*Add Folder…*, *Remove*). The component library window's *Manage Folders…* opens this page. A folder that no longer exists is marked *Not found* and skipped.
+- **File locations**: the *Macros folder* (the macro file dialogs start there and *Manage → Run Macro* lists its macros), the *Projects folder* (where Open, Import IFC, Import CAD and the first Save of a new project start; a saved project is saved again next to itself), the component library folders (*Add Folder…*, *Remove*) and the *Plugins folder* (see [Plugins](#plugins); not set, a `plugins` folder in the app's data folder). The component library window's *Manage Folders…* opens this page. A folder that no longer exists is marked *Not found* and skipped.
 - **Saving**: the *Autosave* interval (off, or every 1, 2, 5, 10 or 15 minutes; see below) and how many recent projects the home screen lists.
 - **Keyboard shortcuts**: every command with its keys. Click a command's box and type two letters to give it new keys (they replace the old ones at once, in tooltips, the palette and views); keys another command already has are refused and the row says which. Leave the box empty to take the keys away, and *Default* brings back the original ones. Search finds a command by name or keys. Ctrl shortcuts, Delete and Esc are fixed.
+
+## Plugins
+
+Plugins add commands to ConstructCAD (see [Plugins](automation.md#plugins) in the automation guide). *Manage → Plugins* holds two buttons: *Plugins…* opens the Plugins window, and *Plugin Commands* is a menu of the installed plugins' commands, by plugin; choosing one opens its form in the [command palette](#running-engine-commands), where **Run** executes it as one undo step and shows what the plugin printed. The palette also finds plugin commands by name.
+
+The Plugins window has two tabs:
+
+- **Installed**: the plugins of the plugins folder. Pick one to see its version, authors, license, page, commands and any error from loading it. *Turned on* loads it or leaves it out (a plugin turned off runs no code). A plugin that asks to work with files has *Allow it to read and write files*; without it, its commands that import, export or save are refused. *Remove* deletes it from the folder.
+- **Available**: the plugins of the [community index](https://github.com/francisreboucas/constructcad-plugins), read when the tab is first opened (*Refresh* reads it again). *Install* (or *Update to …*) downloads the newest version this build can run, checks it against the index's checksum, and installs it only if it loads; a plugin that asks for files gets the permission only when you tick the box first.
+
+Only this tab reaches the network: it reads the index and the archives it lists, over HTTPS, when you ask. *Reload Plugins* reads the folder again, after you add or edit a plugin by hand. Plugins are loaded when the app starts and stay loaded when you open another project.
 
 ## Update notice
 

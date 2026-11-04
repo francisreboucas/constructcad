@@ -157,6 +157,8 @@ pub struct AppState {
     pub prefs: crate::preferences::Preferences,
     /// Update checks and the notice of a newer release.
     pub updates: crate::update::Updates,
+    /// The plugins of the plugins folder and the Plugins window.
+    pub plugins: crate::plugins_ui::Plugins,
     pub thumbnail_jobs: Vec<crate::thumbnails::Job>,
     /// Samples whose thumbnail was already requested this session.
     pub requested_samples: std::collections::BTreeSet<&'static str>,
@@ -224,6 +226,7 @@ impl AppState {
             recent: Vec::new(),
             prefs: Default::default(),
             updates: Default::default(),
+            plugins: Default::default(),
             thumbnail_jobs: Vec::new(),
             requested_samples: Default::default(),
             clipboard: Default::default(),
@@ -246,6 +249,9 @@ impl AppState {
         let generation = self.generation + 1;
         let recent = std::mem::take(&mut self.recent);
         let updates = std::mem::take(&mut self.updates);
+        let plugins = std::mem::take(&mut self.plugins);
+        // The loaded plugins stay with the new document.
+        let extension = self.session.set_extension(None);
         let prefs = std::mem::take(&mut self.prefs);
         let ribbon_collapsed = self.ribbon_collapsed;
         let jobs = std::mem::take(&mut self.thumbnail_jobs);
@@ -253,6 +259,8 @@ impl AppState {
         *self = Self::new(doc);
         self.recent = recent;
         self.updates = updates;
+        self.plugins = plugins;
+        self.session.set_extension(extension);
         self.prefs = prefs;
         self.ribbon_collapsed = ribbon_collapsed;
         self.thumbnail_jobs = jobs;

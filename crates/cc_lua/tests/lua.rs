@@ -416,7 +416,7 @@ fn a_folder_of_plugins_loads_each_once() {
     }
     std::fs::create_dir_all(root.join("not_a_plugin")).unwrap();
     let mut host = PluginHost::new();
-    let errors = host.load_folder(&root, Limits::default(), |m| m.requested());
+    let errors = host.load_folder(&root, Limits::default(), |m| Some(m.requested()));
     assert_eq!(host.plugins().len(), 1);
     assert_eq!(errors.len(), 1);
     assert!(errors[0].message.contains("already loaded"));
@@ -439,7 +439,7 @@ fn the_example_script_builds_a_house() {
 #[test]
 fn the_example_plugin_works() {
     let mut host = PluginHost::new();
-    let errors = host.load_folder(&examples().join("plugins"), Limits::default(), |m| m.requested());
+    let errors = host.load_folder(&examples().join("plugins"), Limits::default(), |m| Some(m.requested()));
     assert!(errors.is_empty(), "{errors:?}");
     let mut s = Session::default();
     s.set_extension(Some(Box::new(host)));
@@ -460,4 +460,17 @@ fn the_example_plugin_works() {
     // One undo step removes the room with its walls, floor and door.
     s.execute("undo", json!({})).unwrap();
     assert_eq!(walls(&mut s), 0);
+}
+
+#[test]
+fn plugins_left_out_run_no_code() {
+    let dir = plugin_dir(
+        "left-out",
+        &[("plugin.toml", "id = \"off\"\nname = \"Off\"\nversion = \"1\"\n"), ("main.lua", "error('ran')")],
+    );
+    let mut host = PluginHost::new();
+    assert!(host.load_folder(&dir, Limits::default(), |_| None).is_empty());
+    assert!(host.plugins().is_empty());
+    let errors = host.load_folder(&dir, Limits::default(), |m| Some(m.requested()));
+    assert!(errors[0].message.contains("ran"), "{:?}", errors);
 }
