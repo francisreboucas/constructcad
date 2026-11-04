@@ -1,0 +1,16 @@
+[package]
+name = "cc_script"
+description = "ConstructCAD's sandboxed Lua 5.4: the state scripts, plugins and scripted components run in"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+repository.workspace = true
+
+[dependencies]
+cc_core.workspace = true
+mlua.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

@@ -793,6 +793,7 @@ name = "cc_lua"
 version = "0.9.1"
 dependencies = [
  "cc_engine",
+ "cc_script",
  "cc_skp",
  "mlua",
  "serde",
@@ -811,6 +812,15 @@ dependencies = [
  "glam",
  "naga",
  "wgpu",
+]
+
+[[package]]
+name = "cc_script"
+version = "0.9.1"
+dependencies = [
+ "cc_core",
+ "mlua",
+ "serde_json",
 ]
 
 [[package]]

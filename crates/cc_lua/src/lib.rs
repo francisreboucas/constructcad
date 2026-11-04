@@ -1,6 +1,6 @@
 //! Lua scripts and plugins for ConstructCAD.
 //!
-//! Lua 5.4 runs sandboxed ([`sandbox`]): no files, no loading of code, an
+//! Lua 5.4 runs sandboxed ([`sandbox`], from `cc_script`): no files, no loading of code, an
 //! instruction budget and a memory limit. Lua code reaches the project only
 //! through the engine's commands (`ccad.run`, see [`api`]), the same ones the
 //! GUI, the command line and the MCP server use.
@@ -12,11 +12,11 @@
 //!   and leaves nothing behind when it fails.
 
 pub mod api;
-pub mod convert;
 pub mod plugin;
-pub mod sandbox;
 pub mod script;
 pub mod store;
+
+pub use cc_script::{convert, sandbox};
 
 pub use api::{API_VERSION, Access};
 pub use plugin::{Manifest, Permissions, Plugin, PluginError, PluginHost};
