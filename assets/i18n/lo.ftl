@@ -419,6 +419,7 @@ detail-medium = ກາງ
 detail-fine = ສູງ
 comp-env-detail = ສະແດງໃນ
 prop-level = ລະດັບ
+prop-base-constraint = ຂໍ້ຜູກມັດດ້ານລຸ່ມ
 prop-category = ໝວດໝູ່
 prop-base-offset = ໄລຍະຫ່າງຈາກພື້ນຖານ
 prop-height = ຄວາມສູງ

@@ -35,8 +35,27 @@ pub fn elements(
     level: Option<LevelId>,
     params: Option<serde_json::Value>,
 ) -> bool {
+    let command = edit::ElementsSet {
+        ids: ids.iter().map(|id| id.0).collect(),
+        level: level.map(|l| Ref::Id(l.0)),
+        params,
+        mark: None,
+        comments: None,
+    };
+    run(state, key, command)
+}
+
+/// Give elements `ids` the same mark or comments (`elements_set`), in one
+/// undo step per `key`.
+pub fn elements_identity(
+    state: &mut AppState,
+    ids: &[ElementId],
+    key: Option<u64>,
+    mark: Option<String>,
+    comments: Option<String>,
+) -> bool {
     let command =
-        edit::ElementsSet { ids: ids.iter().map(|id| id.0).collect(), level: level.map(|l| Ref::Id(l.0)), params };
+        edit::ElementsSet { ids: ids.iter().map(|id| id.0).collect(), level: None, params: None, mark, comments };
     run(state, key, command)
 }
 

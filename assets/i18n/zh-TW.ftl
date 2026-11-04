@@ -427,6 +427,7 @@ detail-medium = 中等
 detail-fine = 精細
 comp-env-detail = 顯示於
 prop-level = 樓層
+prop-base-constraint = 底部約束
 prop-category = 類別
 prop-base-offset = 基準偏移
 prop-height = 高度

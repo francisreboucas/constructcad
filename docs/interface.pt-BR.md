@@ -103,7 +103,7 @@ Os identificadores de portas, janelas, vigas, pilares e sapatas podem ser arrast
 
 ## Editar vários elementos
 
-Com vários elementos de uma categoria selecionados, a paleta de propriedades mostra *Tipo* e *Nível* e os parâmetros que eles têm em comum (deslocamentos da base e do topo, a altura quando o topo está livre, peitoril, beiral, rotação, *Estrutural*, *Delimita ambientes*, inversões). Um valor que difere entre eles aparece como *‹vários›* (uma caixa indeterminada nos de ligar e desligar); escolher ou digitar um valor o aplica a todos num só passo de desfazer (o comando `elements_set`; tipos por `elements_set_type`). Uma seleção de categorias diferentes mostra quantos há de cada uma e *Excluir*.
+Com vários elementos de uma categoria selecionados, a paleta de propriedades mostra *Tipo* e *Nível* (*Restrição de base* em paredes, pilares, escadas, rampas e shafts) e os parâmetros que eles têm em comum: a *Linha de localização* das paredes, o deslocamento da base, a *Restrição superior* (desconectada, ou até um nível; paredes que passam a desconectadas mantêm a altura) com seu deslocamento ou a *Altura desconectada*, peitoril, beiral, rotação, *Estrutural*, *Delimita ambientes*, a união das paredes nas pontas, inversões e os dados de identidade (*Marca* e *Comentários*). Um valor que difere entre eles aparece como *‹vários›* (uma caixa indeterminada nos de ligar e desligar); escolher ou digitar um valor o aplica a todos num só passo de desfazer (o comando `elements_set`; tipos por `elements_set_type`). Uma seleção de categorias diferentes mostra quantos há de cada uma e *Excluir*.
 
 ## Selecionar em vistas 3D
 

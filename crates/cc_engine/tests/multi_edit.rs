@@ -41,6 +41,15 @@ fn many_elements_change_in_one_step() {
         assert_eq!(run(&mut s, "element_get", json!({"id": id}))["level"]["id"].as_u64(), Some(level), "{id}");
     }
 
+    // Identity data: the same comments (and mark) on all, in one step.
+    let depth = s.doc.undo_depth();
+    run(&mut s, "elements_set", json!({"ids": ids, "comments": "Existing", "mark": "P1"}));
+    assert_eq!(s.doc.undo_depth(), depth + 1);
+    for id in &ids {
+        let e = run(&mut s, "element_get", json!({"id": id}));
+        assert_eq!((e["comments"].as_str(), e["mark"].as_str()), (Some("Existing"), Some("P1")));
+    }
+
     // Nothing changes when the request is wrong.
     let depth = s.doc.undo_depth();
     assert_eq!(fails(&mut s, "elements_set", json!({"ids": ids, "level": "Nope"})), ErrorCode::NotFound);
