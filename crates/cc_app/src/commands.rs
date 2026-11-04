@@ -187,6 +187,8 @@ pub enum UiCommand {
     Materials,
     MacroRecord,
     MacroRun,
+    Plugins,
+    PluginCommands,
     ToggleRibbon,
     CommandPalette,
 }
@@ -342,6 +344,8 @@ impl UiCommand {
             Materials,
             MacroRecord,
             MacroRun,
+            Plugins,
+            PluginCommands,
             ToggleRibbon,
             CommandPalette,
         ]);
@@ -490,6 +494,7 @@ impl UiCommand {
             Materials => Icon::Materials,
             MacroRecord => Icon::MacroRecord,
             MacroRun => Icon::MacroRun,
+            Plugins | PluginCommands => Icon::Plugin,
             ToggleRibbon => Icon::ChevronUp,
             CommandPalette => Icon::Search,
         }
@@ -658,6 +663,8 @@ impl UiCommand {
             MacroRecord if state.session.is_recording() => t!("action-macro-stop"),
             MacroRecord => t!("action-macro-record"),
             MacroRun => t!("action-macro-run"),
+            Plugins => t!("action-plugins"),
+            PluginCommands => t!("action-plugin-commands"),
             ToggleRibbon if state.ribbon_collapsed => t!("action-ribbon-expand"),
             ToggleRibbon => t!("action-ribbon-collapse"),
             CommandPalette => t!("action-command-palette"),
@@ -830,6 +837,8 @@ impl UiCommand {
             Materials => t!("cmd-desc-materials"),
             MacroRecord => t!("hint-macro-record"),
             MacroRun => t!("hint-macro-run"),
+            Plugins => t!("cmd-desc-plugins"),
+            PluginCommands => t!("cmd-desc-plugin-commands"),
             ToggleRibbon => t!("cmd-desc-toggle-ribbon"),
             CommandPalette => t!("cmd-desc-command-palette"),
         }
@@ -1671,6 +1680,9 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         Materials => state.dialogs.materials = true,
         MacroRecord => actions::toggle_macro_recording(state),
         MacroRun => actions::run_macro(state),
+        Plugins => crate::plugins_ui::open(state),
+        // A menu in the ribbon; from the palette, the Plugins window.
+        PluginCommands => crate::plugins_ui::open(state),
         ToggleRibbon => state.ribbon_collapsed = !state.ribbon_collapsed,
         CommandPalette => crate::palette::toggle(state),
     }

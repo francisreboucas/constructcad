@@ -29,6 +29,7 @@ mod modify3d;
 mod paint;
 mod palette;
 mod phases_dialog;
+mod plugins_ui;
 mod preferences;
 mod profile_sketch;
 mod properties;

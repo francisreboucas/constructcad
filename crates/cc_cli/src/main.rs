@@ -22,6 +22,8 @@ Usage:
   ccad [options] script <file|->      run a script of commands
   ccad [options] lua <file|-> [args]  run a Lua script
   ccad [options] plugins              list the plugins loaded with --plugins
+  ccad plugins install <zip> <folder> install a plugin archive into a plugins folder
+  ccad plugins remove <id> <folder>   remove an installed plugin
   ccad [options] mcp                  serve the commands over MCP (stdio)
 
 Arguments of `run`: a JSON object, @file.json, - (standard input), or
@@ -90,7 +92,7 @@ fn parse_options(args: Vec<String>) -> Result<Options, String> {
 fn plugins(o: &Options) -> cc_lua::PluginHost {
     let mut host = cc_lua::PluginHost::new();
     for folder in &o.plugins {
-        for e in host.load_folder(folder, cc_lua::Limits::default(), cc_lua::Manifest::requested) {
+        for e in host.load_folder(folder, cc_lua::Limits::default(), |m| Some(m.requested())) {
             eprintln!("ccad: plugin not loaded: {e}");
         }
     }
@@ -224,11 +226,36 @@ fn main() -> ExitCode {
                 None => usage_error("schema needs a known command name"),
             }
         }
-        "plugins" => {
-            let host = plugins(&o);
-            print(&host.summary());
-            ExitCode::SUCCESS
-        }
+        "plugins" => match rest {
+            [] => {
+                let host = plugins(&o);
+                print(&host.summary());
+                ExitCode::SUCCESS
+            }
+            [action, archive, folder] if action == "install" => {
+                let bytes = match std::fs::read(archive) {
+                    Ok(b) => b,
+                    Err(e) => return usage_error(&format!("{archive}: {e}")),
+                };
+                match cc_lua::store::install_archive(&bytes, std::path::Path::new(folder)) {
+                    Ok(dir) => {
+                        print(&json!({ "installed": dir }));
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => fail(&EngineError::new(cc_engine::ErrorCode::Script, e)),
+                }
+            }
+            [action, id, folder] if action == "remove" => {
+                match cc_lua::store::uninstall(std::path::Path::new(folder), id) {
+                    Ok(()) => {
+                        print(&json!({ "removed": id }));
+                        ExitCode::SUCCESS
+                    }
+                    Err(e) => fail(&EngineError::io(e)),
+                }
+            }
+            _ => usage_error("plugins takes no arguments, `install <file.zip> <folder>` or `remove <id> <folder>`"),
+        },
         "run" => {
             let Some((name, args)) = rest.split_first() else { return usage_error("run needs a command") };
             let args = match parse_args(args) {

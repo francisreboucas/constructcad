@@ -115,6 +115,11 @@ fn valid_name(s: &str) -> bool {
         && !s.ends_with('_')
 }
 
+/// Whether `s` is a valid plugin id (see [`Manifest`]).
+pub fn valid_id(s: &str) -> bool {
+    valid_name(s) && s.len() <= 32
+}
+
 impl Manifest {
     /// Read and check a manifest.
     pub fn parse(text: &str) -> Result<Manifest, String> {
@@ -440,13 +445,13 @@ impl PluginHost {
 
     /// Load the plugins of `folder`: the folder itself when it holds a
     /// manifest, else each of its subfolders that does (in name order).
-    /// `grant` decides the permissions of each. Returns the plugins that
-    /// could not be loaded.
+    /// `grant` decides the permissions of each, or `None` to leave it out
+    /// (turned off). Returns the plugins that could not be loaded.
     pub fn load_folder(
         &mut self,
         folder: &Path,
         limits: Limits,
-        grant: impl Fn(&Manifest) -> Permissions,
+        grant: impl Fn(&Manifest) -> Option<Permissions>,
     ) -> Vec<PluginError> {
         let mut errors = Vec::new();
         let dirs: Vec<PathBuf> = if folder.join(MANIFEST).is_file() {
@@ -469,9 +474,21 @@ impl PluginHost {
             }
         };
         for dir in dirs {
+            // Read the manifest first: a plugin left out runs no code.
+            let manifest = read_inside(&dir, Path::new(MANIFEST), MAX_MANIFEST).and_then(|t| Manifest::parse(&t));
+            let permissions = match &manifest {
+                Ok(m) => match grant(m) {
+                    Some(p) => p,
+                    None => continue,
+                },
+                Err(message) => {
+                    errors.push(PluginError { dir: dir.clone(), message: message.clone() });
+                    continue;
+                }
+            };
             match Plugin::load(&dir, limits) {
                 Ok(mut plugin) => {
-                    plugin.grant(grant(&plugin.manifest));
+                    plugin.grant(permissions);
                     if let Err(e) = self.add(plugin) {
                         errors.push(e);
                     }

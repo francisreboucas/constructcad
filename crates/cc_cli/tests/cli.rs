@@ -207,3 +207,25 @@ fn plugins_add_commands() {
     assert!(replies[0]["result"]["tools"].as_array().unwrap().iter().any(|t| t["name"] == "tools__pair"));
     assert_eq!(replies[1]["result"]["isError"], false);
 }
+
+#[test]
+fn plugins_install_and_remove() {
+    let dir = std::env::temp_dir().join(format!("ccad-cli-{}-store", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let plugin = dir.join("tools");
+    std::fs::create_dir_all(&plugin).unwrap();
+    std::fs::write(plugin.join("plugin.toml"), "id = \"tools\"\nname = \"Tools\"\nversion = \"1.0\"\n").unwrap();
+    std::fs::write(plugin.join("main.lua"), "").unwrap();
+    let folder = dir.to_string_lossy().into_owned();
+    let not_zip = dir.join("not.zip");
+    std::fs::write(&not_zip, "this is not a zip archive at all, honestly").unwrap();
+    let (code, _, err) = ccad(&["plugins", "install", &not_zip.to_string_lossy(), &folder], "");
+    assert_eq!(code, 1);
+    assert!(err.contains("not a zip"), "{err}");
+    let (code, out, err) = ccad(&["plugins", "remove", "tools", &folder], "");
+    assert_eq!(code, 0, "{err}");
+    assert_eq!(out["removed"], "tools");
+    assert!(!plugin.exists());
+    assert_eq!(ccad(&["plugins", "remove", "tools", &folder], "").0, 1);
+    assert_eq!(ccad(&["plugins", "frobnicate"], "").0, 2);
+}

@@ -101,6 +101,8 @@ ccad [options] run <command> [args] run one command
 ccad [options] script <file|->      run a script of commands
 ccad [options] lua <file|-> [args]  run a Lua script
 ccad [options] plugins              list the plugins loaded with --plugins
+ccad plugins install <zip> <folder> install a plugin archive into a plugins folder
+ccad plugins remove <id> <folder>   remove an installed plugin
 ccad [options] mcp                  serve the commands over MCP (stdio)
 
 -p, --project <file>   open a project (.ccad, or .ifc to import) first
@@ -262,7 +264,7 @@ ccad.command {
 - **The sandbox** is that of [Lua scripts](#lua-scripts), with the budget counted per command; each plugin has its own Lua state, which keeps its variables between commands. `require("a.b")` loads `a/b.lua` from the plugin's folder (once; files outside the folder are refused), and `ccad.plugin` holds its `id`, `name` and `version`. `ccad.run` works only while a command runs, not while the plugin loads.
 - **Permissions** are granted by whoever loads the plugin: `ccad --plugins` grants what the manifest asks for, since you named the folder.
 
-Plugins are shared through the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. The app's plugin manager (a later step) will install from it.
+Plugins are shared through the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. In the app, *Manage → Plugins* installs, updates, turns off and removes plugins ([Plugins](interface.md#plugins)); without it, `ccad plugins install <file.zip> <folder>` installs a downloaded archive (checked the same way: safe paths, sizes, and a plugin that loads) and `ccad plugins remove <id> <folder>` removes one.
 
 
 ## Macros in the app
