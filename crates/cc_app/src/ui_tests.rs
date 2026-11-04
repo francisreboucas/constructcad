@@ -1589,3 +1589,84 @@ fn walls_attach_their_tops_to_a_roof_and_detach_them() {
     crate::commands::run(&mut state, &ctx, UiCommand::DetachTop);
     assert_eq!(attached(&state), None);
 }
+
+/// Several walls edited together: location line, base and top constraints,
+/// joins and identity data, each set on all of them in one undo step.
+#[test]
+fn several_walls_share_constraints_and_identity_data() {
+    use cc_core::{ElementKind, WallTop};
+    let mut state = sample_state();
+    let walls: Vec<_> =
+        state.project().elements.values().filter(|e| matches!(e.kind, ElementKind::Wall(_))).map(|e| e.id).collect();
+    // One wall unconnected, the others up to the level above: their tops differ.
+    let above = state.project().levels[1].id.0;
+    let ids: Vec<u64> = walls.iter().map(|id| id.0).collect();
+    let top = serde_json::json!({ "top": { "Level": { "level": above, "offset": 0.0 } } });
+    state
+        .session
+        .run(cc_engine::commands::edit::ElementsSet {
+            ids: ids[1..].to_vec(),
+            level: None,
+            params: Some(top),
+            mark: None,
+            comments: None,
+        })
+        .unwrap();
+    let free = serde_json::json!({ "top": "Unconnected", "height": 2.5 });
+    state
+        .session
+        .run(cc_engine::commands::edit::ElementsSet {
+            ids: ids[..1].to_vec(),
+            level: None,
+            params: Some(free),
+            mark: None,
+            comments: None,
+        })
+        .unwrap();
+    let heights: Vec<f64> = walls
+        .iter()
+        .map(|id| {
+            let e = state.project().element(*id).unwrap();
+            let ElementKind::Wall(w) = &e.kind else { panic!("wall") };
+            state.project().wall_height(e, w)
+        })
+        .collect();
+    state.selection = walls.iter().copied().collect();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 900.0), egui::Theme::Light, |ui, state| {
+        egui::ScrollArea::vertical().show(ui, |ui| crate::properties::show(ui, state));
+    });
+    // The constraints and identity sections; the location line all walls share.
+    for section in [t!("section-constraints"), t!("section-identity")] {
+        assert!(harness.query_by_role_and_label(Role::Button, &section).is_some(), "{section}");
+    }
+    let centerline = crate::i18n::tr(cc_core::LocationLine::Centerline.key());
+    assert!(harness.query_by_value(&centerline).is_some());
+    let wall = |h: &Harness<'_, AppState>, id| match h.state().project().element(id).map(|e| e.kind.clone()) {
+        Some(ElementKind::Wall(w)) => w,
+        _ => panic!("wall"),
+    };
+
+    // Top constraint: unconnected, each wall keeping its height.
+    let depth = harness.state().session.doc.undo_depth();
+    // The walls differ (up to different levels): the box says so.
+    harness.get_by_value(&t!("props-varies")).click();
+    harness.run();
+    harness.get_by_label(&t!("top-unconnected")).click();
+    harness.run();
+    assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "one undo step");
+    for (id, h) in walls.iter().zip(&heights) {
+        let w = wall(&harness, *id);
+        assert_eq!(w.top, WallTop::Unconnected);
+        assert!((w.height - h).abs() < 1e-9, "{} vs {h}", w.height);
+    }
+
+    // Comments typed once go to every wall.
+    let inputs = harness.get_all_by_role(Role::TextInput).count();
+    harness.get_all_by_role(Role::TextInput).nth(inputs - 1).unwrap().click();
+    harness.run();
+    harness.get_all_by_role(Role::TextInput).nth(inputs - 1).unwrap().type_text("Existente");
+    harness.run();
+    for id in &walls {
+        assert_eq!(harness.state().project().element(*id).unwrap().comments, "Existente");
+    }
+}

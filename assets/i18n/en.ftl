@@ -427,6 +427,7 @@ detail-medium = Medium
 detail-fine = Fine
 comp-env-detail = Shown at
 prop-level = Level
+prop-base-constraint = Base Constraint
 prop-category = Category
 prop-base-offset = Base Offset
 prop-height = Height

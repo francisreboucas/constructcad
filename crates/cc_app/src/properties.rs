@@ -55,7 +55,12 @@ fn level_row(ui: &mut Ui, state: &mut AppState, el: &Element) {
     let mut level = el.level;
     let levels: Vec<_> = state.project().levels.iter().map(|l| (l.id, l.name.clone())).collect();
     let selected = state.project().level_name(el.level).to_string();
-    row(ui, &t!("prop-level"), |ui| {
+    let label = if cc_engine::element_params(&el.kind).get("top").is_some() {
+        t!("prop-base-constraint")
+    } else {
+        t!("prop-level")
+    };
+    row(ui, &label, |ui| {
         egui::ComboBox::from_id_salt(("level", el.id.0)).selected_text(selected).show_ui(ui, |ui| {
             for (id, name) in levels {
                 ui.selectable_value(&mut level, id, name);
@@ -173,7 +178,7 @@ enum Shared {
 
 /// The parameters several elements of one category are changed together by:
 /// their path in `element_get`'s `params`, label and kind.
-const SHARED: [(&[&str], &str, Shared); 12] = [
+const SHARED: [(&[&str], &str, Shared); 14] = [
     (&["base_offset"], "prop-base-offset", Shared::Length),
     (&["height"], "prop-height", Shared::Length),
     (&["top", "Level", "offset"], "prop-top-offset", Shared::Length),
@@ -186,6 +191,8 @@ const SHARED: [(&[&str], &str, Shared); 12] = [
     (&["room_bounding"], "prop-room-bounding", Shared::Flag),
     (&["flip_facing"], "prop-flip-facing", Shared::Flag),
     (&["flip_hand"], "prop-flip-hand", Shared::Flag),
+    (&["join_start"], "prop-join-start", Shared::Flag),
+    (&["join_end"], "prop-join-end", Shared::Flag),
 ];
 
 /// The value at `path` of a JSON object.
@@ -208,8 +215,6 @@ fn multi_edit(ui: &mut Ui, state: &mut AppState, category: Category) {
         return;
     }
     let params: Vec<serde_json::Value> = elements.iter().map(|e| cc_engine::element_params(&e.kind)).collect();
-    let common = |values: Vec<String>| values.windows(2).all(|w| w[0] == w[1]);
-    let key_of = |field: &str| key(("multi", field, ids.first().map_or(0, |id| id.0)));
 
     section(ui, "multi-type", t!("section-type"), |ui| {
         // The type: one of the category's, or marked when they differ.
@@ -238,7 +243,13 @@ fn multi_edit(ui: &mut Ui, state: &mut AppState, category: Category) {
             let same_level = elements.iter().all(|e| e.level == level0);
             let mut level = same_level.then_some(level0);
             let levels: Vec<_> = state.project().levels.iter().map(|l| (l.id, l.name.clone())).collect();
-            row(ui, &t!("prop-level"), |ui| {
+            // Elements with a top constraint stand on their base constraint.
+            let label = if params.iter().all(|p| p.get("top").is_some()) {
+                t!("prop-base-constraint")
+            } else {
+                t!("prop-level")
+            };
+            row(ui, &label, |ui| {
                 let shown = level.map_or_else(|| t!("props-varies"), |l| state.project().level_name(l).to_string());
                 egui::ComboBox::from_id_salt("multi-level").selected_text(shown).show_ui(ui, |ui| {
                     for (lid, name) in &levels {
@@ -268,55 +279,189 @@ fn multi_edit(ui: &mut Ui, state: &mut AppState, category: Category) {
             })
         })
         .collect();
-    if fields.is_empty() {
-        return;
+    let tops = params.iter().all(|p| p.get("top").is_some_and(|t| t.is_string() || t.get("Level").is_some()));
+    let located = params.iter().all(|p| p.get("location_line").is_some_and(|v| v.is_string()));
+    let shown = !fields.is_empty() || tops || located;
+    if shown {
+        section(ui, "multi-params", t!("section-constraints"), |ui| {
+            // In the order of one element's rows: location, base offset, top, the rest.
+            let (base, rest): (Vec<_>, Vec<_>) = fields.iter().partition(|f| f.0 == ["base_offset"]);
+            if located {
+                multi_location_line(ui, state, &ids, &params);
+            }
+            shared_rows(ui, state, &ids, &params, &base, tops);
+            if tops {
+                multi_top(ui, state, &ids, &elements, &params);
+            }
+            shared_rows(ui, state, &ids, &params, &rest, tops);
+        });
     }
-    section(ui, "multi-params", t!("section-constraints"), |ui| {
-        for (path, label, kind) in fields {
-            let values: Vec<&serde_json::Value> = params.iter().filter_map(|p| at_path(p, path)).collect();
-            let same = common(values.iter().map(|v| v.to_string()).collect());
-            let field = path.join(".");
-            match kind {
-                Shared::Flag => {
-                    let mut on = values.first().and_then(|v| v.as_bool()).unwrap_or(false);
-                    // Differing values show as an indeterminate box.
-                    let r = row(ui, &crate::i18n::tr(label), |ui| {
-                        ui.add(egui::Checkbox::without_text(&mut on).indeterminate(!same))
-                    });
-                    if r.changed() {
-                        crate::engine_edit::elements(state, &ids, None, None, Some(patch_at(path, on.into())));
-                    }
-                }
-                Shared::Length | Shared::Angle => {
-                    let mut v = values.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
-                    let r = row(ui, &crate::i18n::tr(label), |ui| {
-                        let drag = match (kind, same) {
-                            (Shared::Angle, true) => DragValue::new(&mut v).speed(1.0).suffix("°"),
-                            (_, true) => length_drag(&mut v),
-                            // Differing values show as such until one is typed or dragged.
-                            (Shared::Angle, false) => {
-                                let varies = t!("props-varies");
-                                DragValue::new(&mut v).speed(1.0).custom_formatter(move |_, _| varies.clone())
-                            }
-                            (_, false) => {
-                                let varies = t!("props-varies");
-                                let (units, _) = format::current();
-                                DragValue::new(&mut v)
-                                    .speed(0.005)
-                                    .custom_formatter(move |_, _| varies.clone())
-                                    .custom_parser(move |s| format::parse_length_with(&units, s))
-                            }
-                        };
-                        ui.add(drag)
-                    });
-                    if r.changed() && v.is_finite() {
-                        let v = if *kind == Shared::Angle { v.rem_euclid(360.0) } else { v };
-                        let k = Some(key_of(&field));
-                        crate::engine_edit::elements(state, &ids, k, None, Some(patch_at(path, v.into())));
-                    }
-                    finish(state, &r);
+    multi_identity(ui, state, &ids, &elements, category);
+}
+
+/// Rows of the shared parameters in `fields`, each changed on every element.
+fn shared_rows(
+    ui: &mut Ui,
+    state: &mut AppState,
+    ids: &[ElementId],
+    params: &[serde_json::Value],
+    fields: &[&(&[&str], &str, Shared)],
+    tops: bool,
+) {
+    let common = |values: Vec<String>| values.windows(2).all(|w| w[0] == w[1]);
+    let key_of = |field: &str| key(("multi", field, ids.first().map_or(0, |id| id.0)));
+    for (path, label, kind) in fields.iter().map(|f| (f.0, f.1, &f.2)) {
+        // The height of elements with a top constraint is their unconnected height.
+        let label = if path == ["height"] && tops { "prop-unconnected-height" } else { label };
+        let values: Vec<&serde_json::Value> = params.iter().filter_map(|p| at_path(p, path)).collect();
+        let same = common(values.iter().map(|v| v.to_string()).collect());
+        let field = path.join(".");
+        match kind {
+            Shared::Flag => {
+                let mut on = values.first().and_then(|v| v.as_bool()).unwrap_or(false);
+                // Differing values show as an indeterminate box.
+                let r = row(ui, &crate::i18n::tr(label), |ui| {
+                    ui.add(egui::Checkbox::without_text(&mut on).indeterminate(!same))
+                });
+                if r.changed() {
+                    crate::engine_edit::elements(state, ids, None, None, Some(patch_at(path, on.into())));
                 }
             }
+            Shared::Length | Shared::Angle => {
+                let mut v = values.first().and_then(|v| v.as_f64()).unwrap_or(0.0);
+                let r = row(ui, &crate::i18n::tr(label), |ui| {
+                    let drag = match (kind, same) {
+                        (Shared::Angle, true) => DragValue::new(&mut v).speed(1.0).suffix("°"),
+                        (_, true) => length_drag(&mut v),
+                        // Differing values show as such until one is typed or dragged.
+                        (Shared::Angle, false) => {
+                            let varies = t!("props-varies");
+                            DragValue::new(&mut v).speed(1.0).custom_formatter(move |_, _| varies.clone())
+                        }
+                        (_, false) => {
+                            let varies = t!("props-varies");
+                            let (units, _) = format::current();
+                            DragValue::new(&mut v)
+                                .speed(0.005)
+                                .custom_formatter(move |_, _| varies.clone())
+                                .custom_parser(move |s| format::parse_length_with(&units, s))
+                        }
+                    };
+                    ui.add(drag)
+                });
+                if r.changed() && v.is_finite() {
+                    let v = if *kind == Shared::Angle { v.rem_euclid(360.0) } else { v };
+                    let k = Some(key_of(&field));
+                    crate::engine_edit::elements(state, ids, k, None, Some(patch_at(path, v.into())));
+                }
+                finish(state, &r);
+            }
+        }
+    }
+}
+
+/// The location line of several walls.
+fn multi_location_line(ui: &mut Ui, state: &mut AppState, ids: &[ElementId], params: &[serde_json::Value]) {
+    use cc_core::LocationLine;
+    let of =
+        |p: &serde_json::Value| -> Option<LocationLine> { serde_json::from_value(p["location_line"].clone()).ok() };
+    let first = params.first().and_then(of);
+    let same = params.iter().all(|p| of(p) == first);
+    let current = if same { first } else { None };
+    let mut choice = current;
+    row(ui, &t!("prop-location-line"), |ui| {
+        let shown = choice.map_or_else(|| t!("props-varies"), |l| tr(l.key()));
+        egui::ComboBox::from_id_salt("multi-location").selected_text(shown).show_ui(ui, |ui| {
+            for l in LocationLine::ALL {
+                ui.selectable_value(&mut choice, Some(l), tr(l.key()));
+            }
+        });
+    });
+    if let Some(l) = choice.filter(|_| choice != current) {
+        let value = serde_json::to_value(l).unwrap_or_default();
+        crate::engine_edit::elements(state, ids, None, None, Some(serde_json::json!({ "location_line": value })));
+    }
+}
+
+/// The top constraint of several walls, columns, stairs, ramps or shafts:
+/// unconnected or up to a level. Walls switched to unconnected keep their
+/// height, as one wall does.
+fn multi_top(ui: &mut Ui, state: &mut AppState, ids: &[ElementId], elements: &[Element], params: &[serde_json::Value]) {
+    // `None`: unconnected; `Some(level)`: up to it.
+    let of = |p: &serde_json::Value| -> Option<cc_core::LevelId> {
+        at_path(p, &["top", "Level", "level"]).and_then(|v| v.as_u64()).map(cc_core::LevelId)
+    };
+    let first = params.first().and_then(of);
+    let same = params.iter().all(|p| of(p) == first);
+    let levels: Vec<_> = state.project().levels.iter().map(|l| (l.id, l.name.clone())).collect();
+    let label = |top: Option<cc_core::LevelId>| match top {
+        None => t!("top-unconnected"),
+        Some(level) => {
+            t!("top-up-to", "level" => levels.iter().find(|l| l.0 == level).map_or("?", |l| l.1.as_str()))
+        }
+    };
+    // `None` while the elements differ, until one is picked.
+    let current = same.then_some(first);
+    let mut choice = current;
+    row(ui, &t!("prop-top-constraint"), |ui| {
+        let shown = choice.map_or_else(|| t!("props-varies"), label);
+        egui::ComboBox::from_id_salt("multi-top").selected_text(shown).show_ui(ui, |ui| {
+            ui.selectable_value(&mut choice, Some(None), t!("top-unconnected"));
+            for (lid, _) in &levels {
+                ui.selectable_value(&mut choice, Some(Some(*lid)), label(Some(*lid)));
+            }
+        });
+    });
+    let Some(picked) = choice.filter(|_| choice != current) else { return };
+    match picked {
+        // Up to a level: those already up to one keep their offsets.
+        Some(level) => {
+            let top = if params.iter().all(|p| of(p).is_some()) {
+                serde_json::json!({ "Level": { "level": level.0 } })
+            } else {
+                serde_json::json!({ "Level": { "level": level.0, "offset": 0.0 } })
+            };
+            crate::engine_edit::elements(state, ids, None, None, Some(serde_json::json!({ "top": top })));
+        }
+        // Unconnected, each wall at its current height, in one undo step.
+        None => {
+            let k = key(("multi-top", ids.first().map_or(0, |id| id.0)));
+            for e in elements {
+                let mut patch = serde_json::json!({ "top": "Unconnected" });
+                if let ElementKind::Wall(w) = &e.kind {
+                    patch["height"] = state.project().wall_height(e, w).into();
+                }
+                crate::engine_edit::elements(state, &[e.id], Some(k), None, Some(patch));
+            }
+            state.session.doc.break_merge();
+        }
+    }
+}
+
+/// The mark (model elements) and comments of several elements: the value
+/// they share, or empty with the hint that they differ; typing sets it on
+/// every element.
+fn multi_identity(ui: &mut Ui, state: &mut AppState, ids: &[ElementId], elements: &[Element], category: Category) {
+    let mut rows: Vec<(String, bool, Vec<&str>)> =
+        vec![(t!("col-comments"), false, elements.iter().map(|e| e.comments.as_str()).collect())];
+    if category.is_model() {
+        rows.insert(0, (t!("col-mark"), true, elements.iter().map(|e| e.mark.as_str()).collect()));
+    }
+    let title = if category.is_model() { t!("section-identity") } else { t!("section-other") };
+    section(ui, "multi-identity", title, |ui| {
+        for (label, mark, values) in rows {
+            let same = values.windows(2).all(|w| w[0] == w[1]);
+            let mut text = if same { values.first().map(|s| s.to_string()).unwrap_or_default() } else { String::new() };
+            let r = row(ui, &label, |ui| {
+                let edit = egui::TextEdit::singleline(&mut text).desired_width(f32::INFINITY);
+                ui.add(if same { edit } else { edit.hint_text(t!("props-varies")) })
+            });
+            if r.changed() {
+                let k = Some(key(("multi-identity", mark, ids.first().map_or(0, |id| id.0))));
+                let (m, c) = if mark { (Some(text), None) } else { (None, Some(text)) };
+                crate::engine_edit::elements_identity(state, ids, k, m, c);
+            }
+            finish(state, &r);
         }
     });
 }

@@ -1342,12 +1342,14 @@ No parameters.
 
 ### `elements_set`
 
-*edit* — Change several elements at once, in one undo step: a new level (doors and windows of a wall follow it) and the same `params` merged into each (as `element_set` takes them, e.g. `{"base_offset": -1.5}` for columns). Every element must take the change, or none changes.
+*edit* — Change several elements at once, in one undo step: a new level (doors and windows of a wall follow it), the same `params` merged into each (as `element_set` takes them, e.g. `{"base_offset": -1.5}` for columns), and the same mark or comments. Every element must take the change, or none changes.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `ids` | [id, …] | required | Element ids. |
+| `comments` | string | optional | New comments of every element. |
 | `level` | id or name | optional | New level id or name. |
+| `mark` | string | optional | New mark of every element. |
 | `params` | JSON | optional | Fields of the elements' parameters to change. |
 
 ### `elements_set_type`
