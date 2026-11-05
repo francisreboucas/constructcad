@@ -86,6 +86,8 @@ pub enum UiCommand {
     SketchArc3,
     SketchArcCenter,
     SketchArcTangent,
+    /// A measured point of a terrain (its elevation from the options bar).
+    SketchPoint,
     SketchPickWalls,
     SketchFinish,
     SketchCancel,
@@ -194,7 +196,7 @@ pub enum UiCommand {
 }
 
 /// Model categories placed by a tool of their own (dimensions and text have their own commands).
-const PLACED: [Category; 20] = [
+const PLACED: [Category; 21] = [
     Category::Wall,
     Category::Door,
     Category::Window,
@@ -215,6 +217,7 @@ const PLACED: [Category; 20] = [
     Category::Conduit,
     Category::Mass,
     Category::Shaft,
+    Category::Topography,
 ];
 
 impl UiCommand {
@@ -269,6 +272,7 @@ impl UiCommand {
             SketchArc3,
             SketchArcCenter,
             SketchArcTangent,
+            SketchPoint,
             SketchPickWalls,
             SketchFinish,
             SketchCancel,
@@ -405,6 +409,7 @@ impl UiCommand {
             SketchArc3 => Icon::DrawArc3,
             SketchArcCenter => Icon::DrawArcCenter,
             SketchArcTangent => Icon::DrawArcTangent,
+            SketchPoint => Icon::DrawPoint,
             SketchPickWalls => Icon::Wall,
             SketchFinish => Icon::Finish,
             SketchCancel => Icon::Close,
@@ -563,6 +568,7 @@ impl UiCommand {
             SketchArc3 => t!("sketch-tool-arc3"),
             SketchArcCenter => t!("sketch-tool-arc-center"),
             SketchArcTangent => t!("sketch-tool-arc-tangent"),
+            SketchPoint => t!("sketch-tool-point"),
             SketchPickWalls => t!("sketch-from-walls"),
             SketchFinish => t!("sketch-finish-mode"),
             SketchCancel => t!("sketch-cancel-mode"),
@@ -733,6 +739,7 @@ impl UiCommand {
             SketchArc3 => t!("cmd-desc-sketch-tool-arc3"),
             SketchArcCenter => t!("cmd-desc-sketch-tool-arc-center"),
             SketchArcTangent => t!("cmd-desc-sketch-tool-arc-tangent"),
+            SketchPoint => t!("cmd-desc-sketch-tool-point"),
             SketchPickWalls => t!("cmd-desc-sketch-from-walls"),
             SketchFinish => t!("cmd-desc-sketch-finish-mode"),
             SketchCancel => t!("cmd-desc-sketch-cancel-mode"),
@@ -892,6 +899,7 @@ impl UiCommand {
             Place(Category::Ramp) => "RP",
             Place(Category::Mass) => "MS",
             Place(Category::Shaft) => "SF",
+            Place(Category::Topography) => "TS",
             Place(Category::Railing) => "RA",
             Place(Category::Sweep) => "SW",
             Place(Category::Room) => "RM",
@@ -976,6 +984,7 @@ impl UiCommand {
             Place(Category::Ramp) => "ramp_create",
             Place(Category::Mass) => "mass_create",
             Place(Category::Shaft) => "shaft_create",
+            Place(Category::Topography) => "topography_create",
             Place(Category::Railing) => "railing_create",
             Place(Category::Sweep) => "sweep_create",
             Place(Category::Room) => "room_create",
@@ -1090,11 +1099,12 @@ impl UiCommand {
             Undo if !state.session.doc.can_undo() => Some(t!("why-nothing-undo")),
             Redo if !state.session.doc.can_redo() => Some(t!("why-nothing-redo")),
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
-            | SketchArcCenter | SketchArcTangent | SketchPickWalls | SketchFinish | SketchCancel
+            | SketchArcCenter | SketchArcTangent | SketchPoint | SketchPickWalls | SketchFinish | SketchCancel
                 if state.sketch.is_none() =>
             {
                 Some(t!("why-no-sketch"))
             }
+            SketchPoint if !crate::sketch_mode::takes_points(state) => Some(t!("why-sketch-points")),
             SketchPickWalls if state.active_level().is_none() || crate::component_sketch::piece(state).is_some() => {
                 Some(t!("msg-open-plan"))
             }
@@ -1120,8 +1130,10 @@ impl UiCommand {
             ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
             // A project without a ramp, mass or sweep type gets one when the tool starts.
             Place(category)
-                if !matches!(category, Category::Ramp | Category::Mass | Category::Sweep | Category::Shaft)
-                    && Tool::for_category(project, category).is_none() =>
+                if !matches!(
+                    category,
+                    Category::Ramp | Category::Mass | Category::Sweep | Category::Shaft | Category::Topography
+                ) && Tool::for_category(project, category).is_none() =>
             {
                 Some(t!("msg-no-type"))
             }
@@ -1229,7 +1241,7 @@ impl UiCommand {
             }
             Select => *tool == Tool::Select,
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
-            | SketchArcCenter | SketchArcTangent => {
+            | SketchArcCenter | SketchArcTangent | SketchPoint => {
                 state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
             }
             Move | CopyElements | Rotate | MirrorPick | MirrorDraw | Offset | TrimCorner | TrimExtend | Split
@@ -1348,6 +1360,7 @@ fn place_label(category: Category) -> String {
         Category::CadImport => t!("action-import-cad"),
         Category::Mass => t!("tool-mass"),
         Category::Shaft => t!("tool-shaft"),
+        Category::Topography => t!("tool-topography"),
     }
 }
 
@@ -1377,6 +1390,7 @@ fn place_description(category: Category) -> String {
         Category::CadImport => t!("cmd-desc-import-cad"),
         Category::Mass => t!("cmd-desc-mass"),
         Category::Shaft => t!("cmd-desc-shaft"),
+        Category::Topography => t!("cmd-desc-topography"),
     }
 }
 
@@ -1403,6 +1417,7 @@ fn sketch_draw(command: UiCommand) -> Option<crate::sketch_mode::Draw> {
         UiCommand::SketchArc3 => Draw::Arc3,
         UiCommand::SketchArcCenter => Draw::ArcCenter,
         UiCommand::SketchArcTangent => Draw::ArcTangent,
+        UiCommand::SketchPoint => Draw::Point,
         UiCommand::Move => Draw::Move,
         UiCommand::CopyElements => Draw::Copy,
         UiCommand::Rotate => Draw::Rotate,
@@ -1497,7 +1512,7 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         }
         Select => state.set_tool(Tool::Select),
         SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
-        | SketchArcCenter | SketchArcTangent => {
+        | SketchArcCenter | SketchArcTangent | SketchPoint => {
             if let Some(draw) = sketch_draw(command) {
                 crate::sketch_mode::set_draw(state, draw);
             }

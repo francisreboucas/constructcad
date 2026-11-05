@@ -106,6 +106,7 @@ pub enum Icon {
     RefPlane,
     Connector,
     Shaft,
+    Topography,
     AttachTop,
     Finish,
     Extrusion,
@@ -118,6 +119,7 @@ pub enum Icon {
     DrawArc3,
     DrawArcCenter,
     DrawArcTangent,
+    DrawPoint,
     EditBoundary,
     EditProfile,
     Revolution,
@@ -160,7 +162,7 @@ pub enum Icon {
 
 impl Icon {
     #[cfg(test)]
-    pub const ALL: [Icon; 145] = [
+    pub const ALL: [Icon; 147] = [
         Icon::New,
         Icon::Open,
         Icon::Save,
@@ -256,6 +258,7 @@ impl Icon {
         Icon::RefPlane,
         Icon::Connector,
         Icon::Shaft,
+        Icon::Topography,
         Icon::AttachTop,
         Icon::Finish,
         Icon::Extrusion,
@@ -268,6 +271,7 @@ impl Icon {
         Icon::DrawArc3,
         Icon::DrawArcCenter,
         Icon::DrawArcTangent,
+        Icon::DrawPoint,
         Icon::EditBoundary,
         Icon::EditProfile,
         Icon::Revolution,
@@ -406,6 +410,7 @@ impl Icon {
             Icon::RefPlane => include_str!("../../../assets/icons/ui/ref-plane.svg"),
             Icon::Connector => include_str!("../../../assets/icons/ui/connector.svg"),
             Icon::Shaft => include_str!("../../../assets/icons/ui/shaft.svg"),
+            Icon::Topography => include_str!("../../../assets/icons/ui/topography.svg"),
             Icon::AttachTop => include_str!("../../../assets/icons/ui/attach-top.svg"),
             Icon::Finish => include_str!("../../../assets/icons/ui/finish.svg"),
             Icon::Extrusion => include_str!("../../../assets/icons/ui/extrusion.svg"),
@@ -418,6 +423,7 @@ impl Icon {
             Icon::DrawArc3 => include_str!("../../../assets/icons/ui/draw-arc3.svg"),
             Icon::DrawArcCenter => include_str!("../../../assets/icons/ui/draw-arc-center.svg"),
             Icon::DrawArcTangent => include_str!("../../../assets/icons/ui/draw-arc-tangent.svg"),
+            Icon::DrawPoint => include_str!("../../../assets/icons/ui/draw-point.svg"),
             Icon::EditBoundary => include_str!("../../../assets/icons/ui/edit-boundary.svg"),
             Icon::EditProfile => include_str!("../../../assets/icons/ui/edit-profile.svg"),
             Icon::Revolution => include_str!("../../../assets/icons/ui/revolution.svg"),

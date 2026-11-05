@@ -321,6 +321,15 @@ fn ribbon_buttons_are_accessible() {
     for node in harness.query_all_by_role(Role::Button) {
         found.insert(node.accesskit_node().label().unwrap_or_default());
     }
+    // A terrain's sketch adds the Point tool.
+    let mut state = sample_state();
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Topography);
+    let harness = themed_harness(state, egui::vec2(1600.0, 140.0), egui::Theme::Light, |ui, state| {
+        crate::sketch_mode::ribbon(ui, state)
+    });
+    for node in harness.query_all_by_role(Role::Button) {
+        found.insert(node.accesskit_node().label().unwrap_or_default());
+    }
     let state = sample_state();
     let hidden = [UiCommand::CommandPalette, UiCommand::ToggleRibbon];
     for command in UiCommand::all().into_iter().filter(|c| !hidden.contains(c)) {
@@ -1585,6 +1594,51 @@ fn the_shaft_tool_cuts_a_ceiling() {
     let shaft = *state.selection.iter().next().unwrap();
     assert!(matches!(state.project().element(shaft).unwrap().kind, cc_core::ElementKind::Shaft(_)));
     assert_eq!(state.project().element(ceiling).unwrap().shaft_cuts().len(), 1);
+}
+
+/// The terrain tool: a project without a terrain type gets one; the sketch
+/// takes the boundary and the measured points (undone with the curves), and
+/// *Finish* makes the terrain through them. The Point tool is for terrain only.
+#[test]
+fn the_terrain_tool_sketches_a_boundary_and_points() {
+    use crate::commands::UiCommand;
+    use cc_core::sketch::SketchCurve;
+    use glam::{DVec2, DVec3};
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    let floor = state.project().default_type(cc_core::Category::Floor).unwrap();
+    state.set_tool(crate::tools::Tool::Sketch { category: cc_core::Category::Floor, type_id: floor });
+    assert!(UiCommand::SketchPoint.unavailable(&state).is_some(), "floors take no points");
+    state.set_tool(crate::tools::Tool::Select);
+
+    assert_eq!(UiCommand::Place(cc_core::Category::Topography).unavailable(&state), None);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Topography);
+    assert!(state.project().default_type(cc_core::Category::Topography).is_some());
+    assert_eq!(UiCommand::SketchPoint.unavailable(&state), None);
+    let p = |x: f64, y: f64| DVec2::new(x, y);
+    let s = state.sketch.as_mut().unwrap();
+    s.add(vec![
+        SketchCurve::Line { a: p(100.0, 0.0), b: p(110.0, 0.0) },
+        SketchCurve::Line { a: p(110.0, 0.0), b: p(110.0, 10.0) },
+        SketchCurve::Line { a: p(110.0, 10.0), b: p(100.0, 10.0) },
+        SketchCurve::Line { a: p(100.0, 10.0), b: p(100.0, 0.0) },
+    ]);
+    for (x, y, z) in [(100.0, 0.0, 0.0), (110.0, 0.0, 1.0), (110.0, 10.0, 2.0), (100.0, 10.0, 1.0), (105.0, 5.0, 9.0)] {
+        s.add_point(DVec3::new(x, y, z));
+    }
+    // The last point was a mistake.
+    s.undo();
+    assert_eq!(s.points.len(), 4);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(state.sketch.is_none(), "{}", state.message);
+    let id = *state.selection.iter().next().unwrap();
+    let cc_core::ElementKind::Topography(t) = &state.project().element(id).unwrap().kind else {
+        panic!("a terrain");
+    };
+    assert_eq!(t.points.len(), 4);
+    let g = state.session.geometry().topographies.get(&id).cloned().unwrap();
+    assert_eq!((g.min_z, g.max_z), (0.0, 2.0));
 }
 
 /// Attach Top and Detach Top: available with walls selected; the tool

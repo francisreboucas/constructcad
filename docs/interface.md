@@ -161,6 +161,14 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 - **From the mass to the building**: with masses selected, *Massing → Walls by Face* puts a wall on each side of an extrusion (exterior face on the mass's face, as tall as the mass, joined at the corners), *Floors from Mass Floors* a floor on each mass floor (the mass's outline at that level, its top at the level) and *Roof by Face* a flat roof on the top. The walls, floors and roof are ordinary elements: change their types, heights and shapes as usual. A loft's slanted sides take no walls.
 - Moving, rotating, mirroring, copying and pasting work as for other elements. Deleting a level removes its mass floors. IFC export leaves masses out.
 
+## Terrain
+
+*Massing & Site → Site → Terrain* (`TS`) sketches the terrain's boundary in a plan, like a floor's outline, and places its measured points: *Points → Point* clicks a point at the elevation set in the options bar (above the level), and undo takes points back like curves. *Finish* triangulates the points with the boundary; the boundary takes the elevations the points give it, points beyond it included, and the earth closes down to a flat base. A project without a terrain type gets one, cut in an *Earth* material (a woven hatch).
+
+- **Plans** draw the terrain of their level: contour lines below the cut plane (every fifth a heavier major one) and, where the cut plane crosses the surface, the earth above it hatched and outlined as cut. Elevations, sections and 3D views show the solid, and sections cut the earth in its material.
+- **Properties**: the base depth, the lowest and highest elevations, the area and volume (also in *Terrain* schedules), any warning (too few points, points on one line, a boundary that crosses itself), and the points themselves, whose x, y and z are edited in place or removed. *Edit Boundary* reopens the sketch with its points to change the boundary or add points. The type sets the material, the contour interval and how often a major contour comes.
+- IFC export writes an `IfcGeographicElement` (`TERRAIN`); importing that file brings the terrain back with its points.
+
 ## Railings and their hosts
 
 *Architecture → Circulation → Railing* (`RA`) draws a railing along the points you click, at its level plus the base offset. A railing can also follow a stair or ramp (its host): it runs along the host's side at the pitch of the nosings or of the slope, turns at its landings, and moves, changes and is deleted with it.

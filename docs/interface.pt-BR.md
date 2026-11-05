@@ -161,6 +161,14 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 - **Da massa ao edifício**: com massas selecionadas, *Estudo de massa → Paredes por face* põe uma parede em cada lado de uma extrusão (face externa na face da massa, com a altura dela, unidas nos cantos), *Lajes dos pisos de massa* uma laje em cada piso de massa (o contorno da massa naquele nível, com o topo no nível) e *Telhado por face* um telhado plano no topo. Paredes, lajes e telhado são elementos comuns: mude tipo, altura e forma como de costume. Os lados inclinados de uma transição não recebem paredes.
 - Mover, girar, espelhar, copiar e colar funcionam como nos outros elementos. Excluir um nível remove os pisos de massa dele. A exportação IFC deixa as massas de fora.
 
+## Terreno
+
+*Massa e Terreno → Terreno → Terreno* (`TS`) esboça o contorno do terreno numa planta, como o contorno de uma laje, e marca seus pontos medidos: *Pontos → Ponto* clica um ponto na cota definida na barra de opções (acima do nível), e desfazer retira pontos como retira curvas. *Concluir* triangula os pontos com o contorno; o contorno recebe as cotas que os pontos lhe dão, inclusive os que ficam além dele, e a terra fecha até uma base plana. Um projeto sem tipo de terreno ganha um, cortado num material *Terra* (hachura em trama).
+
+- **Plantas** desenham o terreno do seu nível: curvas de nível abaixo do plano de corte (a cada cinco, uma mestra mais grossa) e, onde o plano de corte atravessa a superfície, a terra acima dele hachurada e contornada como corte. Elevações, cortes e vistas 3D mostram o sólido, e os cortes cortam a terra no seu material.
+- **Propriedades**: a profundidade da base, as cotas mínima e máxima, a área e o volume (também nas tabelas de *Terrenos*), os avisos (poucos pontos, pontos alinhados, contorno que cruza a si mesmo) e os próprios pontos, com x, y e z editáveis ou removíveis. *Editar contorno* reabre o esboço com os pontos, para mudar o contorno ou acrescentar pontos. O tipo define o material, o intervalo das curvas e a frequência das mestras.
+- A exportação IFC grava um `IfcGeographicElement` (`TERRAIN`); importar esse arquivo traz o terreno de volta com seus pontos.
+
 ## Guarda-corpos e seus hospedeiros
 
 *Arquitetura → Circulação → Guarda-corpo* (`RA`) desenha um guarda-corpo pelos pontos clicados, no nível mais o deslocamento da base. Um guarda-corpo também pode acompanhar uma escada ou rampa (seu hospedeiro): ele corre pelo lado do hospedeiro na inclinação dos bocéis ou da rampa, contorna os patamares e se move, muda e é excluído com ele.

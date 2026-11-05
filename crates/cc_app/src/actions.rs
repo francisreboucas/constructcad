@@ -167,6 +167,9 @@ pub fn activate_category_tool(state: &mut AppState, category: Category) {
     if category == Category::Shaft && state.project().default_type(Category::Shaft).is_none() {
         run_command(state, cc_engine::commands::shaft::ShaftTypeCreate::default());
     }
+    if category == Category::Topography && state.project().default_type(Category::Topography).is_none() {
+        run_command(state, cc_engine::commands::topography::TopographyTypeCreate::default());
+    }
     if category == Category::Sweep && state.project().default_type(Category::Sweep).is_none() {
         run_command(state, cc_engine::commands::sweep::SweepTypeCreate::default());
     }

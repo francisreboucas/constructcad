@@ -270,9 +270,12 @@ impl Tool {
         Some(match category {
             Category::Wall => Tool::Wall { type_id },
             Category::Door | Category::Window => Tool::Hosted { category, type_id },
-            Category::Floor | Category::Ceiling | Category::Roof | Category::Mass | Category::Shaft => {
-                Tool::Sketch { category, type_id }
-            }
+            Category::Floor
+            | Category::Ceiling
+            | Category::Roof
+            | Category::Mass
+            | Category::Shaft
+            | Category::Topography => Tool::Sketch { category, type_id },
             Category::Room => Tool::Room { type_id },
             Category::Grid => Tool::Grid { type_id },
             Category::Dimension => Tool::Dimension { type_id, mode: DimensionMode::Aligned },
