@@ -4,7 +4,7 @@
 // Test helpers outside #[test] functions may fail loudly.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use cc_lua::store::{self, Index, IndexPlugin, IndexVersion};
+use cc_plugins::store::{self, Index, IndexPlugin, IndexVersion};
 use sha2::{Digest, Sha256};
 use std::path::PathBuf;
 

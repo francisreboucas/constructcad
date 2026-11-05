@@ -698,7 +698,7 @@ dependencies = [
  "cc_engine",
  "cc_geom",
  "cc_ifc",
- "cc_lua",
+ "cc_plugins",
  "cc_render",
  "cc_script",
  "cc_views",
@@ -740,7 +740,7 @@ version = "0.9.1"
 dependencies = [
  "cc_core",
  "cc_engine",
- "cc_lua",
+ "cc_plugins",
  "serde_json",
 ]
 
@@ -792,7 +792,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "cc_lua"
+name = "cc_plugins"
 version = "0.9.1"
 dependencies = [
  "cc_engine",

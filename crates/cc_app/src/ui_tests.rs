@@ -1790,7 +1790,7 @@ fn available_plugins_install_or_report() {
     let mut state = sample_state();
     state.prefs.plugin_folder = Some(plugins_folder("available"));
     crate::plugins_ui::load(&mut state);
-    let index = cc_lua::store::Index::parse(
+    let index = cc_plugins::store::Index::parse(
         br#"{"format": 1, "plugins": [{"id": "stairs_plus", "name": "Stairs plus", "description": "More stairs.",
              "versions": [{"version": "1.0.0", "api": 1, "url": "https://example.org/s.zip", "sha256": "00",
                            "permissions": ["files"]}]}]}"#,
@@ -1817,7 +1817,7 @@ fn available_plugins_install_or_report() {
 #[test]
 fn available_plugins_say_what_they_need() {
     let mut state = sample_state();
-    let index = cc_lua::store::Index::parse(
+    let index = cc_plugins::store::Index::parse(
         br#"{"format": 1, "plugins": [{"id": "future", "name": "Future tool",
              "versions": [{"version": "2.0.0", "api": 1, "url": "https://example.org/f.zip", "sha256": "00",
                            "min_app": "99.0.0"}]}]}"#,

@@ -384,6 +384,6 @@ Toda funcionalidade de usuário nasce como comando do motor; o aplicativo chama 
 5. Gere a referência de novo: `cargo run -p cc_cli -- reference > docs/commands.md` (um teste falha enquanto ela estiver desatualizada).
 6. No aplicativo, chame-o com `Session::run(Comando { … })`, `actions::run_command` ou os auxiliares de `engine_edit` (use `Session::run_merged` para valores arrastados). Isso também o torna gravável em macros.
 
-Comandos acrescentados durante a execução implementam `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) e são postos na sessão com `Session::set_extension`; `cc_lua::PluginHost` é a dos plugins Lua. `Session::commands`, `describe` e `kind_of` cobrem os dois, e `Session::execute` roda um comando de extensão como um passo de desfazer (`Document::squash_since`).
+Comandos acrescentados durante a execução implementam `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) e são postos na sessão com `Session::set_extension`; `cc_plugins::PluginHost` é a dos plugins Lua. `Session::commands`, `describe` e `kind_of` cobrem os dois, e `Session::execute` roda um comando de extensão como um passo de desfazer (`Document::squash_since`).
 
 Os detalhes de arquitetura estão em [AGENTS.md](../AGENTS.md).
