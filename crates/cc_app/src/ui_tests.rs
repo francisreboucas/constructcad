@@ -1619,6 +1619,15 @@ fn walls_attach_their_tops_to_a_roof_and_detach_them() {
     assert_eq!(UiCommand::DetachTop.unavailable(&state), None);
     crate::commands::run(&mut state, &ctx, UiCommand::DetachTop);
     assert_eq!(attached(&state), None);
+
+    // A click in a 3D view: on the wall itself the tool waits, on the roof it attaches.
+    crate::commands::run(&mut state, &ctx, UiCommand::AttachTop);
+    crate::modify::attach_pick(&mut state, Some(wall));
+    crate::modify::attach_pick(&mut state, None);
+    assert_eq!((attached(&state), &state.tool), (None, &crate::tools::Tool::AttachTop));
+    crate::modify::attach_pick(&mut state, Some(roof));
+    assert_eq!(attached(&state), Some(roof));
+    assert_eq!(state.tool, crate::tools::Tool::Select);
 }
 
 /// Several walls edited together: location line, base and top constraints,
