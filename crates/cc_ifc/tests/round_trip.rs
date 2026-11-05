@@ -545,3 +545,42 @@ fn roof_framing_round_trips() {
     let geom = cc_geom::ModelGeometry::build(&imported);
     assert_eq!(geom.roof_framing.values().map(|g| g.members.len()).sum::<usize>(), members);
 }
+
+/// Terrain: written as an `IfcGeographicElement` (`TERRAIN`) with its earth
+/// as a B-rep, and rebuilt as terrain from the points and boundary it keeps
+/// in `ConstructCAD_Topography`. Terrain from other programs stays generic.
+#[test]
+fn terrain_round_trips() {
+    let original = load(include_str!("fixtures/topography.ccad"));
+    let text = export(&original, &ExportOptions { time_stamp: None, file_name: "t.ifc".into() });
+    let terrains: Vec<&Element> = original.elements.values().filter(|e| e.category() == Category::Topography).collect();
+    assert_eq!(terrains.len(), 2);
+    assert_eq!(text.matches("IFCGEOGRAPHICELEMENT(").count(), 2);
+    assert!(text.contains(".TERRAIN.") && text.contains("'ConstructCAD_Topography'"));
+
+    let (imported, report) = import(&text, Project::from_template()).unwrap();
+    assert_eq!(report.imported.get(&Category::Topography), Some(&2), "{report:?}");
+    let lookup = by_uid(&imported);
+    for e in terrains {
+        let (ElementKind::Topography(a), Some(back)) = (&e.kind, lookup.get(&e.uid)) else { panic!("terrain back") };
+        let ElementKind::Topography(b) = &back.kind else { panic!("a terrain, not {:?}", back.category()) };
+        assert_eq!(a.points, b.points);
+        assert_eq!(a.boundary, b.boundary);
+        close(a.base_depth, b.base_depth, 1e-12, "base depth");
+        let (Some(ta), Some(tb)) = (original.element_type(e.type_id), imported.element_type(back.type_id)) else {
+            panic!("types")
+        };
+        assert_eq!(ta.name, tb.name);
+        assert_eq!(ta.data, tb.data);
+    }
+    // The same body: equal volumes.
+    let (g0, g1) = (cc_geom::ModelGeometry::build(&original), cc_geom::ModelGeometry::build(&imported));
+    let total = |g: &cc_geom::ModelGeometry| g.topographies.values().map(|t| t.volume).sum::<f64>();
+    close(total(&g0), total(&g1), 1e-6, "terrain volume");
+
+    // Without the property set (another program's terrain): a generic component.
+    let other = text.replace("'ConstructCAD_Topography'", "'Pset_Other'");
+    let (imported, _) = import(&other, Project::from_template()).unwrap();
+    assert_eq!(imported.elements.values().filter(|e| e.category() == Category::Topography).count(), 0);
+    assert!(imported.elements.values().filter(|e| e.category() == Category::Component).count() >= 2);
+}

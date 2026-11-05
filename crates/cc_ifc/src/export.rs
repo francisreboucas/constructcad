@@ -974,6 +974,30 @@ impl<'a> Exporter<'a> {
                     let items = self.pieces(e, vec![faces], level_z);
                     StructureProduct::new("IFCCOVERING", "MOLDING", items).brep()
                 }
+                (ElementKind::Topography(t), TypeData::Topography { material, contour_interval, major_every }) => {
+                    // The terrain's earth as a closed B-rep, and what it was made
+                    // from (points, boundary, base depth) for importers to restore.
+                    let Some(solid) = self.geom.body_of(e.id).next() else { continue };
+                    let faces: Vec<Vec<DVec3>> = solid.faces.iter().map(|f| f.verts.clone()).collect();
+                    let items = self.pieces(e, vec![faces], level_z);
+                    let text = |s: String| Value::Typed("IFCTEXT", Box::new(Value::Str(s)));
+                    let label = |s: &str| Value::Typed("IFCLABEL", Box::new(s.into()));
+                    let length = |v: f64| Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(v)));
+                    let count = |k: u32| Value::Typed("IFCCOUNTMEASURE", Box::new(Value::Int(i64::from(k))));
+                    let props = vec![
+                        ("Points", text(encode_points(t.points.iter().map(|p| p.to_array().to_vec())))),
+                        ("Boundary", text(encode_points(t.boundary.iter().map(|p| p.to_array().to_vec())))),
+                        ("BaseDepth", length(t.base_depth)),
+                        ("Material", label(material)),
+                        ("ContourInterval", length(*contour_interval)),
+                        ("MajorEvery", count(*major_every)),
+                    ];
+                    StructureProduct {
+                        props: Some((TOPOGRAPHY_PSET, props)),
+                        ..StructureProduct::new("IFCGEOGRAPHICELEMENT", "TERRAIN", items)
+                    }
+                    .brep()
+                }
                 (ElementKind::Railing(r), TypeData::Railing { .. }) => {
                     let items = self.pieces(e, cc_geom::railing_pieces(project, e, r), level_z);
                     let q = vec![("Length", Quantity::Length(cc_geom::railing_length(project, e, r)))];
@@ -2185,6 +2209,28 @@ pub const COMPONENT_PSET: &str = "ConstructCAD_Parameters";
 pub const PHASING_PSET: &str = "ConstructCAD_Phasing";
 /// Property set of a roof's covering and framing (see `write_roof_framing`).
 pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
+/// A terrain's points, boundary, base depth and type settings, for importers
+/// to rebuild it as terrain (points as `x y z` and the boundary as `x y`,
+/// separated by `;`).
+pub const TOPOGRAPHY_PSET: &str = "ConstructCAD_Topography";
+
+/// Points as text: coordinates separated by spaces, points by `;`.
+pub(crate) fn encode_points(points: impl Iterator<Item = Vec<f64>>) -> String {
+    let parts: Vec<String> = points.map(|p| p.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ")).collect();
+    parts.join(";")
+}
+
+/// Points read from [`encode_points`] text, `dims` numbers each: at most
+/// `max` of them; malformed or non-finite entries are skipped.
+pub(crate) fn decode_points(text: &str, dims: usize, max: usize) -> Vec<Vec<f64>> {
+    text.split(';')
+        .take(max)
+        .filter_map(|p| {
+            let v: Vec<f64> = p.split_whitespace().map_while(|s| s.parse::<f64>().ok()).collect();
+            (v.len() == dims && v.iter().all(|x| x.is_finite())).then_some(v)
+        })
+        .collect()
+}
 /// The framing's member sizes in [`ROOFING_PSET`]: member, width and height properties.
 pub const ROOFING_SIZES: [(&str, &str, &str); 4] = [
     ("Purlin", "PurlinWidth", "PurlinHeight"),

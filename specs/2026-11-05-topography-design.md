@@ -172,8 +172,10 @@ pub struct Topography {
 ## IFC (cc_ifc)
 
 - Export:
-  - An `IfcGeographicElement` with `PredefinedType` `TERRAIN`, contained in the
-    `IfcSite` (aggregated with the site rather than a storey).
+  - An `IfcGeographicElement` with `PredefinedType` `TERRAIN`, contained in
+    its level's storey like the other elements (valid in IFC4, and the
+    elevations stay relative to the level), typed by an
+    `IfcGeographicElementType` with the earth material.
   - The body is an `IFCFACETEDBREP` (the writer's existing path for mesh
     solids), not a new triangulated face set.
   - The property set `ConstructCAD_Topography` holds the points, the boundary
