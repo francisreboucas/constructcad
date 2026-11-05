@@ -112,6 +112,9 @@ pub fn plan_of(
             _ => {}
         }
     }
+    if !ceiling && !structural {
+        crate::topography::draw(&mut d, project, geom, level, cut_z, spacing);
+    }
     if !ceiling {
         draw_structure(&mut d, project, geom, level, cut_z, spacing, structural);
     }

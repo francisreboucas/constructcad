@@ -25,6 +25,7 @@ mod projected;
 pub mod raster;
 mod schedule;
 mod sheet;
+mod topography;
 
 pub use annotate::{DimensionLayout, HIGHLIGHT_ONLY, dimension_layout};
 pub use component_view::{ComponentView, ComponentViewKind, ViewConnector, component_view};
