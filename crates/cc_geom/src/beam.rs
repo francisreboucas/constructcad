@@ -230,6 +230,7 @@ pub(crate) fn resolve_beams(beams: &[BeamInput], columns: &[ColumnInput]) -> Vec
             join_start: b.join_start && f[0].is_none(),
             join_end: b.join_end && f[1].is_none(),
             bulge: 0.0,
+            drawn: [b.start, b.end],
         })
         .collect();
     beams
