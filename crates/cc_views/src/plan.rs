@@ -509,41 +509,44 @@ fn draw_ramp(d: &mut Drawing2D, g: &cc_geom::RampGeom, cut_z: f64, element: cc_c
 }
 
 /// A wall in plan: cut, its layers with their materials' patterns (at the
-/// coarse level one plain region), or seen below or above the cut.
+/// coarse level one plain region), or seen below or above the cut. Where a
+/// layered wall meets another in a T, its core runs on through the other
+/// wall's outer layers to its core (layer cleanup).
 fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spacing: f64, detail: DetailLevel) {
     let id = Some(g.element);
     let h = g.half;
     let states: Vec<ColumnCut> = g.columns.iter().map(|c| column_state(c, cut_z)).collect();
+    let count = g.columns.len();
     for (i, c) in g.columns.iter().enumerate() {
         let poly = g.column_polygon(c);
         let state = states[i];
+        // Each layer with its material's cut pattern; coarse, one plain region.
+        let layers: &[_] = if state == ColumnCut::Cut && detail.shows_layers() { &g.layers } else { &[] };
         if state == ColumnCut::Cut {
-            // Each layer with its material's cut pattern; coarse, one plain region.
-            let layers: &[_] = if detail.shows_layers() { &g.layers } else { &[] };
             if layers.is_empty() {
                 d.cut_fill(poly.to_vec(), POCHE, id);
             }
             for (v0, v1, material) in layers {
-                let at = |v: f64| {
-                    let s = (v + h) / (2.0 * h);
-                    (c.right.0 + (c.left.0 - c.right.0) * s, c.right.1 + (c.left.1 - c.right.1) * s)
-                };
-                let ((a0, a1), (b0, b1)) = (at(*v0), at(*v1));
-                let mut strip = g.path(a0, a1, *v0);
-                strip.extend(g.path(b1, b0, *v1));
-                crate::cut::cut_fill(d, project, material, strip, spacing, id);
+                let (a, b) = (g.layer_span(c, i, count, *v0), g.layer_span(c, i, count, *v1));
+                for ((a0, a1), (b0, b1)) in g.layer_pieces(*v0, *v1, a, b) {
+                    let mut strip = g.path(a0, a1, *v0);
+                    strip.extend(g.path(b1, b0, *v1));
+                    crate::cut::cut_fill(d, project, material, strip, spacing, id);
+                }
             }
             // Interior layer boundaries; the outer faces are drawn below.
             for &(_, v, _) in layers.iter().take(layers.len().saturating_sub(1)) {
-                let s = (v + h) / (2.0 * h);
-                let u0 = c.right.0 + (c.left.0 - c.right.0) * s;
-                let u1 = c.right.1 + (c.left.1 - c.right.1) * s;
-                d.polyline(&g.path(u0, u1, v), false, LineStyle::Thin, id);
+                let (u0, u1) = g.layer_span(c, i, count, v);
+                for (a, b) in g.boundary_segments(v, u0, u1) {
+                    d.polyline(&g.path(a, b, v), false, LineStyle::Thin, id);
+                }
             }
         }
         if let Some(style) = style_of(state) {
-            // Faces, opened where other walls meet them in a T.
-            for (side, (u0, u1)) in [(-1.0, c.right), (1.0, c.left)] {
+            // Faces, opened where other walls meet them in a T (and carried on
+            // with a core that reaches them).
+            let face = |v: f64, plain: (f64, f64)| if layers.is_empty() { plain } else { g.layer_span(c, i, count, v) };
+            for (side, (u0, u1)) in [(-1.0, face(-h, c.right)), (1.0, face(h, c.left))] {
                 for (a, b) in g.face_segments(side, u0, u1) {
                     d.polyline(&g.path(a, b, side * h), false, style, id);
                 }
@@ -793,6 +796,97 @@ mod tests {
         assert_eq!(d.hit_test(DVec2::new(1.0, 0.0), 0.01), Some(wall_id));
         // On the open leaf, drawn from the hinge at u = 2.1 on the left face.
         assert_eq!(d.hit_test(DVec2::new(2.12, 0.5), 0.05), Some(door_id));
+    }
+
+    /// A layered wall meeting another in a T (issue 165): its core runs on
+    /// through the other wall's plaster to its core, the plaster opens there
+    /// and, the cores being of one masonry, no line parts them. A wall with
+    /// no core besides its one layer still stops at the face.
+    #[test]
+    fn t_joined_cores_run_through_the_plaster() {
+        use cc_core::ElementTypeId;
+        let mut doc = Document::new(Project::from_template());
+        let level = doc.project.levels[0].id;
+        let wall_t = doc.project.default_type(Category::Wall).unwrap();
+        let partition = doc
+            .project
+            .types
+            .values()
+            .find(|t| t.category() == Category::Wall && t.layers().len() == 1)
+            .map(|t| t.id)
+            .unwrap();
+        let add = |doc: &mut Document, ty: ElementTypeId, a: (f64, f64), b: (f64, f64)| {
+            doc.edit("t", |e| {
+                let id = ElementId(e.alloc_id());
+                e.add_element(Element {
+                    id,
+                    level,
+                    type_id: ty,
+                    mark: String::new(),
+                    comments: String::new(),
+                    uid: Default::default(),
+                    kind: ElementKind::Wall(Wall {
+                        start: DVec2::new(a.0, a.1),
+                        end: DVec2::new(b.0, b.1),
+                        height: 3.0,
+                        ..Default::default()
+                    }),
+                    phase_created: Default::default(),
+                    phase_demolished: None,
+                });
+                id
+            })
+        };
+        let host = add(&mut doc, wall_t, (0.0, 0.0), (6.0, 0.0));
+        let branch = add(&mut doc, wall_t, (3.0, -4.0), (3.0, 0.0));
+        let geom = ModelGeometry::build(&doc.project);
+        let (h, b) = (&geom.walls[&host], &geom.walls[&branch]);
+        // The template's 15 cm wall: 2 cm plaster, 11 cm masonry, 2 cm plaster.
+        let (half, core) = (h.half, h.core.unwrap().0);
+        assert!((half - 0.075).abs() < 1e-9 && (core - 0.055).abs() < 1e-9, "{half} {core}");
+        // The branch's faces stop at the host's face, its core at the host's core.
+        assert!((b.end_ext.0 - (4.0 - half)).abs() < 1e-9, "{:?}", b.end_ext);
+        let (ul, ur) = b.core_ends[1].unwrap();
+        assert!((ul - (4.0 - core)).abs() < 1e-9 && (ur - (4.0 - core)).abs() < 1e-9, "{ul} {ur}");
+        let [gap] = h.layer_gaps.as_slice() else { panic!("{:?}", h.layer_gaps) };
+        assert!(gap.merge && (gap.v_face + half).abs() < 1e-9 && (gap.v_core + core).abs() < 1e-9, "{gap:?}");
+        assert!((gap.at_face.0 - (3.0 - core)).abs() < 1e-9 && (gap.at_face.1 - (3.0 + core)).abs() < 1e-9);
+
+        let d = plan(&doc.project, &geom, level, 1.2, false, 50);
+        let fills_at = |p: DVec2| -> Vec<ElementId> {
+            d.prims
+                .iter()
+                .filter_map(|prim| match prim {
+                    Prim::Fill { pts, element: Some(e), .. } if cc_geom::polygon::contains(pts, p) => Some(*e),
+                    _ => None,
+                })
+                .collect()
+        };
+        // In the host's plaster under the branch: the branch's masonry only.
+        assert_eq!(fills_at(DVec2::new(3.0, -0.065)), [branch]);
+        // Beside the branch's core the host's plaster runs on.
+        assert_eq!(fills_at(DVec2::new(3.065, -0.065)), [host]);
+        let crosses = |e: ElementId, p: DVec2| {
+            d.prims.iter().any(|prim| match prim {
+                Prim::Line { a, b, element: Some(id), .. } if *id == e => {
+                    let (ab, ap) = (*b - *a, p - *a);
+                    let t = ap.dot(ab) / ab.length_squared().max(1e-12);
+                    (0.0..=1.0).contains(&t) && (*a + ab * t).distance(p) < 1e-6
+                }
+                _ => false,
+            })
+        };
+        // No line along the host's core face where the cores meet; the
+        // branch's core faces run on to it.
+        assert!(!crosses(host, DVec2::new(3.0, -core)));
+        assert!(crosses(host, DVec2::new(1.0, -core)));
+        assert!(crosses(branch, DVec2::new(3.0 - core, -0.065)));
+
+        // A one-layer partition has no core to run through: it stops at the face.
+        let other = add(&mut doc, partition, (1.0, 4.0), (1.0, 0.0));
+        let geom = ModelGeometry::build(&doc.project);
+        assert!(geom.walls[&other].core.is_none() && geom.walls[&other].core_ends == [None, None]);
+        assert_eq!(geom.walls[&host].layer_gaps.len(), 1);
     }
 
     /// A half-circle wall: plans draw its faces as arcs (pickable as arcs),

@@ -66,12 +66,50 @@ pub struct WallGeom {
     /// Stretches of a face where another wall meets it in a T, as
     /// `(side, u0, u1)` with side +1 for the left face and -1 for the right.
     pub face_gaps: Vec<(f64, f64, f64)>,
+    /// Offsets `(left, right)` of the core's faces, when the type has a
+    /// structure core with other layers beside it.
+    pub core: Option<(f64, f64)>,
+    /// At an end met in a T (`[start, end]`), where the core layers end
+    /// instead: the `u` of the core's left and right faces, through the
+    /// other wall's outer layers to its core.
+    pub core_ends: [Option<(f64, f64)>; 2],
+    /// Where the cores of walls met in a T pass through this wall's outer layers.
+    pub layer_gaps: Vec<LayerGap>,
     /// The body centerline of an arc wall.
     pub arc: Option<Arc>,
     /// A top that follows what the wall is attached to: segments
     /// `(u0, u1, z0, z1)` along the centerline, the top running straight
     /// from `z0` to `z1` (empty: the flat `top_z`).
     pub top_profile: Vec<(f64, f64, f64, f64)>,
+}
+
+/// Where the core of a wall met in a T runs through the outer layers of the
+/// wall it meets (layer cleanup): those layers open between the core's faces.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LayerGap {
+    /// Offsets of this wall's face and of its core's face on that side.
+    pub v_face: f64,
+    pub v_core: f64,
+    /// Along this wall, where the joining core's faces cross the face and
+    /// the core's face (each sorted).
+    pub at_face: (f64, f64),
+    pub at_core: (f64, f64),
+    /// The cores are of one material: no line between them along the core's face.
+    pub merge: bool,
+}
+
+impl LayerGap {
+    /// The opening along the wall at offset `v`; `None` outside the outer layers.
+    pub fn at(&self, v: f64) -> Option<(f64, f64)> {
+        let (lo, hi) = (self.v_face.min(self.v_core), self.v_face.max(self.v_core));
+        let span = self.v_core - self.v_face;
+        if v < lo - 1e-9 || v > hi + 1e-9 || span.abs() < 1e-9 {
+            return None;
+        }
+        let t = (v - self.v_face) / span;
+        let lerp = |a: f64, b: f64| a + (b - a) * t;
+        Some((lerp(self.at_face.0, self.at_core.0), lerp(self.at_face.1, self.at_core.1)))
+    }
 }
 
 /// How one end of a wall is cut by a neighbor.
@@ -263,6 +301,53 @@ fn t_join(walls: &[WallLine], me: usize, at_start: bool, host: usize) -> Option<
     Some(EndJoin { ray_left: clamp(left), ray_right: clamp(right), host: Some(host) })
 }
 
+/// Layer cleanup at a T: the end of `walls[me]` (core faces at offsets
+/// `core`) runs its core on through the outer layers of `walls[host]` on its
+/// side, to the host's core (faces at `host_core`). Returns the `u` of the
+/// core's left and right faces' ends and the host's gap (`merge` unset).
+pub(crate) fn core_through(
+    walls: &[WallLine],
+    me: usize,
+    at_start: bool,
+    host: usize,
+    core: (f64, f64),
+    host_core: (f64, f64),
+) -> Option<((f64, f64), LayerGap)> {
+    let a = *walls.get(me)?;
+    let b = *walls.get(host)?;
+    let (p, da) = a.end_ray(at_start);
+    let max_ext = 10.0 * a.half.max(0.05);
+    let (ub, _) = b.locate(p);
+    let db = b.tangent_at(ub);
+    let side = if da.dot(db.perp()) >= 0.0 { 1.0 } else { -1.0 };
+    let v_face = side * b.half;
+    let v_core = if side > 0.0 { host_core.0 } else { host_core.1 };
+    if (v_face - v_core).abs() < 1e-6 {
+        return None;
+    }
+    let depth = |va: f64, vb: f64| {
+        let fallback = (b.locate_point(ub, vb), db);
+        face_depth(&a, at_start, va, b.face(vb), fallback, p, da).filter(|d| d.abs() <= max_ext)
+    };
+    let (core_l, core_r) = (depth(core.0, v_core)?, depth(core.1, v_core)?);
+    let (face_l, face_r) = (depth(core.0, v_face)?, depth(core.1, v_face)?);
+    // Seen from this wall, the host's core lies beyond its face.
+    if core_l > face_l - 1e-6 || core_r > face_r - 1e-6 {
+        return None;
+    }
+    let to_u = |d: f64| if at_start { d } else { a.length() - d };
+    let along = |d: f64, v: f64| b.locate(a.locate_point(to_u(d), v)).0;
+    let sorted = |x: f64, y: f64| (x.min(y), x.max(y));
+    let gap = LayerGap {
+        v_face,
+        v_core,
+        at_face: sorted(along(face_l, core.0), along(face_r, core.1)),
+        at_core: sorted(along(core_l, core.0), along(core_r, core.1)),
+        merge: false,
+    };
+    Some(((to_u(core_l), to_u(core_r)), gap))
+}
+
 impl WallLine {
     /// The point `u` along the centerline and `v` to its left.
     fn locate_point(&self, u: f64, v: f64) -> DVec2 {
@@ -421,6 +506,9 @@ impl WallGeom {
             columns: Vec::new(),
             layers,
             face_gaps: Vec::new(),
+            core: None,
+            core_ends: [None, None],
+            layer_gaps: Vec::new(),
             arc,
             top_profile: Vec::new(),
         }
@@ -539,6 +627,74 @@ impl WallGeom {
         }
         parts.retain(|(a, b)| b - a > 1e-6);
         parts
+    }
+
+    /// The parts from `u0` to `u1` of the layer boundary at offset `v` that
+    /// no joining core passes through.
+    pub fn boundary_segments(&self, v: f64, u0: f64, u1: f64) -> Vec<(f64, f64)> {
+        let mut parts = vec![(u0.min(u1), u0.max(u1))];
+        for gap in &self.layer_gaps {
+            // Cores of different materials keep the line between them.
+            if (v - gap.v_core).abs() < 1e-9 && !gap.merge {
+                continue;
+            }
+            if let Some(cut) = gap.at(v) {
+                parts = subtract(&parts, cut);
+            }
+        }
+        parts.retain(|(a, b)| b - a > 1e-6);
+        parts
+    }
+
+    /// The ends along the wall of the layer offset `v` in column `i` (of
+    /// `count`): the column's edges interpolated across the wall, with the
+    /// core reaching on through a T-joined wall's outer layers at the ends.
+    pub fn layer_span(&self, c: &Column, i: usize, count: usize, v: f64) -> (f64, f64) {
+        let h = self.half;
+        let s = if h > 1e-12 { (v + h) / (2.0 * h) } else { 0.5 };
+        let mut span = (c.right.0 + (c.left.0 - c.right.0) * s, c.right.1 + (c.left.1 - c.right.1) * s);
+        if let Some((cl, cr)) = self.core
+            && v <= cl + 1e-9
+            && v >= cr - 1e-9
+            && cl - cr > 1e-9
+        {
+            let t = (v - cr) / (cl - cr);
+            let across = |(ul, ur): (f64, f64)| ur + (ul - ur) * t;
+            if let (0, Some(ends)) = (i, self.core_ends[0]) {
+                span.0 = across(ends);
+            }
+            if let (true, Some(ends)) = (i + 1 == count, self.core_ends[1]) {
+                span.1 = across(ends);
+            }
+        }
+        span
+    }
+
+    /// A layer strip from `v0` to `v1`, spanning `a` along the wall at `v0`
+    /// and `b` at `v1`, split where joining cores pass through it: the
+    /// pieces as `(a, b)` pairs.
+    pub fn layer_pieces(&self, v0: f64, v1: f64, a: (f64, f64), b: (f64, f64)) -> Vec<((f64, f64), (f64, f64))> {
+        let mut pieces = vec![(a, b)];
+        for gap in &self.layer_gaps {
+            let (Some(x), Some(y)) = (gap.at(v0), gap.at(v1)) else { continue };
+            let mut next = Vec::with_capacity(pieces.len() + 1);
+            for (pa, pb) in pieces {
+                if (x.1 <= pa.0 && y.1 <= pb.0) || (x.0 >= pa.1 && y.0 >= pb.1) {
+                    next.push((pa, pb));
+                    continue;
+                }
+                let before = ((pa.0, pa.1.min(x.0)), (pb.0, pb.1.min(y.0)));
+                let after = ((pa.0.max(x.1), pa.1), (pb.0.max(y.1), pb.1));
+                for piece in [before, after] {
+                    let (w0, w1) = (piece.0.1 - piece.0.0, piece.1.1 - piece.1.0);
+                    if w0 > -1e-9 && w1 > -1e-9 && w0.max(w1) > 1e-6 {
+                        next.push(piece);
+                    }
+                }
+            }
+            pieces = next;
+        }
+        pieces
     }
 
     /// Plan outline, counter-clockwise, of the part of the wall whose left
