@@ -191,7 +191,7 @@ mod tests {
     }
 
     /// A system with CJK fonts draws every character of the Chinese
-    /// interfaces, Simplified and Traditional, from them.
+    /// interfaces, Simplified and Traditional, and the Japanese one from them.
     #[test]
     fn chinese_interfaces_come_from_system_fonts() {
         use skrifa::MetadataProvider;
@@ -202,6 +202,7 @@ mod tests {
         for (name, source) in [
             ("zh-CN", include_str!("../../../assets/i18n/zh-CN.ftl")),
             ("zh-TW", include_str!("../../../assets/i18n/zh-TW.ftl")),
+            ("ja", include_str!("../../../assets/i18n/ja.ftl")),
         ] {
             let missing: std::collections::BTreeSet<char> = source
                 .chars()

@@ -46,7 +46,7 @@ Options:
                          <plugin>__<command> and get the permissions their
                          plugin.toml asks for
   --lang <code>          language of default names (default: the system's):
-                         en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW or zh-CN
+                         en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW, zh-CN or ja
   -V, --version          the version
   -h, --help             this help
 

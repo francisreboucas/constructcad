@@ -70,7 +70,7 @@ At startup (at most once a day) the app asks the GitHub API for the latest relea
 
 ## Languages
 
-The interface is available in **English**, **Portuguese (Brazil)**, **Spanish**, **French**, **German**, **Italian**, **Lao**, **Polish**, **Ukrainian**, **Traditional Chinese** and **Simplified Chinese**, switchable under *File → Language*. The choice is saved between sessions. On first run the system language is used, and `--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN` forces a language.
+The interface is available in **English**, **Portuguese (Brazil)**, **Spanish**, **French**, **German**, **Italian**, **Lao**, **Polish**, **Ukrainian**, **Traditional Chinese**, **Simplified Chinese** and **Japanese**, switchable under *File → Language*. The choice is saved between sessions. On first run the system language is used, and `--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja` forces a language.
 
 New projects get level, material, type and view names in the active language. Existing projects keep their names, since they are part of the data. The decimal separator follows the language (comma or point).
 

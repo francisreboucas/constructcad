@@ -111,7 +111,7 @@ ccad [options] mcp                  serve the commands over MCP (stdio)
 --plugins <folder>     load the plugin in <folder>, or each plugin in its
                        subfolders (repeatable)
 --lang <code>          language of default names and messages (also CCAD_LANG):
-                       en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW or zh-CN
+                       en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW, zh-CN or ja
 ```
 
 Arguments of `run` can be a JSON object, `@file.json`, `-` (standard input) or `key=value` pairs, whose values are read as JSON when they parse and as text otherwise:

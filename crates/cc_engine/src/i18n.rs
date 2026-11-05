@@ -19,10 +19,11 @@ pub enum Language {
     Uk,
     ZhTw,
     ZhCn,
+    Ja,
 }
 
 impl Language {
-    pub const ALL: [Language; 11] = [
+    pub const ALL: [Language; 12] = [
         Language::PtBr,
         Language::En,
         Language::Es,
@@ -34,6 +35,7 @@ impl Language {
         Language::Uk,
         Language::ZhTw,
         Language::ZhCn,
+        Language::Ja,
     ];
 
     /// BCP 47 code, used for persistence.
@@ -50,6 +52,7 @@ impl Language {
             Language::Uk => "uk-UA",
             Language::ZhTw => "zh-TW",
             Language::ZhCn => "zh-CN",
+            Language::Ja => "ja",
         }
     }
 
@@ -67,6 +70,7 @@ impl Language {
             Language::Uk => "Українська",
             Language::ZhTw => "繁體中文",
             Language::ZhCn => "简体中文",
+            Language::Ja => "日本語",
         }
     }
 
@@ -98,6 +102,7 @@ impl Language {
             "uk" => Language::Uk,
             "zh" if traditional => Language::ZhTw,
             "zh" => Language::ZhCn,
+            "ja" => Language::Ja,
             _ => return None,
         };
         Some(lang)
@@ -122,6 +127,7 @@ impl Language {
             Language::Uk => include_str!("../../../assets/i18n/uk-UA.ftl"),
             Language::ZhTw => include_str!("../../../assets/i18n/zh-TW.ftl"),
             Language::ZhCn => include_str!("../../../assets/i18n/zh-CN.ftl"),
+            Language::Ja => include_str!("../../../assets/i18n/ja.ftl"),
         }
     }
 
@@ -131,7 +137,7 @@ impl Language {
 
     /// Whether numbers use a decimal comma.
     pub fn decimal_comma(self) -> bool {
-        !matches!(self, Language::En | Language::ZhTw | Language::ZhCn)
+        !matches!(self, Language::En | Language::ZhTw | Language::ZhCn | Language::Ja)
     }
 }
 
@@ -230,7 +236,9 @@ mod tests {
         assert_eq!(Language::from_code("zh-Hans-CN"), Some(Language::ZhCn));
         assert_eq!(Language::from_code("zh-Hans-HK"), Some(Language::ZhCn));
         assert_eq!(Language::from_code("zh"), Some(Language::ZhCn));
-        assert_eq!(Language::from_code("ja-JP"), None);
+        assert_eq!(Language::from_code("ja-JP"), Some(Language::Ja));
+        assert_eq!(Language::from_code("ja_JP.UTF-8"), Some(Language::Ja));
+        assert_eq!(Language::from_code("ko-KR"), None);
         assert_eq!(Language::from_code("p"), None);
         for l in Language::ALL {
             assert_eq!(Language::from_code(l.code()), Some(l));
