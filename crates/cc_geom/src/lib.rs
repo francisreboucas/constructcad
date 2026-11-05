@@ -44,6 +44,6 @@ pub use stair::{
     Flight, LandingRect, Pieces, StairGeom, StairLanding, StairStep, StepKind, add_railing, railing_length,
     railing_path, railing_pieces, stair_geom,
 };
-pub use wall::{Column, Opening, WallGeom};
+pub use wall::{Column, LayerGap, Opening, WallGeom};
 
 pub use glam::{DVec2, DVec3};

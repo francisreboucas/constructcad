@@ -1,6 +1,6 @@
 use crate::beam::{BeamGeom, BeamInput, ColumnInput, resolve_beams};
 use crate::polygon;
-use crate::wall::{Opening, WallGeom, WallLine, resolve_join};
+use crate::wall::{LayerGap, Opening, WallGeom, WallLine, core_through, resolve_join};
 use crate::{Ray, Solid};
 use cc_core::{Category, ElementId, ElementKind, Project, RoofShape, TypeData};
 use glam::{DVec2, DVec3};
@@ -746,27 +746,46 @@ impl ModelGeometry {
                     }
                 })
                 .collect();
+            // Each wall's layers as `(v_from, v_to, material)` from the left face
+            // inward, and the offsets of its core's faces.
+            let layered: Vec<Layered> = walls
+                .iter()
+                .zip(&lines)
+                .map(|((e, _), line)| {
+                    let ty = project.element_type(e.type_id);
+                    let mut layers = Vec::new();
+                    let mut v = line.half;
+                    for layer in ty.map(|t| t.layers()).unwrap_or_default() {
+                        layers.push((v, v - layer.thickness, layer.material.clone()));
+                        v -= layer.thickness;
+                    }
+                    (layers, ty.and_then(|t| wall_core(t, line.half)))
+                })
+                .collect();
             let mut gaps: Vec<(usize, [DVec2; 2])> = Vec::new();
+            let mut layer_gaps: Vec<(usize, LayerGap)> = Vec::new();
             let mut ids = Vec::new();
             for (i, (e, w)) in walls.iter().enumerate() {
                 let base_z = project.wall_base_z(e, w);
                 let top_z = project.wall_top_z(e, w);
                 let ty = project.element_type(e.type_id);
-                let mut layers = Vec::new();
-                let mut v = lines[i].half;
-                for layer in ty.map(|t| t.layers()).unwrap_or_default() {
-                    layers.push((v, v - layer.thickness, layer.material.clone()));
-                    v -= layer.thickness;
-                }
+                let (layers, core) = layered[i].clone();
                 let (start_join, end_join) = (resolve_join(&lines, i, true), resolve_join(&lines, i, false));
                 let mut g = WallGeom::new(e.id, lines[i], base_z, top_z, start_join, end_join, layers);
-                // Where this wall meets another in a T, that wall's face opens.
-                for (join, u_left, u_right) in
-                    [(start_join, g.start_ext.0, g.start_ext.1), (end_join, g.end_ext.0, g.end_ext.1)]
-                {
-                    if let Some(host) = join.and_then(|j| j.host) {
-                        let pts = [g.world(u_left, g.half), g.world(u_right, -g.half)];
-                        gaps.push((host, pts));
+                g.core = core;
+                // Where this wall meets another in a T, that wall's face opens; its
+                // core runs on through the other wall's outer layers to its core.
+                let ends = [(start_join, g.start_ext.0, g.start_ext.1), (end_join, g.end_ext.0, g.end_ext.1)];
+                for (k, (join, u_left, u_right)) in ends.into_iter().enumerate() {
+                    let Some(host) = join.and_then(|j| j.host) else { continue };
+                    gaps.push((host, [g.world(u_left, g.half), g.world(u_right, -g.half)]));
+                    let (Some(core), Some((host_layers, Some(host_core)))) = (core, layered.get(host)) else {
+                        continue;
+                    };
+                    if let Some((at, mut gap)) = core_through(&lines, i, k == 0, host, core, *host_core) {
+                        g.core_ends[k] = Some(at);
+                        gap.merge = cores_match(&layered[i].0, core, host_layers, &gap);
+                        layer_gaps.push((host, gap));
                     }
                 }
                 let openings = project
@@ -798,6 +817,10 @@ impl ModelGeometry {
                 let us: Vec<f64> = pts.iter().map(|p| g.local(*p).0).collect();
                 let side = if g.local(pts[0]).1 >= 0.0 { 1.0 } else { -1.0 };
                 g.face_gaps.push((side, us[0].min(us[1]), us[0].max(us[1])));
+            }
+            for (host, gap) in layer_gaps {
+                let Some(g) = ids.get(host).and_then(|id| self.walls.get_mut(id)) else { continue };
+                g.layer_gaps.push(gap);
             }
         }
     }
@@ -1058,6 +1081,40 @@ impl ModelGeometry {
         }
         best.and_then(|(t, i)| Some((self.solids.get(i)?.element, t)))
     }
+}
+
+/// A wall's layers as `(v_from, v_to, material)` from its left face inward,
+/// and the offsets of its core's faces.
+type Layered = (Vec<(f64, f64, String)>, Option<(f64, f64)>);
+
+/// Offsets `(left, right)` of a wall type's core faces for a wall of
+/// half-thickness `half`, when it has a structure core with other layers
+/// beside it (what a T-join's layer cleanup runs through or stops at).
+fn wall_core(ty: &cc_core::ElementType, half: f64) -> Option<(f64, f64)> {
+    let layers = ty.layers();
+    if layers.len() < 2 || !layers.iter().any(|l| l.function == cc_core::LayerFunction::Structure) {
+        return None;
+    }
+    let (ext, int) = ty.core_range();
+    let core = (half - ext, half - int);
+    (core.0 < half - 1e-6 || core.1 > -half + 1e-6).then_some(core)
+}
+
+/// Whether every core layer of a joining wall (its `layers` within `core`)
+/// is of the material of the host's core layer at the gap's core face.
+fn cores_match(layers: &[(f64, f64, String)], core: (f64, f64), host: &[(f64, f64, String)], gap: &LayerGap) -> bool {
+    let near = |a: f64| (a - gap.v_core).abs() < 1e-6;
+    // Layers run from `v_from` down to `v_to`: on the left the core's face is
+    // its first layer's `v_from`, on the right its last layer's `v_to`.
+    let left = gap.v_face > gap.v_core;
+    let Some((_, _, host_material)) = host.iter().find(|(from, to, _)| if left { near(*from) } else { near(*to) })
+    else {
+        return false;
+    };
+    layers
+        .iter()
+        .filter(|(from, to, _)| *from <= core.0 + 1e-6 && *to >= core.1 - 1e-6)
+        .all(|(_, _, material)| material == host_material)
 }
 
 #[cfg(test)]
