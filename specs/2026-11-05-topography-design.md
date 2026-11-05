@@ -149,7 +149,8 @@ pub struct Topography {
 ## App (cc_app)
 
 - A ribbon button *Terrain* (`UiCommand` `Place(Category::Topography)`,
-  shortcut `TS`) next to Mass, with its own icon `assets/icons/ui/topography.svg`
+  shortcut `TS`) in a *Site* group of the *Massing & Site* tab (which already
+  holds the massing group), with its own icon `assets/icons/ui/topography.svg`
   (24 grid, the house style).
 - The button opens sketch mode (`Tool::Sketch { category: Topography }`) for
   the boundary. Sketch mode gets one more tool for this category, *Point*,
