@@ -61,8 +61,11 @@ pub(crate) fn edit_def<T>(
                     .iter()
                     .rev()
                     .fold(param.name.clone(), |n, (from, to)| if n == *to { from.clone() } else { n });
-                if let Some(v) = theirs.param(&old).map(|q| q.value) {
-                    param.value = v;
+                if let Some(q) = theirs.param(&old).filter(|q| q.kind == param.kind) {
+                    param.value = q.value;
+                    if param.accepts_text(&q.text) {
+                        param.text.clone_from(&q.text);
+                    }
                 }
             }
             *theirs = d;
@@ -273,8 +276,14 @@ impl Command for ComponentParamSet {
         let value = self.value.map(|v| refs::finite(v, "value")).transpose()?;
         let kind = self.kind.as_deref().map(param_kind).transpose()?;
         let (_, _, def, _) = component_of(s, &self.type_ref)?;
-        if def.param(&self.name).is_none() {
+        let Some(param) = def.param(&self.name) else {
             return Err(EngineError::not_found(format!("no parameter '{}'", self.name)));
+        };
+        if param.from_script && (self.kind.is_some() || self.instance.is_some() || self.rename.is_some()) {
+            return Err(EngineError::rejected(format!(
+                "'{}' is declared by the component's script: change it there",
+                self.name
+            )));
         }
         let rename = match &self.rename {
             Some(new) if new.trim() != self.name => Some(check_name(&def, new)?),
@@ -320,8 +329,15 @@ impl Command for ComponentParamDelete {
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
         edit_def(s, &self.type_ref, &[], |def| {
-            if def.param(&self.name).is_none() {
-                return Err(EngineError::not_found(format!("no parameter '{}'", self.name)));
+            match def.param(&self.name) {
+                None => return Err(EngineError::not_found(format!("no parameter '{}'", self.name))),
+                Some(p) if p.from_script => {
+                    return Err(EngineError::rejected(format!(
+                        "'{}' is declared by the component's script: remove it there",
+                        self.name
+                    )));
+                }
+                Some(_) => {}
             }
             // Planes driven by it keep their current place.
             let scope = def.scope(&BTreeMap::new(), &[]);

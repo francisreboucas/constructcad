@@ -289,8 +289,24 @@ impl Command for ComponentCreate {
         if name.is_empty() {
             return Err(EngineError::invalid("the component needs a name"));
         }
-        let def: ComponentDef =
+        let mut def: ComponentDef =
             serde_json::from_value(self.def).map_err(|e| EngineError::invalid(format!("invalid def: {e}")))?;
+        // A script piece's declarations become the parameters and hotspots.
+        let sources: Vec<String> = def
+            .items
+            .iter()
+            .filter_map(|i| match &i.shape {
+                cc_core::ComponentShape::Script { source } => Some(source.clone()),
+                _ => None,
+            })
+            .collect();
+        if sources.len() > 1 {
+            return Err(EngineError::invalid("a component holds one script piece"));
+        }
+        if let Some(source) = sources.first() {
+            let decl = cc_script::declare(source).map_err(|e| EngineError::invalid(format!("script: {e}")))?;
+            cc_script::object::sync(&mut def.params, &mut def.hotspots, &decl).map_err(EngineError::invalid)?;
+        }
         validate(&def)?;
         let id = edit(s, t!("tx-new-component"), |e| {
             let id = ElementTypeId(e.alloc_id());

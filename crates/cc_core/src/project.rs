@@ -850,6 +850,23 @@ impl Project {
         self.types.values().filter(|t| t.data.uses_material(name)).map(|t| t.id).collect()
     }
 
+    /// Components whose own value of a material parameter is `name`.
+    pub fn material_instance_users(&self, name: &str) -> Vec<ElementId> {
+        self.elements
+            .values()
+            .filter(|e| {
+                let crate::ElementKind::Component(c) = &e.kind else { return false };
+                let Some(crate::TypeData::Component { def, .. }) = self.element_type(e.type_id).map(|t| &t.data) else {
+                    return false;
+                };
+                c.text_overrides.iter().any(|(param, v)| {
+                    v == name && def.param(param).is_some_and(|p| p.kind == crate::ParamKind::Material)
+                })
+            })
+            .map(|e| e.id)
+            .collect()
+    }
+
     /// Doors and windows hosted by `wall`.
     pub fn hosted_by(&self, wall: ElementId) -> impl Iterator<Item = &Element> {
         self.elements.values().filter(move |e| e.as_hosted().is_some_and(|h| h.host == wall))

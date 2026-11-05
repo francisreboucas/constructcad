@@ -359,6 +359,11 @@ impl<'a> EditCtx<'a> {
                 t.data.rename_material(old, new);
             }
         }
+        for id in self.project.material_instance_users(old) {
+            if let Some(crate::ElementKind::Component(c)) = self.element_mut(id).map(|e| &mut e.kind) {
+                c.text_overrides.values_mut().filter(|v| *v == old).for_each(|v| *v = new.to_string());
+            }
+        }
         if let Some(m) = self.materials_mut().iter_mut().find(|m| m.name == old) {
             m.name = new.to_string();
         }

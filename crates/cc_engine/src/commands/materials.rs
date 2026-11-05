@@ -165,6 +165,10 @@ impl Command for MaterialDelete {
         if users > 0 {
             return Err(EngineError::rejected(format!("{users} types use this material")));
         }
+        let elements = p.material_instance_users(&name).len();
+        if elements > 0 {
+            return Err(EngineError::rejected(format!("{elements} components use this material")));
+        }
         edit(s, t!("tx-modify-material"), |e| {
             e.materials_mut().retain(|m| m.name != name);
             Ok(())

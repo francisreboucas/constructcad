@@ -761,6 +761,7 @@ dependencies = [
  "cc_core",
  "cc_geom",
  "cc_ifc",
+ "cc_script",
  "cc_skp",
  "cc_views",
  "glam",
