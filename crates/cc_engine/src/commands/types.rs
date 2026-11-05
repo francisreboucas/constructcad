@@ -38,8 +38,10 @@ pub(crate) fn validate(def: &ComponentDef) -> Result<()> {
     if let Some(c) = def.connectors.iter().enumerate().find(|(i, _)| !resolved.iter().any(|k| k.index == *i)) {
         return Err(EngineError::invalid(format!("connector '{}': invalid position or diameter", c.1.name)));
     }
-    let (_, errors) = def.resolve_in(&Default::default(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
-    if let Some((i, e)) = errors.first() {
+    let (_, errors) = cc_geom::resolve_pieces(def, &Default::default(), &[(cc_core::component::WALL_THICKNESS, 0.15)]);
+    // A script that fails at run time keeps its last pieces and is reported
+    // where it is used (`component_script_set` refuses one that does not load).
+    if let Some((i, e)) = errors.iter().find(|(_, e)| !matches!(e, cc_core::component::PartError::Script(_))) {
         let piece = def.items.get(*i).map_or(String::new(), |it| it.name.clone());
         return Err(EngineError::invalid(format!("piece '{piece}': {e}")));
     }
@@ -287,8 +289,24 @@ impl Command for ComponentCreate {
         if name.is_empty() {
             return Err(EngineError::invalid("the component needs a name"));
         }
-        let def: ComponentDef =
+        let mut def: ComponentDef =
             serde_json::from_value(self.def).map_err(|e| EngineError::invalid(format!("invalid def: {e}")))?;
+        // A script piece's declarations become the parameters and hotspots.
+        let sources: Vec<String> = def
+            .items
+            .iter()
+            .filter_map(|i| match &i.shape {
+                cc_core::ComponentShape::Script { source } => Some(source.clone()),
+                _ => None,
+            })
+            .collect();
+        if sources.len() > 1 {
+            return Err(EngineError::invalid("a component holds one script piece"));
+        }
+        if let Some(source) = sources.first() {
+            let decl = cc_script::declare(source).map_err(|e| EngineError::invalid(format!("script: {e}")))?;
+            cc_script::object::sync(&mut def.params, &mut def.hotspots, &decl).map_err(EngineError::invalid)?;
+        }
         validate(&def)?;
         let id = edit(s, t!("tx-new-component"), |e| {
             let id = ElementTypeId(e.alloc_id());

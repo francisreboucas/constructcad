@@ -1079,16 +1079,15 @@ impl<'a> Exporter<'a> {
         let project = self.project;
         for e in project.elements.values() {
             let ElementKind::Component(c) = &e.kind else { continue };
-            let Some(TypeData::Component { def, .. }) = project.element_type(e.type_id).map(|t| &t.data) else {
-                continue;
-            };
+            let Some(ty) = project.element_type(e.type_id) else { continue };
+            let TypeData::Component { def, .. } = &ty.data else { continue };
             let Some(storey) = self.storey_placement(e.level) else { continue };
             let rot = DVec2::from_angle(c.rotation_deg.to_radians());
             let placement = self.local_placement(
                 Some(storey),
                 Frame::horizontal(DVec3::new(c.position.x, c.position.y, c.base_offset), rot),
             );
-            let mut parts = cc_geom::resolve_component(def, &c.overrides);
+            let mut parts = cc_geom::resolve_instance(ty, def, e, Some(c), &[]);
             parts.retain(|p| !p.plan_only);
             // Shapes mix no representation types: with any mesh piece, all pieces are face sets.
             let tessellated = parts.iter().any(|p| !p.faces.is_empty());
@@ -1139,20 +1138,22 @@ impl<'a> Exporter<'a> {
             self.register(e, product);
             // Instance parameter values, so importers can restore overrides.
             let values = def.values(&c.overrides);
+            let texts = def.texts(&c.text_overrides);
             let props: Vec<(&str, Value)> = def
                 .params
                 .iter()
                 .filter(|p| p.instance)
                 .filter_map(|p| {
-                    let v = *values.get(&p.name)?;
-                    let measure = match p.kind {
-                        cc_core::ParamKind::Length => "IFCLENGTHMEASURE",
-                        cc_core::ParamKind::Angle => "IFCPLANEANGLEMEASURE",
-                        cc_core::ParamKind::Number => "IFCREAL",
-                    };
-                    // Angles are stored in radians (the file's angle unit).
-                    let v = if p.kind == cc_core::ParamKind::Angle { v.to_radians() } else { v };
-                    Some((p.name.as_str(), Value::Typed(measure, Box::new(Value::Real(v)))))
+                    use cc_core::ParamKind as K;
+                    let typed = |measure, v| Some((p.name.as_str(), Value::Typed(measure, Box::new(v))));
+                    match p.kind {
+                        K::Text | K::Choice | K::Material => typed("IFCLABEL", Value::Str(texts.get(&p.name)?.clone())),
+                        K::Boolean => typed("IFCBOOLEAN", Value::Bool(*values.get(&p.name)? != 0.0)),
+                        K::Length => typed("IFCLENGTHMEASURE", Value::Real(*values.get(&p.name)?)),
+                        // Angles are stored in radians (the file's angle unit).
+                        K::Angle => typed("IFCPLANEANGLEMEASURE", Value::Real(values.get(&p.name)?.to_radians())),
+                        K::Number => typed("IFCREAL", Value::Real(*values.get(&p.name)?)),
+                    }
                 })
                 .collect();
             self.property_set(&format!("comp-{}", e.id), COMPONENT_PSET, vec![product], props);

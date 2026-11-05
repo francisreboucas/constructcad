@@ -240,6 +240,9 @@ pub struct TypeInfo {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+// A project holds few types, so the size of the component variant does not
+// matter; boxing its definition would only add indirection.
+#[allow(clippy::large_enum_variant)]
 pub enum TypeData {
     Wall {
         layers: Vec<Layer>,
@@ -402,7 +405,17 @@ impl TypeData {
             | TypeData::Railing { material, .. }
             | TypeData::Mass { material }
             | TypeData::Sweep { material, .. } => vec![material.as_str()],
-            TypeData::Component { def, .. } => def.items.iter().map(|i| i.material.as_str()).collect(),
+            TypeData::Component { def, .. } => def
+                .items
+                .iter()
+                .map(|i| i.material.as_str())
+                .chain(
+                    def.params
+                        .iter()
+                        .filter(|p| p.kind == crate::ParamKind::Material && !p.text.is_empty())
+                        .map(|p| p.text.as_str()),
+                )
+                .collect(),
             TypeData::Room {}
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }
@@ -458,7 +471,10 @@ impl TypeData {
             | TypeData::Railing { material, .. }
             | TypeData::Mass { material }
             | TypeData::Sweep { material, .. } => fix(material),
-            TypeData::Component { def, .. } => def.items.iter_mut().for_each(|i| fix(&mut i.material)),
+            TypeData::Component { def, .. } => {
+                def.items.iter_mut().for_each(|i| fix(&mut i.material));
+                def.params.iter_mut().filter(|p| p.kind == crate::ParamKind::Material).for_each(|p| fix(&mut p.text));
+            }
             TypeData::Room {}
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }

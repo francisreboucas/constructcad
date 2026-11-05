@@ -266,6 +266,69 @@ ccad.command {
 
 Os plugins são compartilhados pelo índice da comunidade, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): uma entrada por plugin, com de onde baixar cada versão e o checksum dela, enviada por pull request. No aplicativo, *Gerenciar → Plugins* instala, atualiza, desativa e remove plugins ([Plugins](interface.pt-BR.md#plugins)); sem ele, `ccad plugins install <arquivo.zip> <pasta>` instala um arquivo baixado (verificado do mesmo jeito: caminhos seguros, tamanhos e um plugin que carrega) e `ccad plugins remove <id> <pasta>` remove um.
 
+## Componentes com script
+
+Uma peça de componente pode ser um **script**: código Lua que declara os parâmetros e os hotspots do componente e monta as peças a partir dos valores deles. O script é puro: ele vê os valores e nada mais (nem comandos, nem arquivos, nem o modelo), então roda uma vez para cada conjunto de valores; mover ou girar um componente já colocado não o roda de novo. [`examples/components/cabinet.lua`](../examples/components/cabinet.lua) é um exemplo completo.
+
+```lua
+param.length   { "depth", label = "Profundidade", default = 0.55 }      -- compartilhado pelos elementos do tipo
+param.choice   { "handle", { { "bar", "Barra" }, { "none", "Nenhum" } } }
+param.length   { "width", label = "Largura", default = 0.8, instance = true }  -- próprio de cada elemento
+param.boolean  { "worktop", default = true, instance = true }
+param.material { "body", label = "Corpo", instance = true }
+hotspot        { "plinth", 0, 0.05, 0, label = "Rodapé", shape = "diamond", color = "#ff8800" }
+
+function geometry(p)
+  local pieces = { box { 0, 0, 0, p.width, p.depth, 0.85, material = p.body } }
+  if p.worktop then pieces[#pieces + 1] = box { 0, 0, 0.85, p.width, p.depth + 0.02, 0.03 } end
+  return pieces
+end
+```
+
+| Declaração | Valor em `p` |
+|---|---|
+| `param.length`, `param.angle`, `param.number { id, label=, default=0, instance= }` | um número (metros, graus) |
+| `param.boolean { id, default=false }` | `true` ou `false` |
+| `param.text { id, default="" }` | um texto |
+| `param.choice { id, { {chave, rótulo}, … }, default=primeira chave }` | a chave escolhida |
+| `param.material { id, default="" }` | o nome de um material do projeto (vazio: o material da peça) |
+| `hotspot { id, x, y, z, label=, shape="circle", color="#00ffff" }` | `{ x, y, z }`, onde o elemento o tem |
+
+As declarações ficam no corpo do script, nunca dentro de `geometry`. Os ids são nomes (letras, dígitos, `_`) e não se repetem; mudar um rótulo não renomeia o parâmetro. Um parâmetro sem `instance = true` é do tipo, e mudá-lo muda todos os elementos do tipo; com ele, cada elemento guarda o seu valor. As formas de hotspot são `circle`, `square`, `triangle`, `diamond` e `triangle_down`; as cores, `#RRGGBB` ou `#RRGGBBAA`. `p` também traz os outros parâmetros do componente, seus planos de referência e, em portas e janelas, `WallThickness`.
+
+`geometry(p)` devolve uma lista de peças (listas de peças são achatadas), no referencial do componente (metros a partir do ponto de inserção, x para a direita, y para trás, z para cima). Cada construtor recebe os valores em ordem ou por nome, além de `name`, `material`, `void`, `in_plan`, `plan_only` e `detail` (uma lista de `coarse`, `medium`, `fine`):
+
+| Construtor | Valores |
+|---|---|
+| `box` | `x, y, z, width, depth, height` |
+| `cylinder` | `x, y, z, radius, height` |
+| `extrusion` | `points` (`{x, y}` em planta), `z, height` |
+| `profile` | `points` (`{u, v}`, ou `{u, v, radius = r}` para um arco até o próximo ponto), `offset, depth`, `plane = "plan"`, `"front"` ou `"side"` |
+| `revolution` | `points, offset, axis, angle` (padrão 360), `plane` |
+| `sweep` | `path, profile, offset`, `plane` |
+| `blend` | `bottom, top, offset, depth`, `plane` |
+| `mesh` | `vertices` (`{x, y, z}`), `faces` (listas de números de vértice a partir de 1, no sentido anti-horário vistas de fora) |
+
+Os scripts rodam no [sandbox](#scripts-lua) com limites menores (20 milhões de instruções, 64 MB, 10.000 peças, um milhão de pontos), e `math.random` repete os mesmos números. Quando um script falha, o elemento mantém as últimas peças que funcionaram, e o erro, com a linha, aparece em `element_get` (`derived.script_errors`), na paleta de propriedades e em `component_params_get`; corrigir o script ou o valor o recupera.
+
+Comandos:
+
+```sh
+ccad run component_create name=Armario 'def={"items": [{"name": "Script", "shape": {"Script": {"source": ""}}}]}'
+ccad run component_script_set type=Armario piece=Script source=@examples/components/cabinet.lua
+ccad run component_params_get type=Armario
+ccad run component_params_set type=Armario name=handle value='"none"'
+ccad run component_params_set 'elements=[100, 101]' name=width value=1.2
+ccad run component_hotspot_move element=100 name=plinth 'point=[0, 0.08, 0]'
+```
+
+- `component_script_set` grava uma peça de script (ou acrescenta uma). Um script que não carrega (erro de sintaxe, declaração inválida) é recusado; as declarações viram os parâmetros e hotspots do componente, os que continuam declarados mantêm os valores quando o tipo ainda serve, e o resultado lista os erros da primeira execução. Um componente tem uma peça de script; seus parâmetros mudam no script, não com `component_param_set` ou `component_param_delete`.
+- `component_params_get` mostra os parâmetros e hotspots de um tipo, ou de componentes colocados de um mesmo componente, com `mixed` onde diferem.
+- `component_params_set` define o valor de um tipo, ou o valor de instância de vários elementos de uma vez: números, `true`/`false`, textos, a chave de uma opção ou o nome de um material. É um passo de desfazer, e nada muda quando algum elemento recusa o valor.
+- `component_hotspot_move` move um hotspot no referencial do componente, ou em coordenadas do projeto com `world=true`.
+
+Um material citado por um parâmetro conta como usado: não pode ser excluído, e renomeá-lo renomeia os valores. A exportação IFC grava as peças que o script fez, como em qualquer componente.
+
 ## Macros no aplicativo
 
 *Gerenciar → Macros → Gravar macro* grava as alterações que você fizer até apertar *Parar gravação*; a macro é salva como script (`.ccmacro`, o formato acima). *Executar macro* roda uma macro ou qualquer script no projeto aberto; `ccad script` roda os mesmos arquivos. Com uma pasta de macros definida em *Preferências → Locais de arquivos*, os diálogos de arquivo de macro começam nela e *Executar macro* vira um menu dos arquivos `.ccmacro` dela (mais *Procurar…* para qualquer outro arquivo).

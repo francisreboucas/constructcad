@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 cc_core.workspace = true
 cc_geom.workspace = true
+cc_script.workspace = true
 cc_views.workspace = true
 cc_ifc.workspace = true
 cc_cad.workspace = true

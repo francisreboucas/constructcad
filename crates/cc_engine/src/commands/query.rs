@@ -258,6 +258,12 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
             if let Some(sys) = c.system.and_then(|id| p.system(id)) {
                 derived.insert("system_name".into(), json!(sys.name));
             }
+            if let Some(cc_core::TypeData::Component { def, .. }) = p.element_type(e.type_id).map(|t| &t.data)
+                && def.has_script()
+            {
+                let errors = super::component_script::script_errors(p, e.type_id, def, Some(e.id));
+                derived.insert("script_errors".into(), json!(errors));
+            }
         }
         _ => {}
     }

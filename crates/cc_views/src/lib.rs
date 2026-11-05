@@ -363,6 +363,7 @@ mod tests {
             overrides: Default::default(),
             properties: Vec::new(),
             system: None,
+            ..Default::default()
         };
         project.elements.insert(
             id,

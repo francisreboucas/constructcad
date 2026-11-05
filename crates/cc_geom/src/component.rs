@@ -1,10 +1,12 @@
 //! Component pieces as solids: the definition's pieces resolved with their
 //! parameter values, and the void pieces cut out of the solid pieces they
-//! overlap.
+//! overlap. Script pieces run through the process's shared script cache
+//! ([`cc_script::shared`]).
 
 use crate::{Solid, polygon};
-use cc_core::component::ComponentPart;
-use cc_core::{Category, ComponentDef, ElementId};
+use cc_core::component::{ComponentPart, PartError, ResolveCtx};
+use cc_core::component_script::ScriptOwner;
+use cc_core::{Category, ComponentDef, ElementId, ElementType};
 use glam::{DVec2, DVec3};
 use std::collections::BTreeMap;
 
@@ -21,7 +23,65 @@ pub fn resolve_component_in(
     overrides: &BTreeMap<String, f64>,
     extra: &[(&str, f64)],
 ) -> Vec<ComponentPart> {
-    let (parts, _) = def.resolve_in(overrides, extra);
+    let ctx = ResolveCtx { overrides, extra, scripts: cc_script::shared(), ..ResolveCtx::default() };
+    cut_voids(def.resolve_with(&ctx).0)
+}
+
+/// Every piece of `def` and the errors of those that fail (script pieces
+/// run), without cutting voids: for editors and checks.
+pub fn resolve_pieces(
+    def: &ComponentDef,
+    overrides: &BTreeMap<String, f64>,
+    extra: &[(&str, f64)],
+) -> (Vec<ComponentPart>, Vec<(usize, PartError)>) {
+    def.resolve_with(&ResolveCtx { overrides, extra, scripts: cc_script::shared(), ..ResolveCtx::default() })
+}
+
+/// The solid pieces of a placed component of type `ty` (its instance
+/// values, text values and moved hotspots), voids cut out. A failing script
+/// shows the last pieces that worked for this element.
+pub fn resolve_instance(
+    ty: &ElementType,
+    def: &ComponentDef,
+    element: &cc_core::Element,
+    component: Option<&cc_core::Component>,
+    extra: &[(&str, f64)],
+) -> Vec<ComponentPart> {
+    instance_pieces(ty, element, component, extra, &|ctx| cut_voids(def.resolve_with(ctx).0))
+}
+
+/// The errors of a placed component's pieces (a failing script's among them).
+pub fn instance_errors(
+    ty: &ElementType,
+    def: &ComponentDef,
+    element: &cc_core::Element,
+    component: Option<&cc_core::Component>,
+) -> Vec<(usize, PartError)> {
+    instance_pieces(ty, element, component, &[], &|ctx| def.resolve_with(ctx).1)
+}
+
+fn instance_pieces<T>(
+    ty: &ElementType,
+    element: &cc_core::Element,
+    component: Option<&cc_core::Component>,
+    extra: &[(&str, f64)],
+    f: &dyn Fn(&ResolveCtx) -> T,
+) -> T {
+    let empty = cc_core::Component::default();
+    let c = component.unwrap_or(&empty);
+    let ctx = ResolveCtx {
+        overrides: &c.overrides,
+        texts: &c.text_overrides,
+        hotspots: &c.hotspots,
+        extra,
+        scripts: cc_script::shared(),
+        owner: ScriptOwner { type_uid: ty.uid, element: Some(element.uid), piece: 0 },
+    };
+    f(&ctx)
+}
+
+/// `parts` with the void pieces cut out of the solid pieces.
+fn cut_voids(parts: Vec<ComponentPart>) -> Vec<ComponentPart> {
     // Plan symbols take no part in the solids.
     let (symbols, parts): (Vec<ComponentPart>, Vec<ComponentPart>) = parts.into_iter().partition(|p| p.plan_only);
     let (voids, mut solids): (Vec<ComponentPart>, Vec<ComponentPart>) = parts.into_iter().partition(|p| p.void);
@@ -218,5 +278,59 @@ mod tests {
         // Pieces no void reaches stay prisms.
         let def = ComponentDef { items: vec![item("cube", bx("0", "1", "1"), false)], ..Default::default() };
         assert!(resolve_component(&def, &BTreeMap::new())[0].faces.is_empty());
+    }
+
+    #[test]
+    fn placed_script_components_use_their_values_and_keep_the_last_pieces() {
+        use cc_core::component_script::ParamChoice;
+        let source = "param.length { 'width', default = 1, instance = true }\n\
+                      param.choice { 'finish', { {'oak', 'Oak'}, {'pine', 'Pine'} }, instance = true }\n\
+                      hotspot { 'top', 0, 0, 2 }\n\
+                      function geometry(p)\n\
+                        assert(p.width > 0, 'width must be positive')\n\
+                        return { box { 0, 0, 0, p.width, 1, p.top.z, material = p.finish } }\n\
+                      end";
+        let decl = cc_script::declare(source).unwrap();
+        let mut def = ComponentDef {
+            items: vec![item("script", ComponentShape::Script { source: source.into() }, false)],
+            ..Default::default()
+        };
+        cc_script::object::sync(&mut def.params, &mut def.hotspots, &decl).unwrap();
+        assert_eq!(def.param("finish").unwrap().choices[1], ParamChoice { key: "pine".into(), label: "Pine".into() });
+        let ty = ElementType {
+            id: cc_core::ElementTypeId(1),
+            name: "Scripted".into(),
+            data: cc_core::TypeData::Component { component: "Scripted".into(), def: def.clone() },
+            info: Default::default(),
+            uid: cc_core::Uid(7),
+        };
+        let element = cc_core::Element {
+            id: ElementId(2),
+            level: cc_core::LevelId(0),
+            type_id: ty.id,
+            mark: String::new(),
+            comments: String::new(),
+            kind: cc_core::ElementKind::Component(Default::default()),
+            uid: cc_core::Uid(8),
+            phase_created: Default::default(),
+            phase_demolished: None,
+        };
+        let mut c = cc_core::Component::default();
+        c.overrides.insert("width".into(), 3.0);
+        c.text_overrides.insert("finish".into(), "pine".into());
+        c.hotspots.insert("top".into(), [0.0, 0.0, 4.0]);
+        let parts = resolve_instance(&ty, &def, &element, Some(&c), &[]);
+        assert_eq!(parts.len(), 1);
+        assert_eq!((parts[0].material.as_str(), parts[0].z1), ("pine", 4.0));
+        assert_eq!(parts[0].footprint[1].x, 3.0);
+        // A failing run shows the last pieces that worked for this element and reports the error.
+        c.overrides.insert("width".into(), -1.0);
+        let again = resolve_instance(&ty, &def, &element, Some(&c), &[]);
+        assert_eq!(again, parts);
+        let errors = instance_errors(&ty, &def, &element, Some(&c));
+        assert!(
+            matches!(&errors[..], [(0, PartError::Script(m))] if m.contains("width must be positive")),
+            "{errors:?}"
+        );
     }
 }

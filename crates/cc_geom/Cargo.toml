@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 cc_core.workspace = true
+cc_script.workspace = true
 glam.workspace = true
 earcutr.workspace = true
 

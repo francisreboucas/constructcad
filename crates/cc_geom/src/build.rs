@@ -59,7 +59,7 @@ pub fn opening_parts(
             .collect();
     };
     let thickness = [(cc_core::component::WALL_THICKNESS, 2.0 * half)];
-    let parts = crate::resolve_component_in(def, &Default::default(), &thickness);
+    let parts = crate::resolve_instance(ty, def, element, None, &thickness);
     let (fx, fy) = match element.as_hosted() {
         Some(h) => (if h.flip_hand { -1.0 } else { 1.0 }, if h.flip_facing { -1.0 } else { 1.0 }),
         None => (1.0, 1.0),
@@ -212,10 +212,9 @@ pub fn component_parts(
     element: &cc_core::Element,
     component: &cc_core::Component,
 ) -> Vec<cc_core::component::ComponentPart> {
-    let Some(TypeData::Component { def, .. }) = project.element_type(element.type_id).map(|t| &t.data) else {
-        return Vec::new();
-    };
-    place_parts(project, element, component, crate::resolve_component(def, &component.overrides))
+    let Some(ty) = project.element_type(element.type_id) else { return Vec::new() };
+    let TypeData::Component { def, .. } = &ty.data else { return Vec::new() };
+    place_parts(project, element, component, crate::resolve_instance(ty, def, element, Some(component), &[]))
 }
 
 /// A component's connector in the world: where a run joins it (`point`, its
@@ -377,15 +376,25 @@ impl ModelGeometry {
     /// material. Components of one type and the same instance values share
     /// the resolution (and its boolean cuts).
     fn build_components(&mut self, project: &Project) {
-        type Key = (cc_core::ElementTypeId, Vec<(String, u64)>);
+        type Key = (cc_core::ElementTypeId, Vec<(String, u64)>, Vec<(String, String)>, Vec<(String, [u64; 3])>);
         let mut resolved: std::collections::HashMap<Key, Vec<cc_core::component::ComponentPart>> = Default::default();
         for e in project.elements.values() {
             let ElementKind::Component(c) = &e.kind else { continue };
-            let Some(TypeData::Component { def, .. }) = project.element_type(e.type_id).map(|t| &t.data) else {
-                continue;
+            let Some(ty) = project.element_type(e.type_id) else { continue };
+            let TypeData::Component { def, .. } = &ty.data else { continue };
+            // A script that fails shows each element's own last pieces, so
+            // elements with scripts do not share.
+            let local = if def.has_script() {
+                crate::resolve_instance(ty, def, e, Some(c), &[])
+            } else {
+                let key = (
+                    e.type_id,
+                    c.overrides.iter().map(|(k, v)| (k.clone(), v.to_bits())).collect(),
+                    c.text_overrides.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
+                    c.hotspots.iter().map(|(k, p)| (k.clone(), p.map(f64::to_bits))).collect(),
+                );
+                resolved.entry(key).or_insert_with(|| crate::resolve_instance(ty, def, e, Some(c), &[])).clone()
             };
-            let key = (e.type_id, c.overrides.iter().map(|(k, v)| (k.clone(), v.to_bits())).collect());
-            let local = resolved.entry(key).or_insert_with(|| crate::resolve_component(def, &c.overrides)).clone();
             let parts = place_parts(project, e, c, local);
             for part in parts.iter().filter(|p| !p.plan_only) {
                 let mut s = Solid::of_material(e.id, e.category(), project, &part.material);

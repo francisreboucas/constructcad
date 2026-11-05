@@ -199,17 +199,25 @@ fn component_parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
             actions::save_component(state, component);
         }
     });
+    let materials: Vec<String> = state.project().materials.iter().map(|m| m.name.clone()).collect();
     section(ui, "type-comp-params", t!("comp-params"), |ui| {
         for (i, p) in def.params.iter().enumerate() {
-            let mut v = p.value;
-            let label = if p.instance { format!("{} ({})", p.name, t!("comp-param-instance")) } else { p.name.clone() };
-            let r = row(ui, &label, |ui| ui.add(crate::properties::param_value(&mut v, p.kind)));
-            if r.changed() {
+            let label = if p.instance {
+                format!("{} ({})", p.display(), t!("comp-param-instance"))
+            } else {
+                p.display().to_string()
+            };
+            let (r, changed) =
+                row(ui, &label, |ui| crate::properties::param_editor(ui, p, p.value, &p.text, &materials));
+            if let Some(value) = changed {
                 update(state, tid, &format!("comp-param-{i}"), |t| {
                     if let TypeData::Component { def, .. } = &mut t.data
                         && let Some(p) = def.params.get_mut(i)
                     {
-                        p.value = v;
+                        match value {
+                            crate::properties::ParamEdit::Number(v) => p.value = v,
+                            crate::properties::ParamEdit::Text(t) => p.text = t,
+                        }
                     }
                 });
             }

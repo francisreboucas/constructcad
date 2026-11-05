@@ -901,6 +901,7 @@ impl Command for ComponentPlace {
             overrides: Default::default(),
             properties: Vec::new(),
             system,
+            ..Default::default()
         };
         let kind = ElementKind::Component(component);
         create(s, t!("tx-create-component"), level, Category::Component, Some(&self.type_ref), kind)

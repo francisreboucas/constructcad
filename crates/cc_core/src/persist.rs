@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Current file format version. Bump when the schema changes incompatibly.
-pub const FORMAT_VERSION: u32 = 17;
+pub const FORMAT_VERSION: u32 = 18;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PersistError {
@@ -53,7 +53,9 @@ pub fn from_ron_with_repairs(text: &str) -> Result<(Project, usize), PersistErro
     // graphics, filters and templates (older files: none); version 11 adds
     // construction phases (older files: the template's, everything in the last);
     // version 12 makes door and window types components (older files: the
-    // built-in door and window components with the same sizes).
+    // built-in door and window components with the same sizes); version 18
+    // adds script pieces and text, boolean, choice and material parameters
+    // (older files have none).
     let mut project = file.project;
     if file.format_version < 11 {
         project.ensure_phases(&|key| crate::project::template_default(key).to_string());

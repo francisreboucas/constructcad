@@ -267,6 +267,69 @@ ccad.command {
 Plugins are shared through the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. In the app, *Manage → Plugins* installs, updates, turns off and removes plugins ([Plugins](interface.md#plugins)); without it, `ccad plugins install <file.zip> <folder>` installs a downloaded archive (checked the same way: safe paths, sizes, and a plugin that loads) and `ccad plugins remove <id> <folder>` removes one.
 
 
+## Scripted components
+
+A component piece can be a **script**: Lua source that declares the component's parameters and hotspots and builds its pieces from their values. The script is pure: it sees the values and nothing else (no commands, files or model), so it runs once for each set of values; moving or rotating a placed component does not run it again. [`examples/components/cabinet.lua`](../examples/components/cabinet.lua) is a complete example.
+
+```lua
+param.length   { "depth", label = "Depth", default = 0.55 }          -- shared by every element of a type
+param.choice   { "handle", { { "bar", "Bar" }, { "none", "None" } } }
+param.length   { "width", label = "Width", default = 0.8, instance = true }  -- each element's own
+param.boolean  { "worktop", default = true, instance = true }
+param.material { "body", label = "Body", instance = true }
+hotspot        { "plinth", 0, 0.05, 0, label = "Plinth", shape = "diamond", color = "#ff8800" }
+
+function geometry(p)
+  local pieces = { box { 0, 0, 0, p.width, p.depth, 0.85, material = p.body } }
+  if p.worktop then pieces[#pieces + 1] = box { 0, 0, 0.85, p.width, p.depth + 0.02, 0.03 } end
+  return pieces
+end
+```
+
+| Declaration | Value in `p` |
+|---|---|
+| `param.length`, `param.angle`, `param.number { id, label=, default=0, instance= }` | a number (meters, degrees) |
+| `param.boolean { id, default=false }` | `true` or `false` |
+| `param.text { id, default="" }` | a string |
+| `param.choice { id, { {key, label}, … }, default=first key }` | the chosen key |
+| `param.material { id, default="" }` | a project material's name (empty: the piece's material) |
+| `hotspot { id, x, y, z, label=, shape="circle", color="#00ffff" }` | `{ x, y, z }`, where the element has it |
+
+Declarations go at the script's top level, never inside `geometry`. Ids are names (letters, digits, `_`) and must be distinct; changing a label does not rename a parameter. A parameter without `instance = true` belongs to the type, and changing it changes every element of the type; with it, each element keeps its own value. Hotspot shapes are `circle`, `square`, `triangle`, `diamond` and `triangle_down`; colors are `#RRGGBB` or `#RRGGBBAA`. `p` also holds the component's other parameters, its reference planes and, in doors and windows, `WallThickness`.
+
+`geometry(p)` returns a list of pieces (lists of pieces are flattened), in the component's frame (meters from the insertion point, x to the right, y to the back, z up). Every builder takes its values in order or by name, plus `name`, `material`, `void`, `in_plan`, `plan_only` and `detail` (a list of `coarse`, `medium`, `fine`):
+
+| Builder | Values |
+|---|---|
+| `box` | `x, y, z, width, depth, height` |
+| `cylinder` | `x, y, z, radius, height` |
+| `extrusion` | `points` (`{x, y}` in plan), `z, height` |
+| `profile` | `points` (`{u, v}` or `{u, v, radius = r}` for an arc to the next point), `offset, depth`, `plane = "plan"`, `"front"` or `"side"` |
+| `revolution` | `points, offset, axis, angle` (default 360), `plane` |
+| `sweep` | `path, profile, offset`, `plane` |
+| `blend` | `bottom, top, offset, depth`, `plane` |
+| `mesh` | `vertices` (`{x, y, z}`), `faces` (lists of vertex numbers from 1, counter-clockwise seen from outside) |
+
+Scripts run in the [sandbox](#lua-scripts) with smaller limits (20 million instructions, 64 MB, 10,000 pieces, a million points), and `math.random` repeats the same numbers. When a script fails, the element keeps the last pieces that worked and the error, with its line, shows in `element_get` (`derived.script_errors`), in the properties palette and in `component_params_get`; fixing the script or the value brings it back.
+
+Commands:
+
+```sh
+ccad run component_create name=Cabinet 'def={"items": [{"name": "Script", "shape": {"Script": {"source": ""}}}]}'
+ccad run component_script_set type=Cabinet piece=Script source=@examples/components/cabinet.lua
+ccad run component_params_get type=Cabinet
+ccad run component_params_set type=Cabinet name=handle value='"none"'
+ccad run component_params_set 'elements=[100, 101]' name=width value=1.2
+ccad run component_hotspot_move element=100 name=plinth 'point=[0, 0.08, 0]'
+```
+
+- `component_script_set` writes a script piece (or adds one). A script that does not load (a syntax error, a bad declaration) is refused; the declarations become the component's parameters and hotspots, those still declared keep their values when their kind still fits, and the result lists the errors of the first run. A component holds one script piece; its parameters are changed in the script, not with `component_param_set` or `component_param_delete`.
+- `component_params_get` shows a type's parameters and hotspots, or those of placed components of one component, with `mixed` where they differ.
+- `component_params_set` sets a type's value, or the instance value of several elements at once: numbers, `true`/`false`, texts, a choice's key or a material's name. It is one undo step, and nothing changes when any element refuses the value.
+- `component_hotspot_move` moves a hotspot in the component's frame, or in project coordinates with `world=true`.
+
+A material a parameter names counts as used: it cannot be deleted, and renaming it renames the values. IFC export writes the pieces the script made, as for any component.
+
 ## Macros in the app
 
 *Manage → Macros → Record Macro* records the changes you make until you press *Stop Recording*; the macro is saved as a script (`.ccmacro`, the format above). *Run Macro* plays a macro or any script on the open project; `ccad script` runs the same files. With a macros folder set in *Preferences → File locations*, the macro file dialogs start there and *Run Macro* is a menu of its `.ccmacro` files (plus *Browse…* for any other file).

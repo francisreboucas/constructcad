@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 cc_engine.workspace = true
+cc_script.workspace = true
 mlua.workspace = true
 serde.workspace = true
 serde_json.workspace = true

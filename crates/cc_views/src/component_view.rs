@@ -141,7 +141,7 @@ pub fn component_view(
 
     // Pieces: solids with voids cut, then the voids themselves, dashed.
     let solids = cc_geom::resolve_component_in(def, overrides, &extra);
-    let (all, errors) = def.resolve_in(overrides, &extra);
+    let (all, errors) = cc_geom::resolve_pieces(def, overrides, &extra);
     out.errors = errors
         .iter()
         .map(|(i, e)| format!("{}: {e}", def.items.get(*i).map_or(String::new(), |it| it.name.clone())))
@@ -331,7 +331,13 @@ mod tests {
 
     fn table() -> ComponentDef {
         ComponentDef {
-            params: vec![ComponentParam { name: "Width".into(), value: 1.2, kind: ParamKind::Length, instance: false }],
+            params: vec![ComponentParam {
+                name: "Width".into(),
+                value: 1.2,
+                kind: ParamKind::Length,
+                instance: false,
+                ..Default::default()
+            }],
             ref_planes: vec![
                 RefPlane { name: "Left".into(), axis: PlaneAxis::X, at: "-Width/2".into() },
                 RefPlane { name: "Right".into(), axis: PlaneAxis::X, at: "Left + Width".into() },

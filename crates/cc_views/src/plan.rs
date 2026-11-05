@@ -899,6 +899,7 @@ mod tests {
                 overrides: Default::default(),
                 properties: Vec::new(),
                 system: None,
+                ..Default::default()
             });
             e.add_element(Element {
                 id,

@@ -700,6 +700,7 @@ dependencies = [
  "cc_ifc",
  "cc_lua",
  "cc_render",
+ "cc_script",
  "cc_views",
  "eframe",
  "egui",
@@ -761,6 +762,7 @@ dependencies = [
  "cc_core",
  "cc_geom",
  "cc_ifc",
+ "cc_script",
  "cc_skp",
  "cc_views",
  "glam",
@@ -775,6 +777,7 @@ name = "cc_geom"
 version = "0.9.1"
 dependencies = [
  "cc_core",
+ "cc_script",
  "earcutr",
  "glam",
 ]
@@ -793,6 +796,7 @@ name = "cc_lua"
 version = "0.9.1"
 dependencies = [
  "cc_engine",
+ "cc_script",
  "cc_skp",
  "mlua",
  "serde",
@@ -811,6 +815,16 @@ dependencies = [
  "glam",
  "naga",
  "wgpu",
+]
+
+[[package]]
+name = "cc_script"
+version = "0.9.1"
+dependencies = [
+ "cc_core",
+ "glam",
+ "mlua",
+ "serde_json",
 ]
 
 [[package]]

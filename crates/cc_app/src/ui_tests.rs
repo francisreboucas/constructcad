@@ -1204,6 +1204,37 @@ fn mass_floors_are_chosen_in_the_properties() {
     assert_eq!(floors(&harness), before - 1);
 }
 
+/// A scripted component shows its instance and shared parameters, and the
+/// errors of its script (#170).
+#[test]
+fn scripted_components_show_their_parameters_and_errors() {
+    let mut state = sample_state();
+    let source = "param.length { 'width', label = 'Width', default = 1, instance = true }\n\
+                  param.choice { 'finish', { {'oak', 'Oak'}, {'pine', 'Pine'} }, label = 'Finish' }\n\
+                  function geometry(p) assert(p.width > 0, 'needs a width') return { box { 0, 0, 0, p.width, 1, 1 } } end";
+    let def = serde_json::json!({ "items": [{ "name": "Script", "shape": { "Script": { "source": source } } }] });
+    let ty =
+        state.session.execute("component_create", serde_json::json!({ "name": "Shelf", "def": def })).unwrap()["id"]
+            .clone();
+    let out = state.session.execute("component_place", serde_json::json!({ "type": ty, "position": [0, 0] })).unwrap();
+    let id = out["id"].as_u64().unwrap();
+    state.selection = [cc_core::ElementId(id)].into_iter().collect();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1400.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-instance-params")).is_some());
+    assert!(harness.query_by_label(&t!("section-type-params")).is_some());
+    assert!(harness.query_by_label(&t!("section-script-errors")).is_none());
+    harness
+        .state_mut()
+        .session
+        .execute("component_params_set", serde_json::json!({ "elements": [id], "name": "width", "value": -1 }))
+        .unwrap();
+    harness.run();
+    assert!(harness.query_by_label(&t!("section-script-errors")).is_some());
+}
+
 /// Walls, floors and roofs from masses need a mass selected, and select
 /// what they make (#31).
 #[test]

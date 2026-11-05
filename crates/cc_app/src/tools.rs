@@ -366,6 +366,82 @@ pub enum Drag {
         tag: cc_views::TagHandle,
         start: DVec2,
     },
+    /// A hotspot of a scripted component, at elevation `z` (absolute).
+    Hotspot {
+        id: ElementId,
+        name: String,
+        z: f64,
+        shape: cc_core::HotspotShape,
+        color: Color32,
+    },
+}
+
+/// The hotspots of the selected components: element, name, plan point,
+/// absolute elevation, marker shape and color.
+fn selected_hotspots(state: &AppState) -> Vec<(ElementId, String, DVec2, f64, cc_core::HotspotShape, Color32)> {
+    let p = state.project();
+    state
+        .selection
+        .iter()
+        .take(50)
+        .filter(|id| !p.is_pinned(**id))
+        .filter_map(|id| {
+            let e = p.element(*id)?;
+            let ElementKind::Component(c) = &e.kind else { return None };
+            let cc_core::TypeData::Component { def, .. } = &p.element_type(e.type_id)?.data else { return None };
+            let rot = DVec2::from_angle(c.rotation_deg.to_radians());
+            let base = p.level_elevation(e.level) + c.base_offset;
+            let positions = def.hotspot_positions(&c.hotspots);
+            Some(
+                def.hotspots
+                    .iter()
+                    .filter_map(|h| {
+                        let at = positions.get(&h.name)?;
+                        let [r, g, b, a] = h.color;
+                        let color = Color32::from_rgba_unmultiplied(r, g, b, a);
+                        Some((*id, h.name.clone(), c.position + rot.rotate(at.truncate()), base + at.z, h.shape, color))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .flatten()
+        .collect()
+}
+
+/// Draw a hotspot marker of `shape` centered at `c`.
+fn hotspot_marker(painter: &egui::Painter, c: Pos2, shape: cc_core::HotspotShape, color: Color32) {
+    use cc_core::HotspotShape as S;
+    let r = 5.5;
+    let stroke = Stroke::new(1.5, Color32::from_gray(40));
+    let poly = |pts: Vec<Pos2>| painter.add(egui::Shape::convex_polygon(pts, color, stroke));
+    match shape {
+        S::Circle => {
+            painter.circle(c, r, color, stroke);
+        }
+        S::Square => {
+            painter.rect(
+                egui::Rect::from_center_size(c, egui::vec2(2.0 * r, 2.0 * r)),
+                0.0,
+                color,
+                stroke,
+                egui::StrokeKind::Middle,
+            );
+        }
+        S::Diamond => {
+            poly(vec![
+                c + egui::vec2(0.0, -r),
+                c + egui::vec2(r, 0.0),
+                c + egui::vec2(0.0, r),
+                c + egui::vec2(-r, 0.0),
+            ]);
+        }
+        S::Triangle => {
+            poly(vec![c + egui::vec2(0.0, -r), c + egui::vec2(r, r * 0.8), c + egui::vec2(-r, r * 0.8)]);
+        }
+        S::TriangleDown => {
+            poly(vec![c + egui::vec2(-r, -r * 0.8), c + egui::vec2(r, -r * 0.8), c + egui::vec2(0.0, r)]);
+        }
+    }
 }
 
 /// Transient state of the active tool.
@@ -1529,7 +1605,7 @@ fn component_tool(
     let rotation = state.interaction.rotation;
     if let Some(cc_core::TypeData::Component { def, .. }) = state.project().element_type(type_id).map(|t| &t.data) {
         let rot = DVec2::from_angle(rotation.to_radians());
-        let (parts, _) = def.resolve(&Default::default());
+        let (parts, _) = cc_geom::resolve_pieces(def, &Default::default(), &[]);
         for part in parts.iter().filter(|p| p.in_plan && !p.void) {
             let outline: Vec<Pos2> = part.footprint.iter().map(|p| xf.to_screen(s.point + rot.rotate(*p))).collect();
             painter.add(egui::Shape::closed_line(outline, Stroke::new(1.5, PREVIEW)));
@@ -2941,6 +3017,12 @@ fn select(
         Vec::new()
     };
     let grip_at = |p: Pos2| grips.iter().find(|g| xf.to_screen(g.2).distance(p) <= 7.0).copied();
+    // Hotspots of selected scripted components.
+    let spots = if movable && state.interaction.drag.is_none() { selected_hotspots(state) } else { Vec::new() };
+    let spot_at = |p: Pos2| spots.iter().find(|s| xf.to_screen(s.2).distance(p) <= 7.0).cloned();
+    for (.., at, _, shape, color) in &spots {
+        hotspot_marker(painter, xf.to_screen(*at), *shape, *color);
+    }
     let bend_at = |p: Pos2| {
         bends.iter().find(|(.., arc)| xf.to_screen(arc.point(arc.length() * 0.5)).distance(p) <= 7.0).copied()
     };
@@ -2970,6 +3052,10 @@ fn select(
         // A tag is dragged on its own, away from its element.
         if movable && let Some(tag) = drawing.tag_at(w) {
             state.interaction.drag = Some(Drag::Tag { tag, start: w });
+            return;
+        }
+        if let Some((id, name, _, z, shape, color)) = spot_at(origin) {
+            state.interaction.drag = Some(Drag::Hotspot { id, name, z, shape, color });
             return;
         }
         if let Some((id, at_start, _, fixed)) = grip_at(origin) {
@@ -3029,6 +3115,25 @@ fn select(
             state.interaction.drag = None;
             let end = if at_start { "start" } else { "end" };
             let command = modify_cmd::ElementMoveEnd { id: id.0, end: end.into(), point: s.point.to_array() };
+            crate::actions::run_command(state, command);
+        }
+        return;
+    }
+
+    // Dragging a hotspot: it snaps like a drawing point and keeps its elevation.
+    if let (Some(Drag::Hotspot { id, name, z, shape, color }), Some(raw)) = (state.interaction.drag.clone(), raw) {
+        let level = state.project().element(id).map(|e| e.level);
+        let s = snap_at(state, level, raw, None, &[], xf.scale, shift);
+        draw_snap(painter, xf, s);
+        hotspot_marker(painter, xf.to_screen(s.point), shape, color);
+        if resp.drag_stopped() {
+            state.interaction.drag = None;
+            let command = cc_engine::commands::component_script::ComponentHotspotMove {
+                element: id.0,
+                name,
+                point: [s.point.x, s.point.y, z],
+                world: true,
+            };
             crate::actions::run_command(state, command);
         }
         return;
@@ -3103,7 +3208,7 @@ fn select(
                 }
             }
             // Handled above while the pointer is over the view.
-            Some(Drag::Grip { .. } | Drag::Bend { .. }) => {}
+            Some(Drag::Grip { .. } | Drag::Bend { .. } | Drag::Hotspot { .. }) => {}
             Some(Drag::Tag { tag, start }) => {
                 if let (Some(raw), Some(view)) = (raw.or(state.cursor), state.active_view)
                     && raw.distance(start) > 1e-6
