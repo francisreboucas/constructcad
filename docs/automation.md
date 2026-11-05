@@ -164,6 +164,14 @@ Floors, ceilings, roofs, foundation slabs and masses take their outline as `curv
 {"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
 ```
 
+### Terrain
+
+`topography_create` makes a terrain surface from measured points `[x, y, z]` (elevations above the level) inside a `boundary` or `curves`; with neither, the convex hull of the points bounds it. The boundary's vertices take the elevations the points give them, and the earth closes down to a flat base `base_depth` (default 2 m) below the lowest point, so sections cut it as a solid. `element_get` shows its lowest and highest elevations, area, volume and any warnings (`few-points`, `collinear`, `boundary-crossing`). `topography_points_set` replaces the points or changes, removes and adds them by index; `sketch_set` redraws the boundary. A terrain type sets the earth material and the contour lines' interval and majors (`topography_type_create`, `type_set`).
+
+```text
+{"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
+```
+
 Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, write a [Lua script](#lua-scripts), call `ccad run` from a shell script or use an agent over MCP.
 
 ## Lua scripts

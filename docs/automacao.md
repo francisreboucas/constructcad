@@ -164,6 +164,14 @@ Pisos, forros, telhados, radiers e massas recebem o contorno como `curves` em ve
 {"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
 ```
 
+### Terreno
+
+`topography_create` cria uma superfície de terreno a partir de pontos medidos `[x, y, z]` (cotas acima do nível) dentro de um contorno `boundary` ou `curves`; sem nenhum dos dois, o contorno convexo dos pontos o limita. Os vértices do contorno recebem as cotas que os pontos lhes dão, e a terra fecha até uma base plana `base_depth` (2 m por padrão) abaixo do ponto mais baixo, então os cortes a cortam como um sólido. `element_get` mostra as cotas mínima e máxima, a área, o volume e os avisos (`few-points`, `collinear`, `boundary-crossing`). `topography_points_set` substitui os pontos ou altera, remove e adiciona pontos pelo índice; `sketch_set` redesenha o contorno. Um tipo de terreno define o material da terra e o intervalo e as mestras das curvas de nível (`topography_type_create`, `type_set`).
+
+```text
+{"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
+```
+
 Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, escreva um [script Lua](#scripts-lua), chame `ccad run` a partir de um script de shell ou use um agente via MCP.
 
 ## Scripts Lua

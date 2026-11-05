@@ -2228,6 +2228,11 @@ cmd-desc-shaft = 通過する床、天井、屋根を切り抜く垂直開口 (�
 tpl-type-shaft = シャフト
 tx-create-shaft = シャフトを作成
 tx-create-shaft-type = シャフトタイプを作成
+category-topography = 地形
+tpl-type-topography = 地形
+tpl-mat-earth = 土
+tx-create-topography = 地形を作成
+tx-create-topography-type = 地形タイプを作成
 
 # Attached wall tops
 tool-attach-top = 上部をアタッチ

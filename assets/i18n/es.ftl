@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Dibuja una abertura vertical (patinillo, ducto, hueco de escale
 tpl-type-shaft = Patinillo
 tx-create-shaft = Crear patinillo
 tx-create-shaft-type = Crear tipo de patinillo
+category-topography = Terrenos
+tpl-type-topography = Terreno
+tpl-mat-earth = Tierra
+tx-create-topography = Crear terreno
+tx-create-topography-type = Crear tipo de terreno
 
 # Attached wall tops
 tool-attach-top = Enlazar parte superior

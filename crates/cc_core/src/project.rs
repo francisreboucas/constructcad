@@ -309,10 +309,6 @@ impl Project {
             (&n("tpl-type-conduit-25"), TypeData::Conduit { diameter: 0.025, material: n("tpl-mat-pvc") }),
             (&n("tpl-type-conduit-32"), TypeData::Conduit { diameter: 0.032, material: n("tpl-mat-pvc") }),
             (&n("tpl-type-room"), TypeData::Room {}),
-            (
-                &n("tpl-type-topography"),
-                TypeData::Topography { material: n("tpl-mat-earth"), contour_interval: 1.0, major_every: 5 },
-            ),
             (&n("tpl-type-grid"), TypeData::Grid { bubble: 8.0 }),
             (&n("tpl-type-dimension"), TypeData::Dimension { text_size: 2.5 }),
             (&n("tpl-type-text"), TypeData::Text { size: 2.5, symbol: crate::LeaderSymbol::Arrow }),

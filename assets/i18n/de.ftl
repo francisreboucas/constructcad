@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Zeichnet eine vertikale Öffnung (Schacht, Durchbruch, Treppena
 tpl-type-shaft = Schacht
 tx-create-shaft = Schacht erstellen
 tx-create-shaft-type = Schachttyp erstellen
+category-topography = Gelände
+tpl-type-topography = Gelände
+tpl-mat-earth = Erdreich
+tx-create-topography = Gelände erstellen
+tx-create-topography-type = Geländetyp erstellen
 
 # Attached wall tops
 tool-attach-top = Oberkante anbinden

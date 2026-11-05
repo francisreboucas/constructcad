@@ -281,6 +281,9 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
     if geom.solids_of(id).next().is_some() {
         derived.insert("volume".into(), json!(geom.volume(id)));
     }
+    if let Some(g) = geom.topographies.get(&id) {
+        super::topography::derived(g, &mut derived);
+    }
     if let Some(beam) = geom.beams.get(&id) {
         // Where each end is framed: a column's face, other beams, or free.
         let framing = |end: cc_geom::BeamEnd| match end {

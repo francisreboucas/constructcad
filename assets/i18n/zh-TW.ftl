@@ -2228,6 +2228,11 @@ cmd-desc-shaft = 繪製垂直開口（管道間、豎井、樓梯井），切穿
 tpl-type-shaft = 豎井
 tx-create-shaft = 建立豎井
 tx-create-shaft-type = 建立豎井類型
+category-topography = 地形
+tpl-type-topography = 地形
+tpl-mat-earth = 土壤
+tx-create-topography = 建立地形
+tx-create-topography-type = 建立地形類型
 
 # Attached wall tops
 tool-attach-top = 附著頂部

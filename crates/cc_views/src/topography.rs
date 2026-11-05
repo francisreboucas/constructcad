@@ -84,7 +84,7 @@ fn above(t: &[DVec3; 3], z: f64) -> Option<Vec<DVec2>> {
 mod tests {
     use crate::drawing::{LineStyle, Prim};
     use cc_core::topography::Topography;
-    use cc_core::{Category, Document, Element, ElementId, ElementKind, Project};
+    use cc_core::{Document, Element, ElementId, ElementKind, Project};
     use cc_geom::ModelGeometry;
     use glam::{DVec2, DVec3};
 
@@ -92,7 +92,16 @@ mod tests {
     fn slope() -> (Project, ElementId) {
         let mut doc = Document::new(Project::from_template());
         let level = doc.project.levels[0].id;
-        let ty = doc.project.default_type(Category::Topography).unwrap();
+        let ty = doc.edit("type", |e| {
+            let id = cc_core::ElementTypeId(e.alloc_id());
+            e.add_type(cc_core::ElementType {
+                id,
+                name: "Terreno".into(),
+                data: cc_core::TypeData::Topography { material: "Terra".into(), contour_interval: 1.0, major_every: 5 },
+                info: Default::default(),
+                uid: Default::default(),
+            })
+        });
         let points = vec![
             DVec3::new(0.0, 0.0, 0.0),
             DVec3::new(10.0, 0.0, 4.0),

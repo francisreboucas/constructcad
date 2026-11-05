@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Disegna un’apertura verticale (cavedio, cavedio impianti, van
 tpl-type-shaft = Cavedio
 tx-create-shaft = Crea cavedio
 tx-create-shaft-type = Crea tipo di cavedio
+category-topography = Terreni
+tpl-type-topography = Terreno
+tpl-mat-earth = Terra
+tx-create-topography = Crea terreno
+tx-create-topography-type = Crea tipo di terreno
 
 # Attached wall tops
 tool-attach-top = Collega sommità

@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Desenha uma abertura vertical (poço, duto, vazio de escada) qu
 tpl-type-shaft = Shaft
 tx-create-shaft = Criar shaft
 tx-create-shaft-type = Criar tipo de shaft
+category-topography = Terrenos
+tpl-type-topography = Terreno
+tpl-mat-earth = Terra
+tx-create-topography = Criar terreno
+tx-create-topography-type = Criar tipo de terreno
 
 # Attached wall tops
 tool-attach-top = Prender topo

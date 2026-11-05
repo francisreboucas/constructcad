@@ -2229,6 +2229,11 @@ cmd-desc-shaft = Креслить вертикальний отвір (шахт�
 tpl-type-shaft = Шахта
 tx-create-shaft = Створити шахту
 tx-create-shaft-type = Створити тип шахти
+category-topography = Рельєф
+tpl-type-topography = Рельєф
+tpl-mat-earth = Ґрунт
+tx-create-topography = Створити рельєф
+tx-create-topography-type = Створити тип рельєфу
 
 # Attached wall tops
 tool-attach-top = Прикріпити верх

@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Rysuje pionowy otwór (szyb, kanał, dusza schodów), który pr
 tpl-type-shaft = Szyb
 tx-create-shaft = Utwórz szyb
 tx-create-shaft-type = Utwórz typ szybu
+category-topography = Teren
+tpl-type-topography = Teren
+tpl-mat-earth = Grunt
+tx-create-topography = Utwórz teren
+tx-create-topography-type = Utwórz typ terenu
 
 # Attached wall tops
 tool-attach-top = Dołącz górę

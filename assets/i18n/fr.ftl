@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Dessine une ouverture verticale (gaine, trémie, cage d’escal
 tpl-type-shaft = Trémie
 tx-create-shaft = Créer une trémie
 tx-create-shaft-type = Créer un type de trémie
+category-topography = Terrains
+tpl-type-topography = Terrain
+tpl-mat-earth = Terre
+tx-create-topography = Créer un terrain
+tx-create-topography-type = Créer un type de terrain
 
 # Attached wall tops
 tool-attach-top = Attacher le haut

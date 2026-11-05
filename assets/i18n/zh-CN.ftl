@@ -2228,6 +2228,11 @@ cmd-desc-shaft = 绘制垂直洞口（管井、竖井、楼梯井），切穿其
 tpl-type-shaft = 竖井
 tx-create-shaft = 创建竖井
 tx-create-shaft-type = 创建竖井类型
+category-topography = 地形
+tpl-type-topography = 地形
+tpl-mat-earth = 土壤
+tx-create-topography = 创建地形
+tx-create-topography-type = 创建地形类型
 
 # Attached wall tops
 tool-attach-top = 附着顶部

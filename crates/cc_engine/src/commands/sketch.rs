@@ -237,7 +237,7 @@ impl Command for SketchGet {
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SketchSet {
-    /// Element id (a floor, ceiling, roof, mass or shaft).
+    /// Element id (a floor, ceiling, roof, mass, shaft or terrain).
     pub id: u64,
     /// The curves, closed into loops.
     pub curves: Vec<CurveArg>,
@@ -279,9 +279,13 @@ impl Command for SketchSet {
                 sh.outline = outline(&sketch)?;
                 sh.sketch = Some(sketch);
             }
+            ElementKind::Topography(t) => {
+                t.boundary = outline(&sketch)?;
+                t.sketch = Some(sketch);
+            }
             _ => {
                 return Err(EngineError::invalid(
-                    "only floors, ceilings, roofs, masses and shafts have a sketched outline",
+                    "only floors, ceilings, roofs, masses, shafts and terrain have a sketched outline",
                 ));
             }
         }

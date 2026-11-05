@@ -2230,6 +2230,11 @@ cmd-desc-shaft = ແຕ້ມຊ່ອງເປີດຕາມແນວຕັ້
 tpl-type-shaft = ຊ່ອງຕັ້ງ
 tx-create-shaft = ສ້າງຊ່ອງຕັ້ງ
 tx-create-shaft-type = ສ້າງປະເພດຊ່ອງຕັ້ງ
+category-topography = ພູມສັນຖານ
+tpl-type-topography = ພູມສັນຖານ
+tpl-mat-earth = ດິນ
+tx-create-topography = ສ້າງພູມສັນຖານ
+tx-create-topography-type = ສ້າງປະເພດພູມສັນຖານ
 
 # Attached wall tops
 tool-attach-top = ຕິດດ້ານເທິງ

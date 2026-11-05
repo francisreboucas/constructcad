@@ -2228,6 +2228,11 @@ cmd-desc-shaft = Draws a vertical opening (duct, chase, stairwell) that cuts the
 tpl-type-shaft = Shaft
 tx-create-shaft = Create Shaft
 tx-create-shaft-type = Create Shaft Type
+category-topography = Topography
+tpl-type-topography = Terrain
+tpl-mat-earth = Earth
+tx-create-topography = Create Terrain
+tx-create-topography-type = Create Terrain Type
 
 # Attached wall tops
 tool-attach-top = Attach Top
