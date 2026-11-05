@@ -399,6 +399,10 @@ pub fn template_properties(m: &mut Material, class: MaterialClass) {
             set(30.0, 0.035, 1030.0);
             Pattern::Insulation
         }
+        MaterialClass::Earth => {
+            set(1800.0, 1.5, 1000.0);
+            Pattern::Sand
+        }
         _ => Pattern::None,
     };
     m.identity.class = class;

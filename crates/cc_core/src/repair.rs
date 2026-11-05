@@ -93,6 +93,7 @@ fn element_is_valid(e: &Element) -> bool {
         ElementKind::Mass(m) => m.is_valid(),
         ElementKind::Sweep(s) => s.is_valid(),
         ElementKind::Shaft(s) => s.is_valid() && top_ok(s.top),
+        ElementKind::Topography(t) => t.is_valid(),
     }
 }
 
@@ -154,6 +155,16 @@ impl Project {
                 TypeData::Dimension { text_size } => repairs += usize::from(fix_positive(text_size, 2.5)),
                 TypeData::Text { size, .. } => repairs += usize::from(fix_positive(size, 2.5)),
                 TypeData::Room {} | TypeData::CadImport {} | TypeData::Mass { .. } | TypeData::Shaft {} => {}
+                TypeData::Topography { contour_interval, major_every, .. } => {
+                    if !(contour_interval.is_finite() && *contour_interval >= 0.01) {
+                        *contour_interval = crate::types::default_contour_interval();
+                        repairs += 1;
+                    }
+                    if *major_every == 0 {
+                        *major_every = 1;
+                        repairs += 1;
+                    }
+                }
                 TypeData::Column { section, .. } => match section {
                     crate::ColumnSection::Rectangular { width, depth } => {
                         repairs += usize::from(fix_positive(width, 0.2)) + usize::from(fix_positive(depth, 0.2));
@@ -341,6 +352,7 @@ impl Project {
                 repairs += before - cuts.len();
             }
             match &mut e.kind {
+                ElementKind::Topography(t) => repairs += t.repair(),
                 ElementKind::Stair(s) => repairs += s.layout.repair(),
                 ElementKind::Ramp(r) => repairs += r.layout.repair(),
                 ElementKind::Railing(r) => {

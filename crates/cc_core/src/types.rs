@@ -34,10 +34,12 @@ pub enum Category {
     Sweep,
     /// Shaft openings through floors, ceilings and roofs.
     Shaft,
+    /// Terrain surfaces.
+    Topography,
 }
 
 impl Category {
-    pub const ALL: [Category; 24] = [
+    pub const ALL: [Category; 25] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -62,10 +64,11 @@ impl Category {
         Category::CadImport,
         Category::Mass,
         Category::Shaft,
+        Category::Topography,
     ];
 
     /// Categories with physical elements (shown in legends and 3D).
-    pub const MODEL: [Category; 17] = [
+    pub const MODEL: [Category; 18] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -83,10 +86,11 @@ impl Category {
         Category::Railing,
         Category::Sweep,
         Category::Component,
+        Category::Topography,
     ];
 
     /// Categories that can be listed in a schedule.
-    pub const SCHEDULABLE: [Category; 19] = [
+    pub const SCHEDULABLE: [Category; 20] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -106,6 +110,7 @@ impl Category {
         Category::Component,
         Category::Room,
         Category::Mass,
+        Category::Topography,
     ];
 
     pub fn is_model(self) -> bool {
@@ -132,6 +137,7 @@ impl Category {
             Category::Railing => "category-railing",
             Category::Sweep => "category-sweep",
             Category::Shaft => "category-shaft",
+            Category::Topography => "category-topography",
             Category::Component => "category-component",
             Category::Foundation => "category-foundation",
             Category::Rebar => "category-rebar",
@@ -378,6 +384,23 @@ pub enum TypeData {
     },
     /// Shaft openings (no properties of their own).
     Shaft {},
+    /// Terrain surfaces: the earth `material` they are cut in, and the
+    /// spacing of their contour lines, every `major_every`-th one a major.
+    Topography {
+        material: String,
+        #[serde(default = "crate::types::default_contour_interval")]
+        contour_interval: f64,
+        #[serde(default = "crate::types::default_major_every")]
+        major_every: u32,
+    },
+}
+
+pub(crate) fn default_contour_interval() -> f64 {
+    1.0
+}
+
+pub(crate) fn default_major_every() -> u32 {
+    5
 }
 
 impl TypeData {
@@ -404,6 +427,7 @@ impl TypeData {
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
             | TypeData::Mass { material }
+            | TypeData::Topography { material, .. }
             | TypeData::Sweep { material, .. } => vec![material.as_str()],
             TypeData::Component { def, .. } => def
                 .items
@@ -470,6 +494,7 @@ impl TypeData {
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
             | TypeData::Mass { material }
+            | TypeData::Topography { material, .. }
             | TypeData::Sweep { material, .. } => fix(material),
             TypeData::Component { def, .. } => {
                 def.items.iter_mut().for_each(|i| fix(&mut i.material));
@@ -624,6 +649,7 @@ impl ElementType {
             TypeData::Mass { .. } => Category::Mass,
             TypeData::Sweep { .. } => Category::Sweep,
             TypeData::Shaft {} => Category::Shaft,
+            TypeData::Topography { .. } => Category::Topography,
         }
     }
 
@@ -721,6 +747,7 @@ impl ElementType {
             | TypeData::Ramp { material, .. }
             | TypeData::Railing { material, .. }
             | TypeData::Mass { material }
+            | TypeData::Topography { material, .. }
             | TypeData::Sweep { material, .. } => material,
             TypeData::Component { def, .. } => def.main_material(),
             TypeData::Floor { .. } => self

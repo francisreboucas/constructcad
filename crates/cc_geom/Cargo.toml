@@ -12,6 +12,7 @@ cc_core.workspace = true
 cc_script.workspace = true
 glam.workspace = true
 earcutr.workspace = true
+spade.workspace = true
 
 [lints]
 workspace = true

@@ -141,6 +141,7 @@ impl Project {
             (&n("tpl-mat-porcelain"), [240, 240, 236], C::Ceramic),
             (&n("tpl-mat-steel"), [140, 146, 152], C::Metal),
             (&n("tpl-mat-pvc"), [236, 236, 230], C::Plastic),
+            (&n("tpl-mat-earth"), [150, 122, 88], C::Earth),
         ]
         .into_iter()
         .map(|(name, color, class)| {
@@ -308,6 +309,10 @@ impl Project {
             (&n("tpl-type-conduit-25"), TypeData::Conduit { diameter: 0.025, material: n("tpl-mat-pvc") }),
             (&n("tpl-type-conduit-32"), TypeData::Conduit { diameter: 0.032, material: n("tpl-mat-pvc") }),
             (&n("tpl-type-room"), TypeData::Room {}),
+            (
+                &n("tpl-type-topography"),
+                TypeData::Topography { material: n("tpl-mat-earth"), contour_interval: 1.0, major_every: 5 },
+            ),
             (&n("tpl-type-grid"), TypeData::Grid { bubble: 8.0 }),
             (&n("tpl-type-dimension"), TypeData::Dimension { text_size: 2.5 }),
             (&n("tpl-type-text"), TypeData::Text { size: 2.5, symbol: crate::LeaderSymbol::Arrow }),
@@ -1012,6 +1017,8 @@ pub(crate) fn template_default(key: &str) -> &'static str {
         "tpl-mat-glass" => "Vidro",
         "tpl-mat-gypsum" => "Gesso",
         "tpl-mat-screed" => "Contrapiso",
+        "tpl-mat-earth" => "Terra",
+        "tpl-type-topography" => "Terreno",
         "tpl-elev-north" => "Norte",
         "tpl-elev-south" => "Sul",
         "tpl-elev-east" => "Leste",

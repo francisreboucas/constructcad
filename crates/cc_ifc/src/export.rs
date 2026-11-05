@@ -1461,6 +1461,7 @@ impl<'a> Exporter<'a> {
             TypeData::Ceiling { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("CEILING")]),
             TypeData::Sweep { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("MOLDING")]),
             TypeData::Roof { .. } => ("IFCROOFTYPE", args![Value::Enum("NOTDEFINED")]),
+            TypeData::Topography { .. } => ("IFCGEOGRAPHICELEMENTTYPE", args![Value::Enum("TERRAIN")]),
             TypeData::Door { .. } => {
                 ("IFCDOORTYPE", args![Value::Enum("DOOR"), Value::Enum("NOTDEFINED"), Value::Null, Value::Null])
             }
@@ -1485,7 +1486,8 @@ impl<'a> Exporter<'a> {
             | TypeData::Foundation { material, .. }
             | TypeData::Pipe { material, .. }
             | TypeData::Conduit { material, .. }
-            | TypeData::Rebar { material, .. } => Some(self.material(material)),
+            | TypeData::Rebar { material, .. }
+            | TypeData::Topography { material, .. } => Some(self.material(material)),
             TypeData::Component { def, .. } if !def.main_material().is_empty() => {
                 Some(self.material(def.main_material()))
             }

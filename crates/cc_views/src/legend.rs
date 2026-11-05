@@ -217,7 +217,8 @@ pub fn legend(project: &Project, types: &[ElementTypeId], scale: u32) -> Drawing
             | TypeData::Text { .. }
             | TypeData::CadImport {}
             | TypeData::Mass { .. }
-            | TypeData::Shaft {} => {}
+            | TypeData::Shaft {}
+            | TypeData::Topography { .. } => {}
         }
         let width = plan_bounds.map_or(0.0, |(lo, hi)| hi.x - lo.x);
         let text_x = sample.max(width).max(t.opening_size().map_or(0.0, |(w, _)| w + 0.4)) + 6.0 * mm;
