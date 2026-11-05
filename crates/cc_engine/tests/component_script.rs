@@ -191,3 +191,33 @@ fn hotspots_move_in_the_world_too_and_survive_a_save() {
     assert!((volume(&mut t, e) - 0.8).abs() < 1e-9, "{}", volume(&mut t, e));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn the_example_cabinet_loads_and_survives_ifc() {
+    let mut s = Session::default();
+    let source = include_str!("../../../examples/components/cabinet.lua");
+    let def = json!({ "items": [{ "name": "Script", "shape": { "Script": { "source": "" } } }] });
+    let ty = run(&mut s, "component_create", json!({ "name": "Cabinet", "def": def }))["id"].clone();
+    let out = run(&mut s, "component_script_set", json!({ "type": ty, "piece": "Script", "source": source }));
+    assert!(out["errors"].as_array().unwrap().is_empty(), "{out}");
+    let e = run(&mut s, "component_place", json!({ "type": ty, "position": [0, 0] }))["id"].as_u64().unwrap();
+    let two = volume(&mut s, e);
+    assert!(two > 0.01, "{two}");
+    run(&mut s, "component_params_set", json!({ "elements": [e], "name": "doors", "value": 3 }));
+    run(&mut s, "component_params_set", json!({ "type": ty, "name": "handle", "value": "none" }));
+    assert!(volume(&mut s, e) > 0.01);
+
+    // IFC export writes the pieces the script made.
+    let dir = std::env::temp_dir().join(format!("cc_script_ifc_{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("cabinet.ifc");
+    run(&mut s, "ifc_export", json!({ "path": path }));
+    let mut t = Session::default();
+    run(&mut t, "ifc_import", json!({ "path": path }));
+    let list = run(&mut t, "elements_list", json!({ "category": "component" }));
+    let ids: Vec<u64> = list.as_array().unwrap().iter().filter_map(|x| x["id"].as_u64()).collect();
+    assert_eq!(ids.len(), 1, "{list}");
+    let imported = volume(&mut t, ids[0]);
+    assert!((imported - volume(&mut s, e)).abs() < 1e-3, "{imported}");
+    let _ = std::fs::remove_dir_all(&dir);
+}
