@@ -4,7 +4,7 @@
 //! on and off, grants the `files` permission, removes them, and installs and
 //! updates them from the community index.
 //!
-//! Plugins run sandboxed in `cc_lua`; installing is `cc_lua::store` (checked
+//! Plugins run sandboxed in `cc_plugins`; installing is `cc_plugins::store` (checked
 //! archives), and the only network use is here: the index and the archives
 //! it lists, downloaded over HTTPS in background threads with bounded sizes,
 //! only when the user opens the *Available* tab or installs.
@@ -14,8 +14,8 @@ use crate::state::AppState;
 use crate::t;
 use crate::theme::{self, PALETTE};
 use cc_engine::Extension;
-use cc_lua::store::{self, Index, IndexPlugin, IndexVersion};
-use cc_lua::{Limits, Permissions, PluginHost};
+use cc_plugins::store::{self, Index, IndexPlugin, IndexVersion};
+use cc_plugins::{Limits, Permissions, PluginHost};
 use egui::{Context, RichText, Stroke, Ui};
 use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -548,7 +548,7 @@ fn available_tab(ui: &mut Ui, ctx: &Context, state: &mut AppState) {
         let Some(best) = best else {
             let current = env!("CARGO_PKG_VERSION");
             let why = match shown.and_then(|v| v.min_app.clone()) {
-                Some(min) if shown.is_some_and(|v| v.api <= cc_lua::API_VERSION) => {
+                Some(min) if shown.is_some_and(|v| v.api <= cc_plugins::API_VERSION) => {
                     t!("plug-needs-app", "version" => min, "current" => current)
                 }
                 _ => t!("plug-incompatible"),

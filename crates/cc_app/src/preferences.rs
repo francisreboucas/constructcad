@@ -202,7 +202,7 @@ fn shortcut_lines(text: &str) -> BTreeMap<String, String> {
 fn id_lines(text: &str) -> BTreeSet<String> {
     text.lines()
         .map(str::trim)
-        .filter(|id| cc_lua::plugin::valid_id(id))
+        .filter(|id| cc_plugins::plugin::valid_id(id))
         .take(MAX_PLUGIN_IDS)
         .map(str::to_string)
         .collect()

@@ -5,7 +5,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use cc_engine::{CommandKind, ErrorCode, Session};
-use cc_lua::{Limits, Permissions, Plugin, PluginHost, ScriptOptions, run_script};
+use cc_plugins::{Limits, Permissions, Plugin, PluginHost, ScriptOptions, run_script};
 use serde_json::{Value, json};
 use std::path::{Path, PathBuf};
 

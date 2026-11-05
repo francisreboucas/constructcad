@@ -89,10 +89,10 @@ fn parse_options(args: Vec<String>) -> Result<Options, String> {
 /// The plugins of `--plugins`, each granted what its manifest asks for (the
 /// user named the folders); plugins that fail to load are reported on
 /// standard error and left out.
-fn plugins(o: &Options) -> cc_lua::PluginHost {
-    let mut host = cc_lua::PluginHost::new();
+fn plugins(o: &Options) -> cc_plugins::PluginHost {
+    let mut host = cc_plugins::PluginHost::new();
     for folder in &o.plugins {
-        for e in host.load_folder(folder, cc_lua::Limits::default(), |m| Some(m.requested())) {
+        for e in host.load_folder(folder, cc_plugins::Limits::default(), |m| Some(m.requested())) {
             eprintln!("ccad: plugin not loaded: {e}");
         }
     }
@@ -237,7 +237,7 @@ fn main() -> ExitCode {
                     Ok(b) => b,
                     Err(e) => return usage_error(&format!("{archive}: {e}")),
                 };
-                match cc_lua::store::install_archive(&bytes, std::path::Path::new(folder)) {
+                match cc_plugins::store::install_archive(&bytes, std::path::Path::new(folder)) {
                     Ok(dir) => {
                         print(&json!({ "installed": dir }));
                         ExitCode::SUCCESS
@@ -246,7 +246,7 @@ fn main() -> ExitCode {
                 }
             }
             [action, id, folder] if action == "remove" => {
-                match cc_lua::store::uninstall(std::path::Path::new(folder), id) {
+                match cc_plugins::store::uninstall(std::path::Path::new(folder), id) {
                     Ok(()) => {
                         print(&json!({ "removed": id }));
                         ExitCode::SUCCESS
@@ -325,7 +325,7 @@ fn main() -> ExitCode {
                 Err(e) => return fail(&e),
             };
             let name = if file == "-" { "stdin" } else { file.as_str() };
-            let out = cc_lua::run_script(&mut s, &source, name, args, cc_lua::ScriptOptions::default());
+            let out = cc_plugins::run_script(&mut s, &source, name, args, cc_plugins::ScriptOptions::default());
             flush_messages(&mut s);
             for line in &out.output {
                 println!("{line}");

@@ -385,6 +385,6 @@ Every user-facing feature starts as an engine command; the app calls it rather t
 5. Regenerate the reference: `cargo run -p cc_cli -- reference > docs/commands.md` (a test fails while it is stale).
 6. In the app, call it with `Session::run(Command { … })`, `actions::run_command` or the `engine_edit` helpers (use `Session::run_merged` for dragged values). That also makes it recordable in macros.
 
-Commands added at run time implement `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) and are set on the session with `Session::set_extension`; `cc_lua::PluginHost` is the one for Lua plugins. `Session::commands`, `describe` and `kind_of` cover both, and `Session::execute` runs an extension command as one undo step (`Document::squash_since`).
+Commands added at run time implement `cc_engine::Extension` (`crates/cc_engine/src/extension.rs`) and are set on the session with `Session::set_extension`; `cc_plugins::PluginHost` is the one for Lua plugins. `Session::commands`, `describe` and `kind_of` cover both, and `Session::execute` runs an extension command as one undo step (`Document::squash_since`).
 
 Architecture details are in [AGENTS.md](../AGENTS.md).

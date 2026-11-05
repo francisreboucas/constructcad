@@ -5,7 +5,7 @@
 //! turns JSON values into Lua values and back, bounded in depth and size.
 //! [`object`] runs the scripts of scripted component pieces.
 //! The crate depends only on `cc_core`, so geometry can run scripts without
-//! the engine; `cc_lua` builds scripts and plugins over engine commands on
+//! the engine; `cc_plugins` builds scripts and plugins over engine commands on
 //! top of it.
 
 pub mod convert;

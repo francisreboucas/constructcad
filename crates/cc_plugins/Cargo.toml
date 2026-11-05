@@ -1,5 +1,5 @@
 [package]
-name = "cc_lua"
+name = "cc_plugins"
 description = "ConstructCAD Lua scripts and plugins: sandboxed Lua 5.4 over the engine's commands"
 version.workspace = true
 edition.workspace = true
