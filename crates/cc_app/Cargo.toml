@@ -22,6 +22,7 @@ cc_render.workspace = true
 cc_ifc.workspace = true
 cc_engine.workspace = true
 cc_lua.workspace = true
+cc_script.workspace = true
 eframe.workspace = true
 egui.workspace = true
 egui-wgpu.workspace = true

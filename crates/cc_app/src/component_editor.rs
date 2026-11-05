@@ -34,6 +34,43 @@ pub struct Editor {
     /// name while typing does not erase its references.
     refs: Vec<String>,
     error: Option<String>,
+    /// The script source last read (its hash) and why it did not load.
+    script: Option<(u64, Option<String>)>,
+}
+
+/// A new script piece's source: one parameter and a box.
+const STARTER_SCRIPT: &str = "param.length { \"width\", label = \"Width\", default = 0.6, instance = true }\n\
+param.length { \"height\", label = \"Height\", default = 0.8 }\n\
+\n\
+function geometry(p)\n\
+  return { box { 0, 0, 0, p.width, 0.5, p.height } }\n\
+end\n";
+
+/// Read the declarations of the editor's script piece when its source
+/// changed: they become the component's parameters and hotspots.
+fn sync_script(ed: &mut Editor) {
+    let Some(source) = ed.def.items.iter().find_map(|i| match &i.shape {
+        ComponentShape::Script { source } => Some(source.clone()),
+        _ => None,
+    }) else {
+        ed.script = None;
+        return;
+    };
+    let hash = {
+        use std::hash::{Hash, Hasher};
+        let mut h = std::collections::hash_map::DefaultHasher::new();
+        source.hash(&mut h);
+        h.finish()
+    };
+    if ed.script.as_ref().is_some_and(|(h, _)| *h == hash) {
+        return;
+    }
+    let error = match cc_script::declare(&source) {
+        Ok(decl) => cc_script::object::sync(&mut ed.def.params, &mut ed.def.hotspots, &decl).err(),
+        Err(e) => Some(e.to_string()),
+    };
+    ed.refs = ed.def.params.iter().map(|p| p.name.clone()).collect();
+    ed.script = Some((hash, error));
 }
 
 impl Editor {
@@ -49,6 +86,7 @@ impl Editor {
             selected: 0,
             renames: Vec::new(),
             error: None,
+            script: None,
         })
     }
 
@@ -95,6 +133,7 @@ impl Editor {
             selected: 0,
             renames: Vec::new(),
             error: None,
+            script: None,
         }
     }
 }
@@ -265,7 +304,7 @@ fn body(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
         let right = BODY_WIDTH - LEFT_WIDTH - 9.0 - 2.0 * ui.spacing().item_spacing.x - 12.0;
         crate::dialog::two_columns(ui, [LEFT_WIDTH, right], |ui, column| {
             if column == 0 {
-                params_table(ui, ed);
+                params_table(ui, ed, materials);
                 pieces(ui, ed, materials);
             } else {
                 preview(ui, ed);
@@ -348,7 +387,7 @@ fn connector_rows(ui: &mut Ui, connectors: &mut [cc_core::component::ComponentCo
     });
 }
 
-fn params_table(ui: &mut Ui, ed: &mut Editor) {
+fn params_table(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
     ui.label(theme::title(t!("comp-params")));
     let mut remove = None;
     egui::Grid::new("comp-params").num_columns(5).striped(true).spacing([8.0, 4.0]).show(ui, |ui| {
@@ -362,6 +401,21 @@ fn params_table(ui: &mut Ui, ed: &mut Editor) {
         let n = ed.def.params.len();
         for i in 0..n {
             let Some(p) = ed.def.params.get_mut(i) else { continue };
+            // A script's parameters are declared in the script: only their values change here.
+            if p.from_script {
+                ui.label(RichText::new(p.display()).monospace());
+                ui.label(tr(p.kind.key()));
+                let (_, changed) = crate::properties::param_editor(ui, p, p.value, &p.text, materials);
+                match changed {
+                    Some(crate::properties::ParamEdit::Number(v)) => p.value = v,
+                    Some(crate::properties::ParamEdit::Text(t)) => p.text = t,
+                    None => {}
+                }
+                ui.add_enabled(false, egui::Checkbox::new(&mut p.instance.clone(), ""));
+                ui.label("");
+                ui.end_row();
+                continue;
+            }
             let valid = expr::is_valid_name(&p.name);
             let edit = egui::TextEdit::singleline(&mut p.name);
             text_field(ui, 150.0, if valid { edit } else { edit.text_color(PALETTE.danger) });
@@ -487,6 +541,19 @@ fn pieces(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
         };
         let keys =
             ["comp-add-box", "comp-add-cylinder", "comp-add-extrusion", "comp-add-profile", "comp-add-revolution"];
+        let scripted = ed.def.has_script();
+        if !scripted && ui.button(t!("comp-add-script")).clicked() {
+            ed.def.items.push(ComponentItem {
+                name: t!("comp-field-script"),
+                shape: ComponentShape::Script { source: STARTER_SCRIPT.into() },
+                material: String::new(),
+                in_plan: true,
+                void: false,
+                plan_only: false,
+                detail: Default::default(),
+            });
+            ed.selected = ed.def.items.len() - 1;
+        }
         for (k, key) in keys.iter().enumerate() {
             if ui.button(tr(key)).clicked() {
                 let name = format!("{} {}", t!("comp-piece"), ed.def.items.len() + 1);
@@ -503,6 +570,10 @@ fn pieces(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
             }
         }
     });
+    sync_script(ed);
+    if let Some((_, Some(error))) = &ed.script {
+        ui.label(RichText::new(format!("{}: {error}", t!("comp-field-script"))).color(PALETTE.danger).size(11.0));
+    }
     let values = ed.def.values(&Default::default());
     let n = ed.def.items.len();
     let i = ed.selected;

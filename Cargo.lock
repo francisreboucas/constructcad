@@ -700,6 +700,7 @@ dependencies = [
  "cc_ifc",
  "cc_lua",
  "cc_render",
+ "cc_script",
  "cc_views",
  "eframe",
  "egui",

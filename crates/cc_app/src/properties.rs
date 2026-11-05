@@ -1209,6 +1209,76 @@ pub fn length_drag(value: &mut f64) -> DragValue<'_> {
     if unit.is_fractional() { drag } else { drag.suffix(format!(" {}", unit.symbol())) }
 }
 
+/// A new value typed in a [`param_editor`].
+pub enum ParamEdit {
+    Number(f64),
+    Text(String),
+}
+
+/// The widget of a component parameter of any kind: a drag value, a
+/// checkbox, a text box, or a list of its choices or of the project's
+/// materials. Returns its response and the new value when it changed.
+pub fn param_editor(
+    ui: &mut Ui,
+    p: &cc_core::ComponentParam,
+    number: f64,
+    text: &str,
+    materials: &[String],
+) -> (Response, Option<ParamEdit>) {
+    use cc_core::ParamKind;
+    match p.kind {
+        ParamKind::Boolean => {
+            let mut on = number != 0.0;
+            let r = ui.checkbox(&mut on, "");
+            let changed = r.changed().then(|| ParamEdit::Number(f64::from(u8::from(on))));
+            (r, changed)
+        }
+        ParamKind::Text => {
+            let mut t = text.to_string();
+            let r = ui.add(egui::TextEdit::singleline(&mut t).desired_width(160.0));
+            let changed =
+                (r.changed() && t.len() <= cc_core::component_script::MAX_TEXT_LEN).then_some(ParamEdit::Text(t));
+            (r, changed)
+        }
+        ParamKind::Choice | ParamKind::Material => {
+            let options: Vec<(String, String)> = if p.kind == ParamKind::Choice {
+                p.choices
+                    .iter()
+                    .map(|c| (c.key.clone(), if c.label.is_empty() { c.key.clone() } else { c.label.clone() }))
+                    .collect()
+            } else {
+                std::iter::once((String::new(), t!("param-material-default")))
+                    .chain(materials.iter().map(|m| (m.clone(), m.clone())))
+                    .collect()
+            };
+            let shown = options.iter().find(|(k, _)| k == text).map_or_else(
+                // A saved material that no longer exists keeps its name.
+                || if text.is_empty() { String::new() } else { format!("{text} ?") },
+                |(_, l)| l.clone(),
+            );
+            let mut chosen = None;
+            let r = egui::ComboBox::from_id_salt(("param", p.name.as_str()))
+                .selected_text(shown)
+                .width(160.0)
+                .show_ui(ui, |ui| {
+                    for (k, l) in &options {
+                        if ui.selectable_label(k == text, l).clicked() && k != text {
+                            chosen = Some(k.clone());
+                        }
+                    }
+                })
+                .response;
+            (r, chosen.map(ParamEdit::Text))
+        }
+        ParamKind::Length | ParamKind::Angle | ParamKind::Number => {
+            let mut v = number;
+            let r = ui.add(param_value(&mut v, p.kind));
+            let changed = r.changed().then_some(ParamEdit::Number(v));
+            (r, changed)
+        }
+    }
+}
+
 /// Drag value for a component parameter, with the unit of its kind.
 pub fn param_value(value: &mut f64, kind: cc_core::ParamKind) -> DragValue<'_> {
     match kind {
@@ -1422,27 +1492,56 @@ fn component_props(ui: &mut Ui, state: &mut AppState, el: &Element, c: &cc_core:
             }
         });
     }
+    let materials: Vec<String> = state.project().materials.iter().map(|m| m.name.clone()).collect();
+    if def.has_script()
+        && let Some(ty) = state.project().element_type(el.type_id)
+    {
+        let errors: Vec<String> =
+            cc_geom::instance_errors(ty, &def, el, Some(c)).into_iter().map(|(_, e)| e.to_string()).collect();
+        if !errors.is_empty() {
+            section(ui, "comp-script-errors", t!("section-script-errors"), |ui| {
+                for e in errors {
+                    ui.label(RichText::new(e).color(PALETTE.danger).size(11.0));
+                    ui.end_row();
+                }
+            });
+        }
+    }
     let instance: Vec<_> = def.params.iter().filter(|p| p.instance).cloned().collect();
     if !instance.is_empty() {
         section(ui, "comp-params", t!("section-instance-params"), |ui| {
             for p in instance {
-                let current = c.overrides.get(&p.name).copied();
-                let mut v = current.unwrap_or(p.value);
-                let (r, reset) = row(ui, &p.name, |ui| {
+                let number = c.overrides.get(&p.name).copied();
+                let text = c.text_overrides.get(&p.name).filter(|t| p.accepts_text(t)).cloned();
+                let overridden = if p.kind.is_text() { text.is_some() } else { number.is_some() };
+                let (r, changed, reset) = row(ui, p.display(), |ui| {
                     ui.horizontal(|ui| {
-                        let r = ui.add(param_value(&mut v, p.kind));
+                        let (r, changed) = param_editor(
+                            ui,
+                            &p,
+                            number.unwrap_or(p.value),
+                            text.as_deref().unwrap_or(&p.text),
+                            &materials,
+                        );
                         let reset = ui
-                            .add_enabled(current.is_some(), egui::Button::new("↺").small())
+                            .add_enabled(overridden, egui::Button::new("↺").small())
                             .on_hover_text(t!("hint-param-reset"));
-                        (r, reset.clicked())
+                        (r, changed, reset.clicked())
                     })
                     .inner
                 });
-                if r.changed() {
+                if let Some(value) = changed {
                     let name = p.name.clone();
                     modify(state, id, &format!("comp-param-{name}"), |e| {
                         if let ElementKind::Component(c) = &mut e.kind {
-                            c.overrides.insert(name, v);
+                            match value {
+                                ParamEdit::Number(v) => {
+                                    c.overrides.insert(name, v);
+                                }
+                                ParamEdit::Text(t) => {
+                                    c.text_overrides.insert(name, t);
+                                }
+                            }
                         }
                     });
                 }
@@ -1451,6 +1550,31 @@ fn component_props(ui: &mut Ui, state: &mut AppState, el: &Element, c: &cc_core:
                     crate::engine_edit::element(state, id, None, |x| {
                         if let ElementKind::Component(c) = &mut x.kind {
                             c.overrides.remove(&name);
+                            c.text_overrides.remove(&name);
+                        }
+                    });
+                }
+                finish(state, &r);
+            }
+        });
+    }
+    // Shared values: changing them changes every element of the type.
+    let shared: Vec<_> = def.params.iter().filter(|p| !p.instance && p.from_script).cloned().collect();
+    if !shared.is_empty() {
+        let type_id = el.type_id;
+        section(ui, "comp-type-params", t!("section-type-params"), |ui| {
+            for p in shared {
+                let (r, changed) = row(ui, p.display(), |ui| param_editor(ui, &p, p.value, &p.text, &materials));
+                if let Some(value) = changed {
+                    let name = p.name.clone();
+                    crate::engine_edit::element_type(state, type_id, Some(key((type_id, name.as_str()))), |t| {
+                        if let cc_core::TypeData::Component { def, .. } = &mut t.data
+                            && let Some(q) = def.params.iter_mut().find(|q| q.name == name)
+                        {
+                            match value {
+                                ParamEdit::Number(v) => q.value = v,
+                                ParamEdit::Text(t) => q.text = t,
+                            }
                         }
                     });
                 }
