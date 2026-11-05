@@ -513,6 +513,10 @@ fn draw_ramp(d: &mut Drawing2D, g: &cc_geom::RampGeom, cut_z: f64, element: cc_c
 /// layered wall meets another in a T, its core runs on through the other
 /// wall's outer layers to its core (layer cleanup).
 fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spacing: f64, detail: DetailLevel) {
+    if let Some(c) = &g.curtain {
+        draw_curtain(d, project, g, c, cut_z, spacing, detail);
+        return;
+    }
     let id = Some(g.element);
     let h = g.half;
     let states: Vec<ColumnCut> = g.columns.iter().map(|c| column_state(c, cut_z)).collect();
@@ -569,6 +573,76 @@ fn draw_wall(d: &mut Drawing2D, project: &Project, g: &WallGeom, cut_z: f64, spa
             && let Some(style) = style_of(state)
         {
             d.line(g.world(ur, -h), g.world(ul, h), style, id);
+        }
+    }
+}
+
+/// A curtain wall in plan: its mullions (cut with their material's pattern,
+/// or seen below the cut), a line along each glass panel and the outline of
+/// solid ones, and the pieces of component panels.
+fn draw_curtain(
+    d: &mut Drawing2D,
+    project: &Project,
+    g: &WallGeom,
+    c: &cc_geom::curtain::CurtainGeom,
+    cut_z: f64,
+    spacing: f64,
+    detail: DetailLevel,
+) {
+    use cc_core::curtain::CurtainPanel;
+    let id = Some(g.element);
+    let state = |z: (f64, f64)| {
+        if z.0 <= cut_z && cut_z <= z.1 {
+            Some(LineStyle::Cut)
+        } else if z.1 < cut_z {
+            Some(LineStyle::Projection)
+        } else {
+            None
+        }
+    };
+    for p in &c.panels {
+        let Some(cell) = c.layout.panels.get(p.cell) else { continue };
+        match &cell.panel {
+            CurtainPanel::Glass { .. } => {
+                if let Some(style) = state(p.z) {
+                    d.line(p.start, p.end, style, id);
+                }
+            }
+            CurtainPanel::Solid { thickness, material } => {
+                let (_, n) = p.frame();
+                let t = n * (thickness * 0.5);
+                let poly = vec![p.start - t, p.end - t, p.end + t, p.start + t];
+                match state(p.z) {
+                    Some(LineStyle::Cut) => {
+                        crate::cut::cut_fill(d, project, material, poly.clone(), spacing, id);
+                        d.polyline(&poly, true, LineStyle::Cut, id);
+                    }
+                    Some(style) => d.polyline(&poly, true, style, id),
+                    None => {}
+                }
+            }
+            CurtainPanel::Empty => {}
+            CurtainPanel::Component { .. } => {
+                for part in p.parts.iter().filter(|q| q.in_plan && !q.void && q.detail.shows(detail)) {
+                    if !part.faces.is_empty() {
+                        draw_mesh(d, &part.faces, cut_z, false, g.element);
+                    } else if let Some(style) = state((part.z0, part.z1)) {
+                        d.polyline(&part.footprint, true, style, id);
+                    }
+                }
+            }
+        }
+    }
+    for m in &c.mullions {
+        let Some(piece) = c.layout.mullions.get(m.piece) else { continue };
+        let poly = m.footprint.to_vec();
+        match state(m.z) {
+            Some(LineStyle::Cut) => {
+                crate::cut::cut_fill(d, project, &piece.mullion.material, poly.clone(), spacing, id);
+                d.polyline(&poly, true, LineStyle::Cut, id);
+            }
+            Some(style) => d.polyline(&poly, true, style, id),
+            None => {}
         }
     }
 }
