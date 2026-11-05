@@ -1489,6 +1489,7 @@ prop-supply-weight = Peso (acqua fredda)
 prop-system-kind = Convoglia
 prop-voltage = Tensione
 ribbon-mep = Impianti
+ribbon-massing-site = Masse e terreno
 ribbon-insert = Inserisci
 section-mep = Impianti tecnici
 sizing-apply = Applica diametri

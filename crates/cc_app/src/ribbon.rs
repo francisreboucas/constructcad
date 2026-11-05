@@ -397,6 +397,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
         (RibbonTab::Architecture, t!("ribbon-architecture")),
         (RibbonTab::Structure, t!("ribbon-structure")),
         (RibbonTab::Mep, t!("ribbon-mep")),
+        (RibbonTab::MassingSite, t!("ribbon-massing-site")),
         (RibbonTab::Insert, t!("ribbon-insert")),
         (RibbonTab::Modify, t!("ribbon-modify")),
         (RibbonTab::Annotate, t!("ribbon-annotate")),
@@ -525,6 +526,7 @@ fn tab_row(ui: &mut Ui, state: &mut AppState, available: f32) {
                     RibbonTab::Architecture => architecture_tab(ui, state),
                     RibbonTab::Structure => structure_tab(ui, state),
                     RibbonTab::Mep => mep_tab(ui, state),
+                    RibbonTab::MassingSite => massing_site_tab(ui, state),
                     RibbonTab::Insert => insert_tab(ui, state),
                     RibbonTab::Modify => modify_tab(ui, state),
                     RibbonTab::Annotate => annotate_tab(ui, state),
@@ -601,10 +603,6 @@ fn place(category: Category) -> UiCommand {
 fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     use Category::*;
     let buttons = |list: &[Category]| list.iter().map(|c| place(*c)).collect::<Vec<_>>();
-    group(ui, t!("group-massing"), |ui| {
-        command_buttons(ui, state, &[place(Mass), UiCommand::PushPull]);
-        stacks(ui, state, &[&[UiCommand::MassWalls, UiCommand::MassSlabs, UiCommand::MassRoof]]);
-    });
     group(ui, t!("group-build"), |ui| command_buttons(ui, state, &buttons(&[Wall, Door, Window])));
     group(ui, t!("group-horizontal"), |ui| command_buttons(ui, state, &buttons(&[Floor, Ceiling, Roof, Shaft])));
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
@@ -618,6 +616,14 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     });
     group(ui, t!("group-datum"), |ui| command_buttons(ui, state, &[place(Grid), UiCommand::AlignGridEnds]));
     group(ui, t!("group-selection"), |ui| command_button(ui, state, UiCommand::Select));
+}
+
+/// Conceptual masses (and the buildings made from them) and the terrain.
+fn massing_site_tab(ui: &mut Ui, state: &mut AppState) {
+    group(ui, t!("group-massing"), |ui| {
+        command_buttons(ui, state, &[place(Category::Mass), UiCommand::PushPull]);
+        stacks(ui, state, &[&[UiCommand::MassWalls, UiCommand::MassSlabs, UiCommand::MassRoof]]);
+    });
 }
 
 fn structure_tab(ui: &mut Ui, state: &mut AppState) {

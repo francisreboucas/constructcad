@@ -1481,6 +1481,7 @@ tx-modify-system = システムを修正
 tx-delete-system = システムを削除
 tx-assign-system = システムに割り当て
 ribbon-mep = MEP (設備)
+ribbon-massing-site = マスと敷地
 ribbon-insert = 挿入
 group-plumbing = 衛生
 group-electrical = 電気

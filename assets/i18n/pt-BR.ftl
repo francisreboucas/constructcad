@@ -1481,6 +1481,7 @@ tx-modify-system = Modificar sistema
 tx-delete-system = Excluir sistema
 tx-assign-system = Atribuir ao sistema
 ribbon-mep = Instalações
+ribbon-massing-site = Massa e Terreno
 ribbon-insert = Inserir
 group-plumbing = Hidrossanitária
 group-electrical = Elétrica

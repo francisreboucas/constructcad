@@ -1489,6 +1489,7 @@ prop-supply-weight = Waga (woda zimna)
 prop-system-kind = Prowadzi
 prop-voltage = Napięcie
 ribbon-mep = Instalacje
+ribbon-massing-site = Bryły i teren
 ribbon-insert = Wstaw
 section-mep = Instalacje budynkowe
 sizing-apply = Zastosuj średnice

@@ -1481,6 +1481,7 @@ tx-modify-system = 修改系统
 tx-delete-system = 删除系统
 tx-assign-system = 指定到系统
 ribbon-mep = 机电
+ribbon-massing-site = 体量和场地
 ribbon-insert = 插入
 group-plumbing = 给排水
 group-electrical = 电气

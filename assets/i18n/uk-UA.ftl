@@ -1490,6 +1490,7 @@ prop-supply-weight = Вага (холодна вода)
 prop-system-kind = Несе
 prop-voltage = Напруга
 ribbon-mep = Інженерні системи
+ribbon-massing-site = Обʼєми й ділянка
 ribbon-insert = Вставлення
 section-mep = Інженерні системи будівлі
 sizing-apply = Застосувати діаметри

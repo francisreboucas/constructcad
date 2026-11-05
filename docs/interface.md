@@ -153,7 +153,7 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 
 ## Conceptual masses
 
-*Architecture → Massing → Mass* (`MS`) sketches an outline in a plan, like a floor, and extrudes it up to the level above. Masses are for massing studies before walls and floors exist: see-through bodies in 3D views, elevations and sections, cut in the plans they cross.
+*Massing & Site → Massing → Mass* (`MS`) sketches an outline in a plan, like a floor, and extrudes it up to the level above. Masses are for massing studies before walls and floors exist: see-through bodies in 3D views, elevations and sections, cut in the plans they cross.
 
 - **Properties**: the base offset and the height, and whether the mass is an extrusion or a loft (a top outline different from the base, made with `mass_create` and `top` or `top_inset`).
 - **Mass floors**: one box per level the mass spans, with the area of the floor at that level. Plans draw the floor of their level with its area; the properties and the *Masses* schedule give the gross floor area (the sum of the floors), the number of floors and the volume.

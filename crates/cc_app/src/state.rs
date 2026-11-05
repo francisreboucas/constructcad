@@ -17,6 +17,8 @@ pub enum RibbonTab {
     Structure,
     /// Building services: plumbing and electrical.
     Mep,
+    /// Conceptual masses and the terrain.
+    MassingSite,
     /// Importing and exporting files, loading components.
     Insert,
     Modify,

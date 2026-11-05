@@ -1433,6 +1433,7 @@ tx-modify-system = ດັດແກ້ລະບົບ
 tx-delete-system = ລຶບລະບົບ
 tx-assign-system = ກຳນົດໃສ່ລະບົບ
 ribbon-mep = ງານລະບົບ (MEP)
+ribbon-massing-site = ມວນ ແລະ ພື້ນທີ່
 ribbon-insert = ແຊກ
 group-plumbing = ລະບົບປະປາ
 group-electrical = ລະບົບໄຟຟ້າ

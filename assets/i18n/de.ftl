@@ -1489,6 +1489,7 @@ prop-supply-weight = Anschlusswert (Kaltwasser)
 prop-system-kind = Führt
 prop-voltage = Spannung
 ribbon-mep = TGA
+ribbon-massing-site = Volumen & Gelände
 ribbon-insert = Einfügen
 section-mep = Technische Gebäudeausrüstung
 sizing-apply = Durchmesser übernehmen

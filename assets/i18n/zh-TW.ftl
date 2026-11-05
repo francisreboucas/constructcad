@@ -1489,6 +1489,7 @@ prop-supply-weight = 重量（冷水）
 prop-system-kind = 輸送
 prop-voltage = 電壓
 ribbon-mep = 機電設備
+ribbon-massing-site = 量體與基地
 ribbon-insert = 插入
 section-mep = 機電設備
 sizing-apply = 套用管徑

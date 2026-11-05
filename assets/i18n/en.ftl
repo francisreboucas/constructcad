@@ -1481,6 +1481,7 @@ tx-modify-system = Modify System
 tx-delete-system = Delete System
 tx-assign-system = Assign to System
 ribbon-mep = MEP
+ribbon-massing-site = Massing & Site
 ribbon-insert = Insert
 group-plumbing = Plumbing
 group-electrical = Electrical

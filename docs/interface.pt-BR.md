@@ -153,7 +153,7 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 
 ## Massas conceituais
 
-*Arquitetura → Estudo de massa → Massa* (`MS`) desenha um contorno na planta, como uma laje, e o extruda até o nível de cima. As massas servem para estudos de volumetria antes de existirem paredes e lajes: corpos transparentes nas vistas 3D, elevações e cortes, cortados nas plantas que atravessam.
+*Massa e Terreno → Estudo de massa → Massa* (`MS`) desenha um contorno na planta, como uma laje, e o extruda até o nível de cima. As massas servem para estudos de volumetria antes de existirem paredes e lajes: corpos transparentes nas vistas 3D, elevações e cortes, cortados nas plantas que atravessam.
 
 - **Propriedades**: o deslocamento da base e a altura, e se a massa é uma extrusão ou uma transição (um contorno de topo diferente da base, feito com `mass_create` e `top` ou `top_inset`).
 - **Pisos de massa**: uma caixa por nível que a massa atravessa, com a área do piso naquele nível. As plantas desenham o piso do seu nível com a área; as propriedades e a tabela de *Massas* dão a área bruta de pisos (a soma dos pisos), o número de pisos e o volume.
