@@ -483,6 +483,15 @@ pub fn attach_tool(resp: &Response, painter: &Painter, state: &mut AppState, xf:
     }
 }
 
+/// A click of the Attach Top tool in a 3D view on `picked`: a roof, ceiling
+/// or floor takes the walls' tops; anything else repeats the hint.
+pub(crate) fn attach_pick(state: &mut AppState, picked: Option<ElementId>) {
+    match picked.filter(|id| attach_target(state, *id)) {
+        Some(target) => attach_to(state, target),
+        None => state.message = t!("hint-attach-top"),
+    }
+}
+
 /// Attach the walls the tool holds to `target`, then go back to selecting them.
 pub(crate) fn attach_to(state: &mut AppState, target: ElementId) {
     let walls = std::mem::take(&mut state.interaction.targets);
