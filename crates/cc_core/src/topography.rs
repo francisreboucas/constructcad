@@ -3,7 +3,8 @@
 //! triangulates the points with the boundary, whose vertices take the
 //! elevation the points give them, and closes the surface down to a flat base
 //! `base_depth` below its lowest point, so sections cut the earth as a solid.
-//! Points outside the boundary are kept but take no part in the surface.
+//! Points outside the boundary are kept: they give the boundary its
+//! elevations but are not vertices of the surface.
 
 use glam::{DVec2, DVec3};
 use serde::{Deserialize, Serialize};

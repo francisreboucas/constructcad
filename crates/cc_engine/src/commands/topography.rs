@@ -64,7 +64,8 @@ fn ensure_earth(e: &mut cc_core::EditCtx) -> String {
 /// the convex hull of the points). The points are triangulated with the
 /// boundary, whose vertices take the elevations the points give them; the
 /// earth closes down to a flat base `base_depth` below the lowest point.
-/// Points outside the boundary are kept but take no part in the surface.
+/// Points outside the boundary are kept: they give the boundary its
+/// elevations but are not vertices of the surface.
 /// A project without a terrain type gets one (and an earth material).
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]

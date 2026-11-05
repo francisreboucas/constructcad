@@ -1,9 +1,9 @@
 //! Terrain surfaces (`cc_core::topography`): a constrained Delaunay
 //! triangulation (`spade`) of the measured points inside the boundary, with
 //! the boundary's edges as constraints, so non-convex boundaries keep no
-//! triangle outside. Boundary vertices take the elevation the points give
-//! them (linear over the points' triangulation, the nearest point's beyond
-//! it). The surface closes down to a flat base into a solid; contours cut it
+//! triangle outside. Boundary vertices take the elevation all the points
+//! give them, those beyond the boundary too (linear over the points'
+//! triangulation, the nearest point's beyond it). The surface closes down to a flat base into a solid; contours cut it
 //! at multiples of an interval.
 
 use crate::polygon;
@@ -195,13 +195,14 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
         return None;
     }
     let points = cc_core::topography::clean_points(&t.points);
-    let inner: Vec<DVec3> = points.into_iter().filter(|p| inside_or_on(&boundary, p.truncate())).collect();
+    let inner: Vec<DVec3> = points.iter().copied().filter(|p| inside_or_on(&boundary, p.truncate())).collect();
     let mut warnings = Vec::new();
     // Spade is trusted not to panic, but a model rebuilds on every edit:
     // a failure becomes a flat surface and a warning, never a crash.
     let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut w = Vec::new();
-        let bz = boundary_elevations(&boundary, &inner, &mut w);
+        // Points surveyed beyond the boundary still say how high it runs.
+        let bz = boundary_elevations(&boundary, &points, &mut w);
         let tris = surface(&boundary, &bz, &inner, &mut w);
         (bz, tris, w)
     }));
@@ -477,7 +478,7 @@ mod tests {
         let g = geom(line, b.clone());
         assert_eq!(g.warnings, [TopoWarning::Collinear]);
         assert!((g.area - 100.0).abs() < 1e-9);
-        // Bad and repeated points are dropped, points outside ignored.
+        // Bad and repeated points are dropped; a point outside only lifts the boundary.
         let bad = vec![
             DVec3::new(f64::NAN, 1.0, 0.0),
             DVec3::new(2.0, 2.0, 1.0),

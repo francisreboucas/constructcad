@@ -94,10 +94,12 @@ pub enum Pattern {
     Sand,
     /// Zig-zag batt insulation.
     Insulation,
+    /// Earth: blocks of short strokes, alternately at 45° and 135° (a weave).
+    Earth,
 }
 
 impl Pattern {
-    pub const ALL: [Pattern; 12] = [
+    pub const ALL: [Pattern; 13] = [
         Pattern::None,
         Pattern::Solid,
         Pattern::Diagonal,
@@ -110,6 +112,7 @@ impl Pattern {
         Pattern::Concrete,
         Pattern::Sand,
         Pattern::Insulation,
+        Pattern::Earth,
     ];
 
     pub fn key(self) -> &'static str {
@@ -126,6 +129,7 @@ impl Pattern {
             Pattern::Concrete => "pattern-concrete",
             Pattern::Sand => "pattern-sand",
             Pattern::Insulation => "pattern-insulation",
+            Pattern::Earth => "pattern-earth",
         }
     }
 }
@@ -401,7 +405,7 @@ pub fn template_properties(m: &mut Material, class: MaterialClass) {
         }
         MaterialClass::Earth => {
             set(1800.0, 1.5, 1000.0);
-            Pattern::Sand
+            Pattern::Earth
         }
         _ => Pattern::None,
     };

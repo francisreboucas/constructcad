@@ -74,6 +74,7 @@ pub fn hatch(pattern: Pattern, poly: &[DVec2], spacing: f64) -> Vec<(DVec2, DVec
             }
         }
         Pattern::Sand => dots(&mut out, poly, lo, hi, spacing * 0.5, false),
+        Pattern::Earth => weave(&mut out, poly, lo, hi, spacing * 2.0),
         Pattern::Concrete => dots(&mut out, poly, lo, hi, spacing, true),
         Pattern::Insulation => {
             // Zig-zag running along X, one wave per `spacing`.
@@ -116,6 +117,41 @@ fn clip_segment(out: &mut Vec<(DVec2, DVec2)>, poly: &[DVec2], p: DVec2, q: DVec
         let (a, b) = (t0.max(0.0), t1.min(len));
         if b > a {
             out.push((p + dir * a, p + dir * b));
+        }
+    }
+}
+
+/// Earth: a basket weave turned 45°. Square blocks of `cell` along the
+/// diagonals, each with three parallel strokes stopping short of its sides,
+/// along one diagonal in a block and the other in the next.
+fn weave(out: &mut Vec<(DVec2, DVec2)>, poly: &[DVec2], lo: DVec2, hi: DVec2, cell: f64) {
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let (u_axis, v_axis) = (DVec2::new(s, s), DVec2::new(-s, s));
+    // The box's extent in the turned frame.
+    let corners = [lo, hi, DVec2::new(lo.x, hi.y), DVec2::new(hi.x, lo.y)];
+    let range = |axis: DVec2| {
+        corners.iter().fold((f64::INFINITY, f64::NEG_INFINITY), |(a, b), c| (a.min(c.dot(axis)), b.max(c.dot(axis))))
+    };
+    let ((u0, u1), (v0, v1)) = (range(u_axis), range(v_axis));
+    let (i0, i1) = ((u0 / cell).floor() as i64, (u1 / cell).ceil() as i64);
+    let (j0, j1) = ((v0 / cell).floor() as i64, (v1 / cell).ceil() as i64);
+    let gap = cell * 0.12;
+    for i in i0..i1 {
+        for j in j0..j1 {
+            if out.len() >= MAX_LINES {
+                return;
+            }
+            let (ua, va) = (i as f64 * cell, j as f64 * cell);
+            let at = |u: f64, v: f64| u_axis * u + v_axis * v;
+            for k in 1..=3 {
+                let t = k as f64 * cell / 4.0;
+                let (p, q) = if (i + j).rem_euclid(2) == 0 {
+                    (at(ua + gap, va + t), at(ua + cell - gap, va + t))
+                } else {
+                    (at(ua + t, va + gap), at(ua + t, va + cell - gap))
+                };
+                clip_segment(out, poly, p, q);
+            }
         }
     }
 }

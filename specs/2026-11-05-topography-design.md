@@ -58,14 +58,16 @@ pub struct Topography {
   triangulation with exact predicates.
 - Point elevations are measured; boundary vertices get theirs by
   interpolation:
-  1. Triangulate the points inside the boundary (unconstrained Delaunay) and
+  1. Triangulate all the points, those beyond the boundary too (a survey
+     usually reaches past the lot), with an unconstrained Delaunay, and
      interpolate linearly to give each boundary vertex a z.
   2. Outside the points' convex hull, a boundary vertex takes the z of the
      nearest point.
 - The surface triangulates the boundary vertices and the inner points together,
   with the boundary edges as constraints. Only triangles inside the boundary
   are kept, so non-convex boundaries work. Points outside the boundary are
-  kept in the model but ignored.
+  kept in the model and shape the boundary's elevations, but are not
+  vertices of the surface.
 - Degenerate cases:
   - Fewer than 3 usable points: a flat surface at the level elevation, or at
     the single point's z.
