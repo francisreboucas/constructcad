@@ -729,7 +729,8 @@ impl ModelGeometry {
             }
         }
         for walls in by_level.values() {
-            // Joins work on the body centerlines (location lines shifted by the location line setting).
+            // Joins work on the body centerlines (location lines shifted by the location line
+            // setting); ends meet where the drawn location lines do.
             let lines: Vec<WallLine> = walls
                 .iter()
                 .map(|(e, w)| {
@@ -741,6 +742,7 @@ impl ModelGeometry {
                         join_start: w.join_start,
                         join_end: w.join_end,
                         bulge: w.bulge,
+                        drawn: [w.start, w.end],
                     }
                 })
                 .collect();

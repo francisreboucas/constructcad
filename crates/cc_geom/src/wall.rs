@@ -95,6 +95,10 @@ pub(crate) struct WallLine {
     pub join_end: bool,
     /// Bulge of the centerline (0 for a straight wall; see [`cc_core::arc`]).
     pub bulge: f64,
+    /// The ends of the line the wall was drawn on (its location line): ends
+    /// meet where these coincide, even when the body centerlines, shifted
+    /// across by the location line, do not.
+    pub drawn: [DVec2; 2],
 }
 
 /// A wall face (or any line parallel to a wall's centerline) in plan.
@@ -285,15 +289,16 @@ pub(crate) fn resolve_join(walls: &[WallLine], me: usize, at_start: bool) -> Opt
     let clamp = |t: f64| t.clamp(-max_ext, max_ext);
     let square = || Some(EndJoin { ray_left: 0.0, ray_right: 0.0, host: None });
 
-    // Other wall ends at the same point (that allow joining), as rays into each wall.
+    // Other wall ends at the same drawn point (that allow joining), as rays into each wall.
+    let q = a.drawn[if at_start { 0 } else { 1 }];
     let ends: Vec<(usize, DVec2, bool)> = walls
         .iter()
         .enumerate()
         .filter(|&(i, _)| i != me)
         .filter_map(|(i, b)| {
-            if b.start.distance(p) < JOIN_TOL && b.join_start {
+            if b.drawn[0].distance(q) < JOIN_TOL && b.join_start {
                 Some((i, b.end_ray(true).1, true))
-            } else if b.end.distance(p) < JOIN_TOL && b.join_end {
+            } else if b.drawn[1].distance(q) < JOIN_TOL && b.join_end {
                 Some((i, b.end_ray(false).1, false))
             } else {
                 None
@@ -310,11 +315,13 @@ pub(crate) fn resolve_join(walls: &[WallLine], me: usize, at_start: bool) -> Opt
             return if (a.half - b.half).abs() < 1e-4 && da.dot(db) < 0.0 { square() } else { None };
         }
         let nb = db.perp();
+        // The neighbor's body end: away from `p` when the location lines are off center.
+        let pb = b.end_ray(b_start).0;
         // Pair this wall's ray-left face with the neighbor's ray-right face, and vice versa.
         let (vl, vr) = a.ray_faces(at_start);
         let (bl, br) = b.ray_faces(b_start);
-        let left = face_depth(&a, at_start, vl, b.face(br), (p - nb * b.half, db), p, da)?;
-        let right = face_depth(&a, at_start, vr, b.face(bl), (p + nb * b.half, db), p, da)?;
+        let left = face_depth(&a, at_start, vl, b.face(br), (pb - nb * b.half, db), p, da)?;
+        let right = face_depth(&a, at_start, vr, b.face(bl), (pb + nb * b.half, db), p, da)?;
         return Some(EndJoin { ray_left: clamp(left), ray_right: clamp(right), host: None });
     }
 
@@ -750,6 +757,7 @@ mod tests {
             join_start: true,
             join_end: true,
             bulge: 0.0,
+            drawn: [DVec2::new(a.0, a.1), DVec2::new(b.0, b.1)],
         }
     }
 
