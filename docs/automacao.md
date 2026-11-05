@@ -111,7 +111,7 @@ ccad [opções] mcp                  serve os comandos por MCP (stdio)
 --plugins <pasta>         carrega o plugin da <pasta>, ou cada plugin das suas
                           subpastas (pode repetir)
 --lang <código>           idioma dos nomes padrão e mensagens (também CCAD_LANG):
-                          en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW ou zh-CN
+                          en, pt-BR, es, fr, de, it, lo, pl, uk-UA, zh-TW, zh-CN ou ja
 ```
 
 Os argumentos de `run` podem ser um objeto JSON, `@arquivo.json`, `-` (entrada padrão) ou pares `chave=valor`, cujos valores são lidos como JSON quando possível e como texto caso contrário:

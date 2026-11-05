@@ -66,7 +66,7 @@ Ao iniciar (no máximo uma vez por dia) o aplicativo consulta a API do GitHub pe
 
 ## Idiomas
 
-A interface está disponível em **português (Brasil)**, **inglês**, **espanhol**, **francês**, **alemão**, **italiano**, **laosiano**, **polonês**, **ucraniano**, **chinês tradicional** e **chinês simplificado**, com troca em *Arquivo → Idioma*. A escolha fica salva entre sessões. Na primeira execução vale o idioma do sistema, e `--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN` força um idioma.
+A interface está disponível em **português (Brasil)**, **inglês**, **espanhol**, **francês**, **alemão**, **italiano**, **laosiano**, **polonês**, **ucraniano**, **chinês tradicional**, **chinês simplificado** e **japonês**, com troca em *Arquivo → Idioma*. A escolha fica salva entre sessões. Na primeira execução vale o idioma do sistema, e `--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja` força um idioma.
 
 Projetos novos recebem os nomes de níveis, materiais, tipos e vistas no idioma ativo. Projetos existentes mantêm seus nomes, pois eles fazem parte dos dados. O separador decimal acompanha o idioma (vírgula ou ponto).
 

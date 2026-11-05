@@ -88,11 +88,11 @@ No parameters.
 
 ### `language_set`
 
-*edit* — Language of default names, messages and sheet labels (`en`, `pt-BR`, `es`, `fr`, `de`, `it`, `lo`, `pl`, `uk-UA`, `zh-TW` or `zh-CN`).
+*edit* — Language of default names, messages and sheet labels (`en`, `pt-BR`, `es`, `fr`, `de`, `it`, `lo`, `pl`, `uk-UA`, `zh-TW`, `zh-CN` or `ja`).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `language` | string | required | Language code: `en`, `pt-BR`, `es`, `fr`, `de`, `it`, `lo`, `pl`, `uk-UA`, `zh-TW` or `zh-CN`. |
+| `language` | string | required | Language code: `en`, `pt-BR`, `es`, `fr`, `de`, `it`, `lo`, `pl`, `uk-UA`, `zh-TW`, `zh-CN` or `ja`. |
 
 ### `ifc_import`
 
