@@ -1,6 +1,6 @@
 # Building pads and their slopes — design
 
-Date: 2026-11-06. Status: approved in conversation, awaiting spec review.
+Date: 2026-11-06. Status: approved.
 
 Second terrain sub-project, after `2026-11-05-topography-design.md`.
 

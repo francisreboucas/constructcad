@@ -1367,7 +1367,7 @@ fn place_label(category: Category) -> String {
         Category::CadImport => t!("action-import-cad"),
         Category::Mass => t!("tool-mass"),
         Category::Shaft => t!("tool-shaft"),
-        Category::Topography => t!("tool-topography"),
+        Category::Topography | Category::Pad => t!("tool-topography"),
     }
 }
 
@@ -1397,7 +1397,7 @@ fn place_description(category: Category) -> String {
         Category::CadImport => t!("cmd-desc-import-cad"),
         Category::Mass => t!("cmd-desc-mass"),
         Category::Shaft => t!("cmd-desc-shaft"),
-        Category::Topography => t!("cmd-desc-topography"),
+        Category::Topography | Category::Pad => t!("cmd-desc-topography"),
     }
 }
 

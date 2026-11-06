@@ -15,6 +15,7 @@ pub mod mass;
 pub mod mep;
 pub mod mep_net;
 mod mesh;
+pub mod pad;
 pub mod polygon;
 pub mod profile_sweep;
 pub mod ramp;

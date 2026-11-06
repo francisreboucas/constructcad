@@ -23,6 +23,7 @@ pub mod mass;
 pub mod material;
 pub mod mep;
 pub mod openings;
+pub mod pad;
 mod persist;
 pub mod phase;
 pub mod profile;

@@ -185,6 +185,7 @@ impl Element {
                 }
             }
             ElementKind::Shaft(s) => s.outline.iter_mut().for_each(p),
+            ElementKind::Pad(pad) => pad.outline.iter_mut().for_each(p),
             ElementKind::Topography(topo) => {
                 topo.boundary.iter_mut().for_each(p);
                 for q in &mut topo.points {
@@ -278,6 +279,22 @@ impl crate::EditCtx<'_> {
             }
             changed.push(id);
         }
+        // The pads of transformed terrains go with them.
+        let pads: Vec<ElementId> = self
+            .project()
+            .elements
+            .values()
+            .filter(|e| !set.contains(&e.id))
+            .filter(|e| matches!(&e.kind, ElementKind::Pad(p) if set.contains(&p.host)))
+            .map(|e| e.id)
+            .collect();
+        for id in pads {
+            if let Some(el) = self.element_mut(id) {
+                el.transform(t);
+                mirrored.insert(id);
+                changed.push(id);
+            }
+        }
         if t.mirror {
             self.mirror_dimension_refs(&mirrored);
         }
@@ -314,8 +331,8 @@ impl crate::EditCtx<'_> {
 
 impl crate::Project {
     /// The elements a copy of `ids` takes: the non-hosted ones, plus the
-    /// doors and windows of copied walls, the railings of copied stairs and
-    /// any selected hosted element.
+    /// doors and windows of copied walls, the railings of copied stairs, the
+    /// pads of copied terrains and any selected hosted element.
     /// The snapshot stays valid after the originals are deleted (cut).
     pub fn copy_set(&self, ids: &[ElementId]) -> Vec<Element> {
         let set: std::collections::BTreeSet<ElementId> = ids.iter().copied().collect();
@@ -334,6 +351,13 @@ impl crate::Project {
                 .filter(
                     |e| matches!(&e.kind, ElementKind::Railing(r) if r.stair.is_some_and(|h| set.contains(&h.host))),
                 )
+                .cloned(),
+        );
+        out.extend(
+            self.elements
+                .values()
+                .filter(|e| !set.contains(&e.id))
+                .filter(|e| matches!(&e.kind, ElementKind::Pad(p) if set.contains(&p.host)))
                 .cloned(),
         );
         out
@@ -373,6 +397,11 @@ impl crate::Project {
             ElementKind::Dimension(d) => self.view(d.view).is_some(),
             ElementKind::Text(t) => self.view(t.view).is_some(),
             ElementKind::CadImport(c) => self.view(c.view).is_some(),
+            ElementKind::Pad(p) => set
+                .iter()
+                .find(|t| t.id == p.host)
+                .or_else(|| self.element(p.host))
+                .is_some_and(|t| matches!(t.kind, ElementKind::Topography(_))),
             _ => true,
         };
         type_ok && other_ok && self.level(e.level).is_some()
@@ -421,6 +450,13 @@ impl crate::EditCtx<'_> {
                 self.detach_missing_top(&mut c);
                 remap.insert(el.id, c.id);
                 created.push(self.add_element(c));
+            }
+            // Copied pads grade the copies of their terrains, else the terrain they came from.
+            for id in &created[first..] {
+                let Some(ElementKind::Pad(p)) = self.element_mut(*id).map(|e| &mut e.kind) else { continue };
+                if let Some(n) = remap.get(&p.host) {
+                    p.host = *n;
+                }
             }
             // Copied railings follow the copies of their stairs, or become free.
             for id in &created[first..] {

@@ -499,6 +499,7 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
     match &el.kind {
         ElementKind::Mass(m) => mass_props(ui, state, &el, m),
         ElementKind::Topography(t) => topography_props(ui, state, &el, t),
+        ElementKind::Pad(_) => {}
         ElementKind::Component(c) => component_props(ui, state, &el, c),
         ElementKind::Wall(w) => {
             section(ui, "constraints", t!("section-constraints"), |ui| wall_constraints(ui, state, &el, w));

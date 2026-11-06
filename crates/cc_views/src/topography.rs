@@ -1,23 +1,23 @@
 //! Terrain in floor plans: contour lines (majors heavier) and the boundary
 //! below the cut plane; where the cut plane crosses the surface, the earth
 //! above it hatched in the type's material and outlined as cut.
+//!
+//! Building pads: their outline with their elevation, ticks across their
+//! slopes (long and short in turn, the short ones from the top of the
+//! slope), the daylight line, and the existing ground's contours dashed
+//! where the pads changed it.
 
-use crate::drawing::{Drawing2D, LineStyle};
+use crate::drawing::{Anchor, Drawing2D, LineStyle};
 use cc_core::topography::{DEFAULT_CONTOUR_INTERVAL, DEFAULT_MAJOR_EVERY};
 use cc_core::{LevelId, Project, TypeData};
 use cc_geom::ModelGeometry;
-use cc_geom::topography::{MAX_CONTOURS, TopoGeom, chain, contours, slice};
+use cc_geom::pad::PadGeom;
+use cc_geom::topography::{MAX_CONTOURS, TopoGeom, chain, contours, contours_of, slice};
 use glam::{DVec2, DVec3};
 
 /// The terrain surfaces of `level` in its floor plan cut at `cut_z`.
-pub(crate) fn draw(
-    d: &mut Drawing2D,
-    project: &Project,
-    geom: &ModelGeometry,
-    level: LevelId,
-    cut_z: f64,
-    spacing: f64,
-) {
+pub(crate) fn draw(d: &mut Drawing2D, project: &Project, geom: &ModelGeometry, level: LevelId, cut_z: f64, scale: u32) {
+    let spacing = crate::cut::spacing(scale);
     for (id, g) in &geom.topographies {
         let Some(e) = project.element(*id).filter(|e| e.level == level) else { continue };
         let (material, interval, major_every) = match project.element_type(e.type_id).map(|t| &t.data) {
@@ -46,8 +46,110 @@ pub(crate) fn draw(
             let style = if c.major { LineStyle::Projection } else { LineStyle::Thin };
             d.polyline(&c.points, false, style, id);
         }
+        // The existing ground where pads changed it.
+        let range = g
+            .existing
+            .iter()
+            .flatten()
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p.z), hi.max(p.z)));
+        for c in
+            contours_of(&g.existing, range, interval, major_every, MAX_CONTOURS).into_iter().filter(|c| c.z < cut_z)
+        {
+            d.polyline(&c.points, false, LineStyle::Hidden, id);
+        }
         draw_boundary(d, g, cut_z, id);
+        for (pad, _) in project.pads_of(e.id) {
+            if let Some(pg) = geom.pads.get(&pad.id) {
+                draw_pad(d, pg, scale, Some(pad.id));
+            }
+        }
     }
+}
+
+/// Spacing of the slope ticks on paper, millimeters.
+const TICK_MM: f64 = 2.5;
+
+/// A pad: outline and elevation, slope ticks and daylight line.
+fn draw_pad(d: &mut Drawing2D, g: &PadGeom, scale: u32, id: Option<cc_core::ElementId>) {
+    d.polyline(&g.outline, true, LineStyle::Projection, id);
+    if let Some(at) = centroid(&g.outline) {
+        d.tag_text(at, crate::format::elevation(g.z), 2.5, Anchor::Center, 0.0, id);
+    }
+    for line in &g.daylight {
+        d.polyline(line, false, LineStyle::Thin, id);
+    }
+    let step = TICK_MM * scale.max(1) as f64 / 1000.0;
+    let n = g.outline.len();
+    for i in 0..n {
+        let (a, b) = (g.outline[i], g.outline[(i + 1) % n]);
+        let len = a.distance(b);
+        let Some(u) = (b - a).try_normalize() else { continue };
+        let normal = DVec2::new(u.y, -u.x);
+        let count = ((len / step).floor() as usize).min(100_000);
+        for k in 0..count {
+            let p = a + u * ((k as f64 + 0.5) * len / count as f64);
+            let Some(reach) = daylight_hit(&g.daylight, p, normal) else { continue };
+            let cut = g
+                .rays
+                .iter()
+                .filter(|r| r.edge == Some(i) || r.edge.is_none())
+                .min_by(|x, y| x.origin.distance(p).total_cmp(&y.origin.distance(p)))
+                .is_some_and(|r| r.cut);
+            tick(d, p, normal, reach, k % 2 == 1, cut, id);
+        }
+    }
+    // Convex corners: the fan's rays, all long.
+    for r in g.rays.iter().filter(|r| r.edge.is_none()) {
+        if r.end.distance(r.origin) > 1e-6 {
+            d.line(r.origin, r.end, LineStyle::Thin, id);
+        }
+    }
+}
+
+/// A tick across a slope `reach` long from `p` along `dir`: the whole slope,
+/// or (`short`) its third from the top (the pad's edge for fill, the
+/// daylight for cut).
+fn tick(d: &mut Drawing2D, p: DVec2, dir: DVec2, reach: f64, short: bool, cut: bool, id: Option<cc_core::ElementId>) {
+    let far = p + dir * reach;
+    let (a, b) = match (short, cut) {
+        (false, _) => (p, far),
+        (true, false) => (p, p + dir * (reach / 3.0)),
+        (true, true) => (far, far - dir * (reach / 3.0)),
+    };
+    d.line(a, b, LineStyle::Thin, id);
+}
+
+/// Area centroid of a simple polygon (none without an area).
+fn centroid(poly: &[DVec2]) -> Option<DVec2> {
+    let n = poly.len();
+    let (mut a, mut c) = (0.0, DVec2::ZERO);
+    for i in 0..n {
+        let (p, q) = (poly[i], poly[(i + 1) % n]);
+        let w = p.perp_dot(q);
+        a += w;
+        c += (p + q) * w;
+    }
+    (a.abs() > 1e-12).then(|| c / (3.0 * a)).filter(|c| c.is_finite())
+}
+
+/// How far from `p` along `dir` the first daylight line is met (none when
+/// it is not, or right at `p`).
+fn daylight_hit(lines: &[Vec<DVec2>], p: DVec2, dir: DVec2) -> Option<f64> {
+    let mut best: Option<f64> = None;
+    for w in lines.iter().flat_map(|l| l.windows(2)) {
+        let (a, b) = (w[0], w[1]);
+        let e = b - a;
+        let den = dir.perp_dot(e);
+        if den.abs() < 1e-12 {
+            continue;
+        }
+        let t = (a - p).perp_dot(e) / den;
+        let s = (a - p).perp_dot(dir) / den;
+        if t > 1e-6 && (-1e-9..=1.0 + 1e-9).contains(&s) && best.is_none_or(|x| t < x) {
+            best = Some(t);
+        }
+    }
+    best
 }
 
 /// The boundary: cut where it stands above the cut plane, seen below it.
@@ -175,5 +277,70 @@ mod tests {
         // Ceiling plans leave the terrain out.
         let d = crate::plan(&project, &geom, level, 1.2, true, 100);
         assert!(fills(&d, id).is_empty() && lines(&d, id, LineStyle::Projection).is_empty());
+    }
+
+    #[test]
+    fn pads_draw_their_slopes_between_the_edge_and_the_daylight() {
+        let (mut project, terrain) = slope();
+        let level = project.levels[0].id;
+        // A pad across the middle, at 2 m: cut on the high side, fill on the low one.
+        let ty = cc_core::ElementTypeId(project.alloc_id());
+        project.types.insert(
+            ty,
+            cc_core::ElementType {
+                id: ty,
+                name: "Pad".into(),
+                data: cc_core::TypeData::Pad { cut_slope: 1.0, fill_slope: 1.0 },
+                info: Default::default(),
+                uid: Default::default(),
+            },
+        );
+        let outline = vec![DVec2::new(4.0, 1.0), DVec2::new(6.0, 1.0), DVec2::new(6.0, 3.0), DVec2::new(4.0, 3.0)];
+        let pad = ElementId(project.alloc_id());
+        let mut e = project.element(terrain).unwrap().clone();
+        e.id = pad;
+        e.type_id = ty;
+        e.kind = ElementKind::Pad(cc_core::pad::Pad {
+            host: terrain,
+            outline: outline.clone(),
+            elevation: 2.0,
+            cut_slope: None,
+            fill_slope: None,
+            sketch: None,
+        });
+        project.elements.insert(pad, e);
+        let geom = ModelGeometry::build(&project);
+        let g = &geom.pads[&pad];
+        let reach = g.rays.iter().map(|r| r.end.distance(r.origin)).fold(0.0, f64::max);
+        assert!(reach > 0.5 && reach < 2.0, "{reach}");
+        let d = crate::plan(&project, &geom, level, 5.0, false, 50);
+        let dist = |p: DVec2| {
+            let n = outline.len();
+            if cc_geom::polygon::contains(&outline, p) {
+                return 0.0;
+            }
+            (0..n)
+                .map(|i| cc_geom::polygon::closest_on_segment(outline[i], outline[(i + 1) % n], p).0.distance(p))
+                .fold(f64::INFINITY, f64::min)
+        };
+        // Ticks and daylight lie in the slope band.
+        let thin = lines(&d, pad, LineStyle::Thin);
+        assert!(thin.len() > 8, "{}", thin.len());
+        for (a, b) in &thin {
+            assert!(dist(*a) <= reach + 1e-6 && dist(*b) <= reach + 1e-6, "{a} {b}");
+        }
+        // The existing ground's contours, dashed, only where the pad changed it.
+        let hidden = lines(&d, terrain, LineStyle::Hidden);
+        assert!(!hidden.is_empty());
+        for (a, b) in &hidden {
+            assert!(dist(*a) <= reach + 1e-6 && dist(*b) <= reach + 1e-6, "{a} {b}");
+        }
+        // The outline and its elevation.
+        assert_eq!(lines(&d, pad, LineStyle::Projection).len(), 4);
+        assert!(
+            d.prims
+                .iter()
+                .any(|p| matches!(p, Prim::Text { element: Some(e), text, .. } if *e == pad && text.contains('2')))
+        );
     }
 }

@@ -455,8 +455,37 @@ pub fn section(
     frame.crop_x = Some((xe.min(0.0), xe.max(0.0)));
     let cut = CutStyle { project, spacing: crate::cut::spacing(scale) };
     let mut d = render(geom, &frame, Some(cut), look);
+    existing_ground(&mut d, geom, &frame);
     level_lines(&mut d, project, &frame);
     d
+}
+
+/// Where the section plane crosses the existing ground that pads changed, dashed.
+fn existing_ground(d: &mut Drawing2D, geom: &ModelGeometry, frame: &Frame) {
+    let Some(near) = frame.near else { return };
+    let point = frame.origin + frame.forward * near;
+    let planes = frame.planes();
+    for (id, g) in &geom.topographies {
+        for t in &g.existing {
+            let side = t.map(|p| (p - point).dot(frame.forward));
+            let mut hits = Vec::with_capacity(2);
+            for i in 0..3 {
+                let (a, b, da, db) = (t[i], t[(i + 1) % 3], side[i], side[(i + 1) % 3]);
+                if (da >= 0.0) != (db >= 0.0) {
+                    hits.push(a.lerp(b, da / (da - db)));
+                }
+            }
+            let [a, b] = hits[..] else { continue };
+            let Some((a, b)) = planes.iter().skip(1).try_fold((a, b), |(a, b), &(p, n)| clip_segment(a, b, p, n))
+            else {
+                continue;
+            };
+            let (a, b) = (frame.project(a), frame.project(b));
+            if a.distance(b) > 1e-9 {
+                d.line(a, b, LineStyle::Hidden, Some(*id));
+            }
+        }
+    }
 }
 
 pub fn axonometric(_project: &Project, geom: &ModelGeometry, camera: &CameraState, look: Look) -> Drawing2D {

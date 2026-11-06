@@ -43,7 +43,7 @@ pub fn category_icon(category: Category) -> Icon {
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
         Category::Shaft => Icon::Shaft,
-        Category::Topography => Icon::Topography,
+        Category::Topography | Category::Pad => Icon::Topography,
         Category::Sweep => Icon::Sweep,
     }
 }

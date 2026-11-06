@@ -4,12 +4,13 @@
 //! triangle outside. Boundary vertices take the elevation all the points
 //! give them, those beyond the boundary too (linear over the points'
 //! triangulation, the nearest point's beyond it). The surface closes down to a flat base into a solid; contours cut it
-//! at multiples of an interval.
+//! at multiples of an interval. The terrain's building pads then grade the
+//! surface (`crate::pad`), in id order.
 
 use crate::polygon;
 use crate::solid::{Face, Solid};
 use cc_core::topography::Topography;
-use cc_core::{Element, Project};
+use cc_core::{Element, ElementId, Project};
 use glam::{DVec2, DVec3};
 use spade::{
     ConstrainedDelaunayTriangulation, DelaunayTriangulation, FloatTriangulation, HasPosition, Point2, Triangulation,
@@ -46,10 +47,13 @@ impl TopoWarning {
 /// A built terrain surface, in absolute elevations.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TopoGeom {
-    /// Surface triangles, counter-clockwise seen from above.
+    /// Surface triangles (graded by the terrain's pads), counter-clockwise seen from above.
     pub triangles: Vec<[DVec3; 3]>,
+    /// The existing ground where pads changed it.
+    pub existing: Vec<[DVec3; 3]>,
     /// The boundary, counter-clockwise, with each vertex's elevation.
     pub boundary: Vec<DVec3>,
+    /// Lowest and highest points of the graded and existing surfaces.
     pub min_z: f64,
     pub max_z: f64,
     /// Elevation of the flat base.
@@ -236,6 +240,15 @@ fn surface(
 
 /// The surface of terrain `t` of element `e`, or `None` when its boundary is invalid.
 pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoGeom> {
+    topo_geom_with_pads(project, e, t).map(|(g, _)| g)
+}
+
+/// The surface of terrain `t` of element `e` graded by its pads, and each pad's figures.
+pub fn topo_geom_with_pads(
+    project: &Project,
+    e: &Element,
+    t: &Topography,
+) -> Option<(TopoGeom, Vec<(ElementId, crate::pad::PadGeom)>)> {
     if !t.is_valid() {
         return None;
     }
@@ -279,8 +292,26 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
     for tri in &mut triangles {
         tri.iter_mut().for_each(|p| p.z += level);
     }
-    let boundary: Vec<DVec3> = boundary.iter().zip(&boundary_z).map(|(p, z)| p.extend(z + level)).collect();
-    let zs = triangles.iter().flatten().map(|p| p.z).chain(boundary.iter().map(|p| p.z));
+    let mut boundary: Vec<DVec3> = boundary.iter().zip(&boundary_z).map(|(p, z)| p.extend(z + level)).collect();
+    let mut existing = Vec::new();
+    let mut pads = Vec::new();
+    if project.pads_of(e.id).next().is_some() {
+        let mut surface = crate::pad::Surface::new(triangles);
+        for (pe, p) in project.pads_of(e.id) {
+            let (cut_slope, fill_slope) = p.slopes(project, pe.type_id);
+            let input = crate::pad::PadInput { outline: &p.outline, z: level + p.elevation, cut_slope, fill_slope };
+            pads.push((pe.id, crate::pad::grade(&mut surface, &input)));
+        }
+        existing = surface.changed();
+        triangles = surface.triangles;
+        // Slopes reaching the boundary change its elevations (and split it).
+        if !existing.is_empty()
+            && let Some(b) = crate::pad::mesh_boundary(&triangles)
+        {
+            boundary = b;
+        }
+    }
+    let zs = triangles.iter().chain(&existing).flatten().map(|p| p.z).chain(boundary.iter().map(|p| p.z));
     let (min_z, max_z) = zs.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), z| (lo.min(z), hi.max(z)));
     if !(min_z.is_finite() && max_z.is_finite()) {
         return None;
@@ -289,7 +320,7 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
     let plan_area = |t: &[DVec3; 3]| (t[1] - t[0]).truncate().perp_dot((t[2] - t[0]).truncate()) * 0.5;
     let area = triangles.iter().map(plan_area).sum();
     let volume = triangles.iter().map(|t| plan_area(t) * ((t[0].z + t[1].z + t[2].z) / 3.0 - base_z)).sum();
-    Some(TopoGeom { triangles, boundary, min_z, max_z, base_z, area, volume, warnings })
+    Some((TopoGeom { triangles, existing, boundary, min_z, max_z, base_z, area, volume, warnings }, pads))
 }
 
 /// A flat surface at relative elevation 0 over `boundary` (ccw): the
@@ -327,7 +358,18 @@ pub fn add_solid(s: &mut Solid, g: &TopoGeom) {
 /// Contour lines of `g` every `interval` (doubled until at most `max`
 /// remain), every `major_every`-th one a major.
 pub fn contours(g: &TopoGeom, interval: f64, major_every: u32, max: usize) -> Vec<Contour> {
-    if !(interval.is_finite() && interval > 1e-6) || g.triangles.is_empty() {
+    contours_of(&g.triangles, (g.min_z, g.max_z), interval, major_every, max)
+}
+
+/// Contour lines of `triangles` (elevations within `range`), as [`contours`].
+pub fn contours_of(
+    triangles: &[[DVec3; 3]],
+    (min_z, max_z): (f64, f64),
+    interval: f64,
+    major_every: u32,
+    max: usize,
+) -> Vec<Contour> {
+    if !(interval.is_finite() && interval > 1e-6) || triangles.is_empty() {
         return Vec::new();
     }
     // Majors are the multiples of the major interval, whatever the step.
@@ -336,19 +378,19 @@ pub fn contours(g: &TopoGeom, interval: f64, major_every: u32, max: usize) -> Ve
     let mut step = interval;
     // Bounded: 64 doublings outgrow any finite range.
     for _ in 0..64 {
-        if ((g.max_z / step).floor() - (g.min_z / step).ceil() + 1.0) <= max {
+        if ((max_z / step).floor() - (min_z / step).ceil() + 1.0) <= max {
             break;
         }
         step *= 2.0;
     }
-    let (first, last) = ((g.min_z / step).ceil(), (g.max_z / step).floor());
+    let (first, last) = ((min_z / step).ceil(), (max_z / step).floor());
     if !(first.is_finite() && last.is_finite()) || last - first + 1.0 > max {
         return Vec::new();
     }
     let mut out = Vec::new();
     for k in first as i64..=last as i64 {
         let z = k as f64 * step;
-        let segments = slice(&g.triangles, z);
+        let segments = slice(triangles, z);
         let m = z / major_step;
         let major = (m - m.round()).abs() < 1e-6;
         out.extend(chain(segments).into_iter().map(|points| Contour { z, major, points }));
@@ -690,5 +732,69 @@ mod tests {
         let lines = chain(s);
         assert_eq!(lines.len(), 1);
         assert_eq!(lines[0].len(), 4);
+    }
+
+    /// A terrain on the plane z = x / 10 over [0, 100]² (a 1 m grid of
+    /// points: 10 201) with a pad at its middle, built as the model does.
+    #[test]
+    fn a_pad_grades_the_terrain_and_its_solid_stays_closed() {
+        let pts: Vec<DVec3> =
+            (0..=100).flat_map(|i| (0..=100).map(move |j| DVec3::new(i as f64, j as f64, i as f64 / 10.0))).collect();
+        let (mut p, mut e) = terrain(pts, rect(100.0, 100.0));
+        let tt = ElementTypeId(p.alloc_id());
+        p.types.insert(
+            tt,
+            cc_core::ElementType {
+                id: tt,
+                name: "Pad".into(),
+                data: cc_core::TypeData::Pad { cut_slope: 1.0, fill_slope: 1.5 },
+                info: Default::default(),
+                uid: Default::default(),
+            },
+        );
+        e.id = ElementId(p.alloc_id());
+        p.elements.insert(e.id, e.clone());
+        let pad = cc_core::pad::Pad {
+            host: e.id,
+            outline: rect(20.0, 20.0).iter().map(|q| *q + DVec2::new(40.0, 40.0)).collect(),
+            elevation: 5.0,
+            cut_slope: None,
+            fill_slope: None,
+            sketch: None,
+        };
+        let pid = ElementId(p.alloc_id());
+        p.elements.insert(pid, Element { id: pid, type_id: tt, kind: ElementKind::Pad(pad), ..e.clone() });
+        let ElementKind::Topography(t) = &e.kind else { panic!() };
+        let start = std::time::Instant::now();
+        let (g, pads) = topo_geom_with_pads(&p, &e, t).unwrap();
+        let took = start.elapsed();
+        assert!(took.as_secs_f64() < 10.0, "{took:?}");
+        let [(id, pg)] = &pads[..] else { panic!("{pads:?}") };
+        assert_eq!(*id, pid);
+        assert!(pg.warnings.is_empty(), "{:?}", pg.warnings);
+        assert!(pg.cut > 0.0 && pg.fill > 0.0 && (pg.area - 400.0).abs() < 1e-9);
+        assert!(!g.existing.is_empty());
+        assert!((g.area - 10_000.0).abs() < 1e-6, "{}", g.area);
+        let mut s = Solid::new(ElementId(1), Category::Topography, [0, 0, 0]);
+        add_solid(&mut s, &g);
+        assert!((s.volume() - g.volume).abs() < 1e-6 * g.volume, "{} {}", s.volume(), g.volume);
+        // Graded minus existing volume is fill minus cut.
+        let flat = topo_geom(
+            &{
+                let mut q = p.clone();
+                q.elements.remove(&pid);
+                q
+            },
+            &e,
+            t,
+        )
+        .unwrap();
+        let above = |g: &TopoGeom| g.volume + g.area * (g.base_z - flat.base_z);
+        assert!(
+            (above(&g) - above(&flat) - (pg.fill - pg.cut)).abs() < 1e-6,
+            "{} {}",
+            above(&g) - above(&flat),
+            pg.fill - pg.cut
+        );
     }
 }

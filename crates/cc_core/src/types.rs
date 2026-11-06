@@ -36,10 +36,12 @@ pub enum Category {
     Shaft,
     /// Terrain surfaces.
     Topography,
+    /// Building pads graded into terrain.
+    Pad,
 }
 
 impl Category {
-    pub const ALL: [Category; 25] = [
+    pub const ALL: [Category; 26] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -65,6 +67,7 @@ impl Category {
         Category::Mass,
         Category::Shaft,
         Category::Topography,
+        Category::Pad,
     ];
 
     /// Categories with physical elements (shown in legends and 3D).
@@ -90,7 +93,7 @@ impl Category {
     ];
 
     /// Categories that can be listed in a schedule.
-    pub const SCHEDULABLE: [Category; 20] = [
+    pub const SCHEDULABLE: [Category; 21] = [
         Category::Wall,
         Category::Door,
         Category::Window,
@@ -111,6 +114,7 @@ impl Category {
         Category::Room,
         Category::Mass,
         Category::Topography,
+        Category::Pad,
     ];
 
     pub fn is_model(self) -> bool {
@@ -138,6 +142,7 @@ impl Category {
             Category::Sweep => "category-sweep",
             Category::Shaft => "category-shaft",
             Category::Topography => "category-topography",
+            Category::Pad => "category-pad",
             Category::Component => "category-component",
             Category::Foundation => "category-foundation",
             Category::Rebar => "category-rebar",
@@ -396,6 +401,22 @@ pub enum TypeData {
         #[serde(default = "crate::types::default_major_every")]
         major_every: u32,
     },
+    /// Building pads: the horizontal run per unit of rise of their cut and
+    /// fill slopes.
+    Pad {
+        #[serde(default = "crate::types::default_cut_slope")]
+        cut_slope: f64,
+        #[serde(default = "crate::types::default_fill_slope")]
+        fill_slope: f64,
+    },
+}
+
+pub(crate) fn default_cut_slope() -> f64 {
+    crate::pad::DEFAULT_CUT_SLOPE
+}
+
+pub(crate) fn default_fill_slope() -> f64 {
+    crate::pad::DEFAULT_FILL_SLOPE
 }
 
 pub(crate) fn default_contour_interval() -> f64 {
@@ -449,7 +470,8 @@ impl TypeData {
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
             | TypeData::CadImport {}
-            | TypeData::Shaft {} => Vec::new(),
+            | TypeData::Shaft {}
+            | TypeData::Pad { .. } => Vec::new(),
         }
     }
 
@@ -514,7 +536,8 @@ impl TypeData {
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
             | TypeData::CadImport {}
-            | TypeData::Shaft {} => {}
+            | TypeData::Shaft {}
+            | TypeData::Pad { .. } => {}
         }
     }
 }
@@ -659,6 +682,7 @@ impl ElementType {
             TypeData::Sweep { .. } => Category::Sweep,
             TypeData::Shaft {} => Category::Shaft,
             TypeData::Topography { .. } => Category::Topography,
+            TypeData::Pad { .. } => Category::Pad,
         }
     }
 
@@ -757,7 +781,8 @@ impl ElementType {
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
             | TypeData::CadImport {}
-            | TypeData::Shaft {} => "",
+            | TypeData::Shaft {}
+            | TypeData::Pad { .. } => "",
             TypeData::Column { material, .. }
             | TypeData::Beam { material, .. }
             | TypeData::Foundation { material, .. }

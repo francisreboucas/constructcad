@@ -277,12 +277,22 @@ pub(crate) fn element_json(s: &mut Session, id: ElementId) -> Option<Value> {
         ElementKind::Roof(_) => s.project().element_type(e.type_id).map(|t| t.data.clone()),
         _ => None,
     };
+    let pad_ids: Vec<ElementId> = p.pads_of(id).map(|(e, _)| e.id).collect();
     let geom = s.geometry();
     if geom.solids_of(id).next().is_some() {
         derived.insert("volume".into(), json!(geom.volume(id)));
     }
     if let Some(g) = geom.topographies.get(&id) {
         super::topography::derived(g, &mut derived);
+        // The earthworks of its pads.
+        let pads: Vec<&cc_geom::pad::PadGeom> = pad_ids.iter().filter_map(|p| geom.pads.get(p)).collect();
+        if let (false, Some(Value::Object(t))) = (pads.is_empty(), derived.get_mut("topography")) {
+            t.insert("cut".into(), json!(pads.iter().map(|g| g.cut).sum::<f64>()));
+            t.insert("fill".into(), json!(pads.iter().map(|g| g.fill).sum::<f64>()));
+        }
+    }
+    if let Some(g) = geom.pads.get(&id) {
+        super::pad::derived(g, &mut derived);
     }
     if let Some(beam) = geom.beams.get(&id) {
         // Where each end is framed: a column's face, other beams, or free.

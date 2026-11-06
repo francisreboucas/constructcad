@@ -218,6 +218,7 @@ impl<'a> EditCtx<'a> {
             pending.extend(self.project.hosted_by(id).map(|e| e.id));
             pending.extend(self.project.railings_of(id).map(|e| e.id));
             pending.extend(self.project.rebar_of(id).map(|(e, _)| e.id));
+            pending.extend(self.project.pads_of(id).map(|(e, _)| e.id));
             self.touch_element(id);
             self.project.elements.remove(&id);
             // A pinned element removed with its host or view takes its pin along.
@@ -563,6 +564,15 @@ impl<'a> EditCtx<'a> {
         }
     }
 
+    /// Pads stand on their terrain's level (see [`crate::pad`]).
+    fn sync_pads(&mut self) {
+        for (id, level) in self.project.pad_levels() {
+            if let Some(e) = self.element_mut(id) {
+                e.level = level;
+            }
+        }
+    }
+
     /// Elements (and sweep types) whose outline this edit changed without their sketch drop it
     /// (see [`crate::sketch`]).
     fn sync_sketches(&mut self) {
@@ -638,6 +648,7 @@ impl<'a> EditCtx<'a> {
     fn finish(mut self) -> Transaction {
         // Associative dimensions follow what this edit changed (elements or levels).
         self.sync_shafts();
+        self.sync_pads();
         self.sync_attachments();
         self.sync_dimensions();
         self.sync_phases();
