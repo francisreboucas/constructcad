@@ -271,6 +271,17 @@ impl Command for TitleBlockCreate {
         if self.empty {
             def.sheet.clear();
         }
+        // Types of one component share its definition: a name already in use
+        // would mix the title block with another component's types.
+        let p = s.project();
+        if p.types.values().any(|t| t.name.trim() == name) {
+            return Err(EngineError::invalid(format!("a type is already named '{name}'")));
+        }
+        if p.types.values().any(|t| matches!(&t.data, TypeData::Component { component, .. } if component.trim() == name))
+        {
+            return Err(EngineError::invalid(format!("a component is already named '{name}'")));
+        }
+        super::types::validate(&def)?;
         let id = edit(s, t!("tx-new-title-block"), |e| {
             let id = ElementTypeId(e.alloc_id());
             let data = TypeData::Component { component: name.clone(), def };

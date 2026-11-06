@@ -255,3 +255,20 @@ fn component_create_takes_a_title_block_with_sheet_pieces() {
     let bad = json!({"kind": "TitleBlock", "items": [{"name": "B", "shape": cube}]});
     assert_eq!(fails(&mut s, "component_create", json!({"name": "Mau", "def": bad})), ErrorCode::InvalidArguments);
 }
+
+#[test]
+fn title_block_create_refuses_names_in_use() {
+    let mut s = Session::default();
+    let cube = json!({"Box": {"x": "0", "y": "0", "z": "0", "width": "1", "depth": "1", "height": "1"}});
+    let def = json!({"items": [{"name": "B", "shape": cube}]});
+    let id = run(&mut s, "component_create", json!({"name": "Mesa", "def": def}))["id"].clone();
+    run(&mut s, "type_set", json!({"type": id, "name": "Mesa 80"}));
+    // The component's name, and a type's name, are taken.
+    assert_eq!(fails(&mut s, "title_block_create", json!({"name": "Mesa"})), ErrorCode::InvalidArguments);
+    assert_eq!(fails(&mut s, "title_block_create", json!({"name": " Mesa 80 "})), ErrorCode::InvalidArguments);
+    assert_eq!(fails(&mut s, "title_block_create", json!({"name": "Alvenaria 15 cm"})), ErrorCode::InvalidArguments);
+    let got = run(&mut s, "component_get", json!({"type": "Mesa 80"}));
+    assert_eq!(got["def"]["items"].as_array().unwrap().len(), 1, "the other component is untouched");
+    assert!(got["def"]["sheet"].as_array().is_none_or(Vec::is_empty));
+    run(&mut s, "title_block_create", json!({"name": "Carimbo novo"}));
+}
