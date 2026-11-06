@@ -1,6 +1,7 @@
 //! `{fields}` in title block texts: sheet, project and date values, and
 //! the title block's per-sheet parameters. Unknown keys stay as written.
 
+use cc_core::title_block::{FieldPart, field_parts};
 use cc_core::{ComponentDef, Project, View, ViewKind};
 
 /// The fixed keys, in the order the editor's menu lists them.
@@ -31,44 +32,18 @@ pub struct FieldCtx<'a> {
     pub as_indicated: &'a str,
 }
 
-/// Most bytes a field key may have (a longer `{…}` is not a field).
-const MAX_KEY: usize = 200;
-
 /// Replaces each `{key}` of `text` with its value; `{{` and `}}` are literal
-/// braces and unknown keys stay as written.
+/// braces, and unknown keys and braces without a match stay as written
+/// (see [`field_parts`]).
 pub fn expand(text: &str, ctx: &FieldCtx) -> String {
     let mut out = String::with_capacity(text.len());
-    let mut rest = text;
-    // `find` lands on ASCII braces, so every slice below is on a char boundary.
-    while let Some(i) = rest.find(['{', '}']) {
-        out.push_str(&rest[..i]);
-        let tail = &rest[i..];
-        if tail.starts_with("{{") || tail.starts_with("}}") {
-            out.push_str(&tail[..1]);
-            rest = &tail[2..];
-            continue;
-        }
-        if let Some(after) = tail.strip_prefix('}') {
-            out.push('}');
-            rest = after;
-            continue;
-        }
-        match tail[1..].find('}').filter(|&j| j <= MAX_KEY) {
-            Some(j) => {
-                let key = &tail[1..1 + j];
-                match value(key, ctx) {
-                    Some(v) => out.push_str(&v),
-                    None => out.push_str(&tail[..j + 2]),
-                }
-                rest = &tail[j + 2..];
-            }
-            None => {
-                out.push_str(tail);
-                rest = "";
-            }
-        }
-    }
-    out.push_str(rest);
+    field_parts(text, |part| match part {
+        FieldPart::Text { shown, .. } => out.push_str(shown),
+        FieldPart::Field { key, raw } => match value(key, ctx) {
+            Some(v) => out.push_str(&v),
+            None => out.push_str(raw),
+        },
+    });
     out
 }
 
@@ -209,6 +184,28 @@ mod tests {
             as_indicated: "x",
         };
         assert_eq!(expand("é{é}ü{sheet_number}ñ{", &ctx), "é{é}üA2ñ{");
+        assert_eq!(expand("ç{ã {sheet_number}ü", &ctx), "ç{ã A2ü");
+    }
+
+    #[test]
+    fn a_brace_without_a_match_stays_and_later_fields_fill_in() {
+        let p = project();
+        let ctx = FieldCtx {
+            project: &p,
+            sheet: p.view(ViewId(9002)).unwrap(),
+            def: None,
+            today: (2026, 1, 1),
+            format_date: iso,
+            as_indicated: "x",
+        };
+        assert_eq!(expand("a }} b", &ctx), "a } b");
+        assert_eq!(expand("a } b {sheet_number}", &ctx), "a } b A2");
+        assert_eq!(expand("{a {sheet_number}", &ctx), "{a A2");
+        assert_eq!(expand("{ {sheet_number} }", &ctx), "{ A2 }");
+        let long = format!("{{{}}} {{sheet_number}}", "k".repeat(250));
+        assert_eq!(expand(&long, &ctx), format!("{{{}}} A2", "k".repeat(250)));
+        let open = format!("{{{} {{sheet_number}}", "k".repeat(250));
+        assert_eq!(expand(&open, &ctx), format!("{{{} A2", "k".repeat(250)));
     }
 
     #[test]
