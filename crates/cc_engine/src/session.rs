@@ -308,6 +308,22 @@ impl Session {
         result
     }
 
+    /// Run several commands as one undo step named `name`: when `f` fails,
+    /// what it changed is undone, so either all of it stays or none.
+    pub fn group<R>(&mut self, name: &str, f: impl FnOnce(&mut Self) -> Result<R>) -> Result<R> {
+        let depth = self.doc.undo_depth();
+        self.merge_key = None;
+        self.doc.break_merge();
+        let result = f(self);
+        match &result {
+            Ok(_) => {
+                self.doc.squash_since(depth, name);
+            }
+            Err(_) => self.undo_to(depth),
+        }
+        result
+    }
+
     /// The merge key for the edit being run.
     pub(crate) fn take_merge_key(&mut self) -> Option<u64> {
         self.merge_key.take()

@@ -143,6 +143,34 @@ fn points_are_edited_by_index() {
 }
 
 #[test]
+fn a_boundary_and_points_edited_together_are_one_step_or_none() {
+    let mut s = Session::default();
+    let t = id(&run(&mut s, "topography_create", json!({"points": slope_points(), "boundary": rect(20.0, 10.0)})));
+    let square = json!({"id": t, "curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 10]}]});
+    // The points edit is refused: the new boundary is undone with it.
+    let depth = s.doc.undo_depth();
+    let failed = s.group("edit", |s| {
+        s.execute("sketch_set", square.clone())?;
+        s.execute("topography_points_set", json!({"id": t, "remove": [99]}))
+    });
+    assert!(failed.is_err());
+    assert_eq!(s.doc.undo_depth(), depth);
+    assert!((derived(&mut s, t)["area"].as_f64().unwrap() - 200.0).abs() < 1e-9);
+    // Both succeed: one undo step brings back the boundary and the points.
+    s.group("edit", |s| {
+        s.execute("sketch_set", square.clone())?;
+        s.execute("topography_points_set", json!({"id": t, "add": [[5.0, 5.0, 7.0]]}))
+    })
+    .unwrap();
+    assert_eq!(s.doc.undo_depth(), depth + 1);
+    assert_eq!(derived(&mut s, t)["max_z"].as_f64(), Some(7.0));
+    run(&mut s, "undo", json!({}));
+    let d = derived(&mut s, t);
+    assert!((d["area"].as_f64().unwrap() - 200.0).abs() < 1e-9, "{d}");
+    assert_eq!(d["max_z"].as_f64(), Some(2.0));
+}
+
+#[test]
 fn sections_cut_the_earth_and_moves_carry_the_points() {
     let mut s = Session::default();
     let t = id(&run(&mut s, "topography_create", json!({"points": slope_points(), "boundary": rect(20.0, 10.0)})));

@@ -501,19 +501,33 @@ pub fn finish(state: &mut AppState) {
     let curves: Vec<CurveArg> = session.curves.iter().map(CurveArg::of).collect();
     let out = match session.target {
         Target::Edit { id } => {
-            let command = cc_engine::commands::sketch::SketchSet { id: id.0, curves };
-            let out = crate::actions::run_command(state, command).map(|_| id);
-            let changed = match state.project().element(id).map(|e| &e.kind) {
-                Some(cc_core::ElementKind::Topography(t)) => t.points != session.points,
-                _ => false,
+            // A terrain's boundary and points change together: one undo step,
+            // and a refused points edit leaves the boundary as it was.
+            let points = match state.project().element(id).map(|e| &e.kind) {
+                Some(cc_core::ElementKind::Topography(t)) if t.points != session.points => {
+                    Some(session.points.iter().map(|p| p.to_array()).collect::<Vec<_>>())
+                }
+                _ => None,
             };
-            if out.is_some() && changed {
-                let points = Some(session.points.iter().map(|p| p.to_array()).collect());
-                let command =
-                    cc_engine::commands::topography::TopographyPointsSet { id: id.0, points, ..Default::default() };
-                crate::actions::run_command(state, command);
+            let result = state.session.group(&t!("tx-modify"), |s| {
+                s.run(cc_engine::commands::sketch::SketchSet { id: id.0, curves })?;
+                if let Some(points) = points {
+                    let points = Some(points);
+                    s.run(cc_engine::commands::topography::TopographyPointsSet {
+                        id: id.0,
+                        points,
+                        ..Default::default()
+                    })?;
+                }
+                Ok(())
+            });
+            match result {
+                Ok(()) => Some(id),
+                Err(e) => {
+                    state.message = e.message;
+                    None
+                }
             }
-            out
         }
         Target::New { category, type_id } => {
             // The type picked in the type selector since the sketch opened.

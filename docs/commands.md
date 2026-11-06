@@ -927,7 +927,7 @@ No parameters.
 
 ### `topography_points_set`
 
-*edit* — Edit the measured points of a terrain surface: replace them all (`points`), or change elevations (`set`), remove points (`remove`, by index) and add new ones (`add`), in that order. Indices refer to the points as they are before the edit. Points that repeat another in plan are dropped (the first is kept); the answer says how many.
+*edit* — Edit the measured points of a terrain surface: replace them all (`points`), or change elevations (`set`), remove points (`remove`, by index) and add new ones (`add`), in that order. Indices refer to the points before `remove` and `add`: the current ones, or `points` when it is given. Points that repeat another in plan are dropped (the first is kept); the answer says how many.
 
 | Parameter | Type | | Description |
 |---|---|---|---|

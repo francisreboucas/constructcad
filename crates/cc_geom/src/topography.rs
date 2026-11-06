@@ -146,6 +146,53 @@ fn clean_boundary(boundary: &[DVec2]) -> Vec<DVec2> {
     out
 }
 
+/// Splits the points that reach the boundary off the inner ones: a point on
+/// an edge becomes a boundary vertex with its own elevation (so the sides
+/// of the solid follow the surface's edge), and one on a boundary vertex
+/// only sets that vertex's elevation. Returns the boundary, its relative
+/// elevations and the points strictly inside.
+fn split_on_boundary(boundary: &[DVec2], bz: &[f64], inside: &[DVec3]) -> (Vec<DVec2>, Vec<f64>, Vec<DVec3>) {
+    let tol = cc_core::topography::POINT_TOL;
+    let n = boundary.len();
+    let mut corner_z: Vec<Option<f64>> = vec![None; n];
+    let mut on_edge: Vec<Vec<(f64, DVec3)>> = vec![Vec::new(); n];
+    let mut inner = Vec::with_capacity(inside.len());
+    for p in inside {
+        let q = p.truncate();
+        if let Some(i) = boundary.iter().position(|b| b.distance(q) <= tol) {
+            corner_z[i].get_or_insert(p.z);
+            continue;
+        }
+        let edge = (0..n).find_map(|i| {
+            let (a, b) = (boundary[i], boundary[(i + 1) % n]);
+            let ab = b - a;
+            let t = (q - a).dot(ab) / ab.length_squared().max(1e-300);
+            ((0.0..=1.0).contains(&t) && (a + ab * t).distance(q) <= tol).then_some((i, t))
+        });
+        match edge {
+            Some((i, t)) => on_edge[i].push((t, *p)),
+            None => inner.push(*p),
+        }
+    }
+    let mut out_b = Vec::with_capacity(n);
+    let mut out_z = Vec::with_capacity(n);
+    for i in 0..n {
+        out_b.push(boundary[i]);
+        out_z.push(corner_z[i].unwrap_or(bz.get(i).copied().unwrap_or(0.0)));
+        let mut along = std::mem::take(&mut on_edge[i]);
+        along.sort_by(|a, b| a.0.total_cmp(&b.0));
+        for (_, p) in along {
+            // Points closer than the tolerance along the edge count once.
+            if out_b.last().is_some_and(|l: &DVec2| l.distance(p.truncate()) <= tol) {
+                continue;
+            }
+            out_b.push(p.truncate());
+            out_z.push(p.z);
+        }
+    }
+    (out_b, out_z, inner)
+}
+
 /// Surface triangles (relative z) of the points inside `boundary` (ccw)
 /// with the boundary elevations `bz`.
 fn surface(boundary: &[DVec2], bz: &[f64], inner: &[DVec3], warnings: &mut Vec<TopoWarning>) -> Vec<[DVec3; 3]> {
@@ -203,24 +250,27 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
         let mut w = Vec::new();
         // Points surveyed beyond the boundary still say how high it runs.
         let bz = boundary_elevations(&boundary, &points, &mut w);
-        let tris = surface(&boundary, &bz, &inner, &mut w);
-        (bz, tris, w)
+        let (edge, bz, inner) = split_on_boundary(&boundary, &bz, &inner);
+        let tris = surface(&edge, &bz, &inner, &mut w);
+        (edge, bz, tris, w)
     }));
-    let (bz, mut triangles) = match built {
-        Ok((bz, tris, w)) if !tris.is_empty() => {
+    let (boundary, bz, mut triangles) = match built {
+        Ok((edge, bz, tris, w)) if !tris.is_empty() => {
             warnings = w;
-            (bz, tris)
+            (edge, bz, tris)
         }
-        Ok((_, _, w)) => {
+        Ok((_, _, _, w)) => {
             warnings = w;
             if !warnings.contains(&TopoWarning::Failed) {
                 warnings.push(TopoWarning::Failed);
             }
-            flat(&boundary)
+            let (bz, tris) = flat(&boundary);
+            (boundary, bz, tris)
         }
         Err(_) => {
             warnings.push(TopoWarning::Failed);
-            flat(&boundary)
+            let (bz, tris) = flat(&boundary);
+            (boundary, bz, tris)
         }
     };
     for tri in &mut triangles {
@@ -277,20 +327,27 @@ pub fn contours(g: &TopoGeom, interval: f64, major_every: u32, max: usize) -> Ve
     if !(interval.is_finite() && interval > 1e-6) || g.triangles.is_empty() {
         return Vec::new();
     }
+    // Majors are the multiples of the major interval, whatever the step.
+    let major_step = interval * major_every.max(1) as f64;
+    let max = max.max(1) as f64;
     let mut step = interval;
-    let mut every = major_every.max(1) as f64;
-    while ((g.max_z / step).floor() - (g.min_z / step).ceil() + 1.0) > max as f64 {
+    // Bounded: 64 doublings outgrow any finite range.
+    for _ in 0..64 {
+        if ((g.max_z / step).floor() - (g.min_z / step).ceil() + 1.0) <= max {
+            break;
+        }
         step *= 2.0;
-        // The majors stay where they were while they can.
-        every = (every / 2.0).max(1.0).round();
     }
-    let first = (g.min_z / step).ceil() as i64;
-    let last = (g.max_z / step).floor() as i64;
+    let (first, last) = ((g.min_z / step).ceil(), (g.max_z / step).floor());
+    if !(first.is_finite() && last.is_finite()) || last - first + 1.0 > max {
+        return Vec::new();
+    }
     let mut out = Vec::new();
-    for k in first..=last {
+    for k in first as i64..=last as i64 {
         let z = k as f64 * step;
         let segments = slice(&g.triangles, z);
-        let major = (k as f64 / every).fract().abs() < 1e-9;
+        let m = z / major_step;
+        let major = (m - m.round()).abs() < 1e-6;
         out.extend(chain(segments).into_iter().map(|points| Contour { z, major, points }));
     }
     out
@@ -524,6 +581,55 @@ mod tests {
         let few = contours(&g, 1.0, 5, 4);
         let zs: std::collections::BTreeSet<i64> = few.iter().map(|c| c.z as i64).collect();
         assert!(zs.len() <= 4, "{zs:?}");
+    }
+
+    #[test]
+    fn a_point_on_a_boundary_edge_keeps_the_solid_closed() {
+        // The corners give 0; the point on the bottom edge lifts it to 3.
+        let pts = vec![
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(10.0, 0.0, 0.0),
+            DVec3::new(10.0, 10.0, 0.0),
+            DVec3::new(0.0, 10.0, 0.0),
+            DVec3::new(5.0, 0.0, 3.0),
+            DVec3::new(5.0, 5.0, 1.0),
+        ];
+        let g = geom(pts, rect(10.0, 10.0));
+        assert!(g.boundary.iter().any(|p| p.distance(DVec3::new(5.0, 0.0, 3.0)) < 1e-9), "{:?}", g.boundary);
+        let mut s = Solid::new(ElementId(1), Category::Topography, [0, 0, 0]);
+        add_solid(&mut s, &g);
+        assert!((s.volume() - g.volume).abs() < 1e-6, "{} {}", s.volume(), g.volume);
+        // Every edge of the closed solid is shared by exactly two faces.
+        let key = |p: DVec3| ((p.x * 1e6).round() as i64, (p.y * 1e6).round() as i64, (p.z * 1e6).round() as i64);
+        let mut edges: std::collections::HashMap<_, i32> = std::collections::HashMap::new();
+        for f in &s.faces {
+            let n = f.verts.len();
+            for i in 0..n {
+                let (a, b) = (key(f.verts[i]), key(f.verts[(i + 1) % n]));
+                *edges.entry(if a < b { (a, b) } else { (b, a) }).or_default() += 1;
+            }
+        }
+        assert!(edges.values().all(|c| *c == 2), "{edges:?}");
+    }
+
+    #[test]
+    fn majors_stay_on_the_major_interval_when_the_step_doubles() {
+        // z = x from 0 to 100: 101 contours at 1 m, so a cap of 60 doubles to 2 m.
+        let pts = vec![
+            DVec3::new(0.0, 0.0, 0.0),
+            DVec3::new(100.0, 0.0, 100.0),
+            DVec3::new(100.0, 4.0, 100.0),
+            DVec3::new(0.0, 4.0, 0.0),
+        ];
+        let g = geom(pts, rect(100.0, 4.0));
+        let c = contours(&g, 1.0, 5, 60);
+        assert!(c.iter().all(|c| (c.z / 2.0).fract() == 0.0));
+        for line in &c {
+            assert_eq!(line.major, (line.z / 5.0).fract() == 0.0, "{}", line.z);
+        }
+        assert!(c.iter().any(|c| c.major && c.z == 10.0));
+        // No cap at all still ends.
+        assert!(contours(&g, 1.0, 5, 0).len() <= 4);
     }
 
     #[test]
