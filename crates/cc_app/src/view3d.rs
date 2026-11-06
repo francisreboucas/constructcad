@@ -358,6 +358,11 @@ pub fn show(ui: &mut Ui, state: &mut AppState, view_id: ViewId, render_state: Op
             }
             None => geom.pick(ray, &[]),
         };
+        // The graded earth inside a building pad picks the pad.
+        let picked = picked.map(|(id, t)| {
+            let hit = ray.origin + ray.dir * t;
+            (cc_geom::pad::pad_at(project, id, hit.truncate()).unwrap_or(id), t)
+        });
         let demolishing = state.tool == crate::tools::Tool::Demolish;
         let placing = matches!(state.tool, crate::tools::Tool::Hosted { .. });
         let attaching = state.tool == crate::tools::Tool::AttachTop;

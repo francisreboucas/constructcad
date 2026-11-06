@@ -668,6 +668,12 @@ fn grade_inner(surface: &Surface, pad: &PadInput, outline: &[DVec2]) -> Option<(
     Some((next, geom))
 }
 
+/// The pad of terrain `terrain` whose outline holds plan point `p` (the last
+/// applied wins), so a click on the graded earth picks the pad there.
+pub fn pad_at(project: &cc_core::Project, terrain: cc_core::ElementId, p: DVec2) -> Option<cc_core::ElementId> {
+    project.pads_of(terrain).filter(|(_, pad)| polygon::contains(&pad.outline, p)).map(|(e, _)| e.id).last()
+}
+
 /// The boundary of `triangles` (their unshared edges) as one loop,
 /// counter-clockwise, or `None` when they do not make exactly one.
 pub fn mesh_boundary(triangles: &[[DVec3; 3]]) -> Option<Vec<DVec3>> {

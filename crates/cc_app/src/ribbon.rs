@@ -43,7 +43,8 @@ pub fn category_icon(category: Category) -> Icon {
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
         Category::Shaft => Icon::Shaft,
-        Category::Topography | Category::Pad => Icon::Topography,
+        Category::Topography => Icon::Topography,
+        Category::Pad => Icon::Pad,
         Category::Sweep => Icon::Sweep,
     }
 }
@@ -629,7 +630,7 @@ fn massing_site_tab(ui: &mut Ui, state: &mut AppState) {
         command_buttons(ui, state, &[place(Category::Mass), UiCommand::PushPull]);
         stacks(ui, state, &[&[UiCommand::MassWalls, UiCommand::MassSlabs, UiCommand::MassRoof]]);
     });
-    group(ui, t!("group-site"), |ui| command_button(ui, state, place(Category::Topography)));
+    group(ui, t!("group-site"), |ui| command_buttons(ui, state, &[place(Category::Topography), place(Category::Pad)]));
 }
 
 fn structure_tab(ui: &mut Ui, state: &mut AppState) {

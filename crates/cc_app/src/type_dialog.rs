@@ -362,6 +362,27 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
         });
     }
 
+    if let TypeData::Pad { cut_slope, fill_slope } = ty.data {
+        section(ui, "type-slopes", t!("section-slopes"), |ui| {
+            for (label, field, value) in
+                [(t!("prop-cut-slope"), "cut", cut_slope), (t!("prop-fill-slope"), "fill", fill_slope)]
+            {
+                let mut v = value;
+                let range = cc_core::pad::MIN_SLOPE..=cc_core::pad::MAX_SLOPE;
+                let r =
+                    row(ui, &label, |ui| ui.add(egui::DragValue::new(&mut v).speed(0.05).range(range).prefix("1:")));
+                if r.changed() {
+                    update(state, tid, field, |t| {
+                        if let TypeData::Pad { cut_slope, fill_slope } = &mut t.data {
+                            *(if field == "cut" { cut_slope } else { fill_slope }) = v;
+                        }
+                    });
+                }
+                finish(state, &r);
+            }
+        });
+    }
+
     if let TypeData::Roof { covering, framing, .. } = &ty.data {
         section(ui, "type-roofing", t!("section-roofing"), |ui| roofing(ui, state, tid, *covering, framing));
     }

@@ -170,6 +170,9 @@ pub fn activate_category_tool(state: &mut AppState, category: Category) {
     if category == Category::Topography && state.project().default_type(Category::Topography).is_none() {
         run_command(state, cc_engine::commands::topography::TopographyTypeCreate::default());
     }
+    if category == Category::Pad && state.project().default_type(Category::Pad).is_none() {
+        run_command(state, cc_engine::commands::pad::PadTypeCreate::default());
+    }
     if category == Category::Sweep && state.project().default_type(Category::Sweep).is_none() {
         run_command(state, cc_engine::commands::sweep::SweepTypeCreate::default());
     }
@@ -1052,6 +1055,11 @@ pub fn from_masses(state: &mut AppState, what: &str) {
         state.message = t!("msg-mass-made", "count" => made.len());
         state.selection = made.into_iter().collect();
     }
+}
+
+/// Whether the active plan's level has a terrain (for building pads to grade).
+pub fn terrain_on_level(state: &AppState) -> bool {
+    state.active_level().is_some_and(|l| state.project().elements_of(Category::Topography).any(|e| e.level == l))
 }
 
 #[cfg(test)]

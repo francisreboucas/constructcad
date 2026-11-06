@@ -31,6 +31,8 @@ pub struct ModifyOptions {
     /// Elevation of the next terrain point a sketch places, meters above
     /// the level (kept from one sketch to the next).
     pub point_elevation: f64,
+    /// Elevation of the next building pad sketched, meters above the level.
+    pub pad_elevation: f64,
 }
 
 impl Default for ModifyOptions {
@@ -43,6 +45,7 @@ impl Default for ModifyOptions {
             angle: 90.0,
             offset: 1.0,
             point_elevation: 0.0,
+            pad_elevation: 0.0,
         }
     }
 }

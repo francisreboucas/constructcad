@@ -615,6 +615,19 @@ fn create(
                 ..Default::default()
             },
         ),
+        Category::Pad => {
+            let elevation = state.modify.pad_elevation;
+            crate::actions::run_command(
+                state,
+                cc_engine::commands::pad::PadCreate {
+                    curves: Some(curves),
+                    level: Some(Ref::Id(level.0)),
+                    elevation,
+                    type_ref: Some(Ref::Id(type_id.0)),
+                    ..Default::default()
+                },
+            )
+        }
         Category::Topography => crate::actions::run_command(
             state,
             cc_engine::commands::topography::TopographyCreate {
@@ -1319,6 +1332,12 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
     crate::component_sketch::options(ui, state);
     let opts = &mut state.modify;
     let Some(s) = state.sketch.as_mut() else { return };
+    // A new pad's elevation, whatever is being drawn.
+    if matches!(s.target, Target::New { category: Category::Pad, .. }) {
+        ui.label(t!("opt-elevation"));
+        ui.add(crate::properties::length_drag(&mut opts.pad_elevation).range(-10_000.0..=10_000.0));
+        ui.separator();
+    }
     match s.draw {
         Draw::Line => {
             ui.checkbox(&mut s.chain, t!("sketch-chain"));

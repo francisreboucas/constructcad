@@ -172,6 +172,12 @@ Floors, ceilings, roofs, foundation slabs and masses take their outline as `curv
 {"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
 ```
 
+`pad_create` grades a building pad into a terrain: a flat area at `elevation` (meters above the terrain's level) inside an `outline` or `curves`, with a cut slope where the ground stands above it and a fill slope where it lies below, each running out to the existing ground. Slopes are the horizontal run per unit of rise (`cut_slope` 1 is 1:1, `fill_slope` 1.5 is 1:1.5); without them the pad uses its type's (`pad_type_create`, `type_set`). The `host` terrain defaults to the one whose boundary holds the outline's center. A pad lives on its terrain's level, moves with it and is deleted with it; pads of one terrain apply in creation order. `element_get` shows a pad's `cut`, `fill`, `net` (fill − cut), `area` and warnings (`off-terrain`, `coarse`, `failed`) in `derived.pad`, and a terrain's `derived.topography` sums its pads' `cut` and `fill`. Pad schedules have `Elevation`, `CutVolume` and `FillVolume`, which total like volumes.
+
+```text
+{"command": "pad_create", "args": {"outline": [[6, 3], [14, 3], [14, 8], [6, 8]], "elevation": 1.2}}
+```
+
 ### Curtain walls
 
 A curtain wall is a wall whose type has a curtain grid instead of layers: vertical lines along the wall and horizontal lines up from its base (a fixed distance, a number of divisions or a maximum spacing, justified at the start, the center or the end), a panel in each cell (glass, solid, empty or a component, such as a door) and mullions on the lines and around the border. `curtain_type_create` makes the type and `wall_create` places walls of it, straight or arc (flat panels along the arc). Each wall can adjust its grid: `curtain_grid_set` adds, moves and removes its lines and removes pieces of them (the cells beside merge into one panel), `curtain_panel_set` swaps panels, and `curtain_get` lists lines and panels. A curtain wall drawn inside another wall opens it where it stands. Wall schedules have `PanelCount`, `GlazedArea` and `MullionLength`. IFC export writes them as `IfcCurtainWall`s made of `IfcPlate`s and `IfcMember`s and import brings them back with their grid; a curtain wall from another program comes back as one when its panels make a plain grid, else as separate objects.
