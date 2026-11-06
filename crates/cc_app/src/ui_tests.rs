@@ -2263,3 +2263,18 @@ fn the_node_search_adds_a_node() {
     assert_eq!(g.nodes[0].kind, cc_engine::graph::NodeKind::Builtin("polygon_points".into()));
     assert_eq!(g.nodes[0].pos, [100.0, 50.0]);
 }
+
+#[test]
+fn sheet_properties_snapshot() {
+    if !snapshots_requested() {
+        return;
+    }
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    let mut harness = themed_harness(state, egui::vec2(360.0, 720.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    harness.snapshot("sheet_properties");
+}
