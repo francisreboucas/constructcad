@@ -112,7 +112,11 @@ fn initial_dock(project: &Project) -> DockState<ViewId> {
     let threed = project.views_of(ViewCategory::ThreeD).next().map(|v| v.id);
     let mut dock = DockState::new(plan.into_iter().collect());
     if let Some(t3) = threed {
-        dock.main_surface_mut().split_right(NodeIndex::root(), 0.55, vec![t3]);
+        if crate::i18n::is_rtl() {
+            dock.main_surface_mut().split_left(NodeIndex::root(), 0.45, vec![t3]);
+        } else {
+            dock.main_surface_mut().split_right(NodeIndex::root(), 0.55, vec![t3]);
+        }
     }
     // Focus the plan so the properties palette shows it from the start.
     if let Some(path) = plan.and_then(|p| dock.find_tab(&p)) {
@@ -491,7 +495,12 @@ impl ConstructApp {
         egui::Panel::bottom("status")
             .frame(bar(PALETTE.surface, 3).stroke(egui::Stroke::new(1.0, PALETTE.border)))
             .show(ui, |ui| ribbon::status_bar(ui, state));
-        egui::Panel::left("left")
+        let side_panel = if crate::i18n::is_rtl() {
+            egui::Panel::right("left")
+        } else {
+            egui::Panel::left("left")
+        };
+        side_panel
             .frame(egui::Frame::new().fill(PALETTE.panel).stroke(egui::Stroke::new(1.0, PALETTE.border)))
             .resizable(true)
             .default_size(290.0)

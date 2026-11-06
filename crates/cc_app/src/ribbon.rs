@@ -358,38 +358,73 @@ fn command_icon(ui: &mut Ui, state: &mut AppState, command: UiCommand) {
 }
 
 pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
+    let is_rtl = crate::i18n::is_rtl();
     // Measured first: rows wider than the window grow the Ui's rectangle.
     let full_width = ui.available_width();
     // Quick access toolbar at the top left, where desktop applications keep it.
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 1.0;
-        ui.add_space(2.0);
-        let (mark, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
-        if let Some(logo) = theme::logo(ui.ctx()) {
-            let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-            ui.painter().image(logo.id(), mark, uv, egui::Color32::WHITE);
-        }
-        ui.add_space(8.0);
-        let divider = |ui: &mut Ui| {
-            let (div, _) = ui.allocate_exact_size(vec2(9.0, 18.0), Sense::hover());
-            ui.painter().vline(div.center().x, div.y_range(), Stroke::new(1.0, PALETTE.border));
-        };
-        for command in [UiCommand::Home, UiCommand::New, UiCommand::Open, UiCommand::Save] {
-            command_icon(ui, state, command);
-        }
-        divider(ui);
-        command_icon(ui, state, UiCommand::Undo);
-        command_icon(ui, state, UiCommand::Redo);
-        // Frequent commands that already live in the ribbon.
-        divider(ui);
-        for command in [
-            UiCommand::ExportPdf,
-            UiCommand::Dimension(DimensionMode::Aligned),
-            UiCommand::Default3D,
-            UiCommand::Section,
-            UiCommand::CloseInactiveViews,
-        ] {
-            command_icon(ui, state, command);
+        if is_rtl {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 1.0;
+                ui.add_space(2.0);
+                let (mark, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
+                if let Some(logo) = theme::logo(ui.ctx()) {
+                    let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                    ui.painter().image(logo.id(), mark, uv, egui::Color32::WHITE);
+                }
+                ui.add_space(8.0);
+                let divider = |ui: &mut Ui| {
+                    let (div, _) = ui.allocate_exact_size(vec2(9.0, 18.0), Sense::hover());
+                    ui.painter().vline(div.center().x, div.y_range(), Stroke::new(1.0, PALETTE.border));
+                };
+                for command in [UiCommand::Home, UiCommand::New, UiCommand::Open, UiCommand::Save] {
+                    command_icon(ui, state, command);
+                }
+                divider(ui);
+                command_icon(ui, state, UiCommand::Undo);
+                command_icon(ui, state, UiCommand::Redo);
+                // Frequent commands that already live in the ribbon.
+                divider(ui);
+                for command in [
+                    UiCommand::ExportPdf,
+                    UiCommand::Dimension(DimensionMode::Aligned),
+                    UiCommand::Default3D,
+                    UiCommand::Section,
+                    UiCommand::CloseInactiveViews,
+                ] {
+                    command_icon(ui, state, command);
+                }
+            });
+        } else {
+            ui.spacing_mut().item_spacing.x = 1.0;
+            ui.add_space(2.0);
+            let (mark, _) = ui.allocate_exact_size(vec2(20.0, 20.0), Sense::hover());
+            if let Some(logo) = theme::logo(ui.ctx()) {
+                let uv = egui::Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+                ui.painter().image(logo.id(), mark, uv, egui::Color32::WHITE);
+            }
+            ui.add_space(8.0);
+            let divider = |ui: &mut Ui| {
+                let (div, _) = ui.allocate_exact_size(vec2(9.0, 18.0), Sense::hover());
+                ui.painter().vline(div.center().x, div.y_range(), Stroke::new(1.0, PALETTE.border));
+            };
+            for command in [UiCommand::Home, UiCommand::New, UiCommand::Open, UiCommand::Save] {
+                command_icon(ui, state, command);
+            }
+            divider(ui);
+            command_icon(ui, state, UiCommand::Undo);
+            command_icon(ui, state, UiCommand::Redo);
+            // Frequent commands that already live in the ribbon.
+            divider(ui);
+            for command in [
+                UiCommand::ExportPdf,
+                UiCommand::Dimension(DimensionMode::Aligned),
+                UiCommand::Default3D,
+                UiCommand::Section,
+                UiCommand::CloseInactiveViews,
+            ] {
+                command_icon(ui, state, command);
+            }
         }
     });
     // Ribbon tab titles, all as wide as the widest (measured bold, as when active).
@@ -413,33 +448,65 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     let width = width.min(((full_width - 40.0) / tabs.len() as f32).max(width - 24.0));
     let collapsed = state.ribbon_collapsed;
     ui.horizontal(|ui| {
-        ui.spacing_mut().item_spacing.x = 0.0;
-        for (tab, label) in tabs {
-            let active = state.ribbon_tab == tab && (!collapsed || state.ribbon_peek);
-            let r = tab_title(ui, &label, active, width);
-            // A double click collapses or expands; a click on a collapsed
-            // ribbon shows that tab's panel over the views, or hides it again.
-            if r.double_clicked() {
-                state.ribbon_collapsed = !state.ribbon_collapsed;
-                state.ribbon_peek = false;
-            } else if r.clicked() {
-                if collapsed {
-                    state.ribbon_peek = !(state.ribbon_peek && state.ribbon_tab == tab);
+        if is_rtl {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                for (tab, label) in tabs {
+                    let active = state.ribbon_tab == tab && (!collapsed || state.ribbon_peek);
+                    let r = tab_title(ui, &label, active, width);
+                    // A double click collapses or expands; a click on a collapsed
+                    // ribbon shows that tab's panel over the views, or hides it again.
+                    if r.double_clicked() {
+                        state.ribbon_collapsed = !state.ribbon_collapsed;
+                        state.ribbon_peek = false;
+                    } else if r.clicked() {
+                        if collapsed {
+                            state.ribbon_peek = !(state.ribbon_peek && state.ribbon_tab == tab);
+                        }
+                        state.ribbon_tab = tab;
+                    }
                 }
-                state.ribbon_tab = tab;
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    command_icon(ui, state, UiCommand::CommandPalette);
+                    let command = UiCommand::ToggleRibbon;
+                    let icon = if collapsed { Icon::ChevronDown } else { Icon::ChevronUp };
+                    let r = icon_button(ui, (icon, None), true);
+                    let label = command.label(state);
+                    r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+                    if command_tooltip(r, state, command, None).clicked() {
+                        commands::run(state, &ui.ctx().clone(), command);
+                    }
+                });
+            });
+        } else {
+            ui.spacing_mut().item_spacing.x = 0.0;
+            for (tab, label) in tabs {
+                let active = state.ribbon_tab == tab && (!collapsed || state.ribbon_peek);
+                let r = tab_title(ui, &label, active, width);
+                // A double click collapses or expands; a click on a collapsed
+                // ribbon shows that tab's panel over the views, or hides it again.
+                if r.double_clicked() {
+                    state.ribbon_collapsed = !state.ribbon_collapsed;
+                    state.ribbon_peek = false;
+                } else if r.clicked() {
+                    if collapsed {
+                        state.ribbon_peek = !(state.ribbon_peek && state.ribbon_tab == tab);
+                    }
+                    state.ribbon_tab = tab;
+                }
             }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                command_icon(ui, state, UiCommand::CommandPalette);
+                let command = UiCommand::ToggleRibbon;
+                let icon = if collapsed { Icon::ChevronDown } else { Icon::ChevronUp };
+                let r = icon_button(ui, (icon, None), true);
+                let label = command.label(state);
+                r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
+                if command_tooltip(r, state, command, None).clicked() {
+                    commands::run(state, &ui.ctx().clone(), command);
+                }
+            });
         }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            command_icon(ui, state, UiCommand::CommandPalette);
-            let command = UiCommand::ToggleRibbon;
-            let icon = if collapsed { Icon::ChevronDown } else { Icon::ChevronUp };
-            let r = icon_button(ui, (icon, None), true);
-            let label = command.label(state);
-            r.widget_info(|| egui::WidgetInfo::labeled(egui::WidgetType::Button, true, &label));
-            if command_tooltip(r, state, command, None).clicked() {
-                commands::run(state, &ui.ctx().clone(), command);
-            }
-        });
     });
     let strip_bottom = ui.min_rect().bottom();
     ui.painter().hline(ui.max_rect().x_range(), strip_bottom + 3.0, Stroke::new(1.0, PALETTE.border));
@@ -500,10 +567,16 @@ struct RowExtent {
 /// The active tab's groups. When they are wider than the window they
 /// scroll sideways, with arrows at the ends (and the mouse wheel).
 fn tab_row(ui: &mut Ui, state: &mut AppState, available: f32) {
+    let is_rtl = crate::i18n::is_rtl();
     let id = egui::Id::new(("ribbon-row", state.ribbon_tab as u8));
     let mut extent: RowExtent = ui.ctx().data(|d| d.get_temp(id)).unwrap_or_default();
     let overflow = extent.content > available + 0.5;
-    ui.with_layout(Layout::left_to_right(Align::Min), |ui| {
+    let row_layout = if is_rtl {
+        Layout::right_to_left(Align::Min)
+    } else {
+        Layout::left_to_right(Align::Min)
+    };
+    ui.with_layout(row_layout, |ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         let max_offset = (extent.content - extent.visible).max(0.0);
         let mut target = extent.pending.take();
@@ -520,17 +593,34 @@ fn tab_row(ui: &mut Ui, state: &mut AppState, available: f32) {
         }
         let out = area.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 0.0;
-                match state.ribbon_tab {
-                    RibbonTab::File => file_tab(ui, state),
-                    RibbonTab::Architecture => architecture_tab(ui, state),
-                    RibbonTab::Structure => structure_tab(ui, state),
-                    RibbonTab::Mep => mep_tab(ui, state),
-                    RibbonTab::Insert => insert_tab(ui, state),
-                    RibbonTab::Modify => modify_tab(ui, state),
-                    RibbonTab::Annotate => annotate_tab(ui, state),
-                    RibbonTab::View => view_tab(ui, state),
-                    RibbonTab::Manage => manage_tab(ui, state),
+                if is_rtl {
+                    ui.with_layout(Layout::right_to_left(Align::Min), |ui| {
+                        ui.spacing_mut().item_spacing.x = 0.0;
+                        match state.ribbon_tab {
+                            RibbonTab::File => file_tab(ui, state),
+                            RibbonTab::Architecture => architecture_tab(ui, state),
+                            RibbonTab::Structure => structure_tab(ui, state),
+                            RibbonTab::Mep => mep_tab(ui, state),
+                            RibbonTab::Insert => insert_tab(ui, state),
+                            RibbonTab::Modify => modify_tab(ui, state),
+                            RibbonTab::Annotate => annotate_tab(ui, state),
+                            RibbonTab::View => view_tab(ui, state),
+                            RibbonTab::Manage => manage_tab(ui, state),
+                        }
+                    });
+                } else {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    match state.ribbon_tab {
+                        RibbonTab::File => file_tab(ui, state),
+                        RibbonTab::Architecture => architecture_tab(ui, state),
+                        RibbonTab::Structure => structure_tab(ui, state),
+                        RibbonTab::Mep => mep_tab(ui, state),
+                        RibbonTab::Insert => insert_tab(ui, state),
+                        RibbonTab::Modify => modify_tab(ui, state),
+                        RibbonTab::Annotate => annotate_tab(ui, state),
+                        RibbonTab::View => view_tab(ui, state),
+                        RibbonTab::Manage => manage_tab(ui, state),
+                    }
                 }
             });
         });
@@ -923,8 +1013,20 @@ fn segment_options(ui: &mut Ui, state: &mut AppState, type_id: cc_core::ElementT
 }
 
 pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
+    let is_rtl = crate::i18n::is_rtl();
     ui.horizontal(|ui| {
-        egui::Frame::new()
+        if is_rtl {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                options_bar_content(ui, state);
+            });
+        } else {
+            options_bar_content(ui, state);
+        }
+    });
+}
+
+fn options_bar_content(ui: &mut Ui, state: &mut AppState) {
+    egui::Frame::new()
             .fill(PALETTE.accent_soft)
             .corner_radius(theme::RADIUS)
             .inner_margin(egui::Margin::symmetric(8, 3))
@@ -1229,46 +1331,86 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
                 ui.label(theme::muted(t!("hint-railing")));
             }
         }
-    });
-}
+    }
 
 pub fn status_bar(ui: &mut Ui, state: &mut AppState) {
+    let is_rtl = crate::i18n::is_rtl();
     ui.horizontal(|ui| {
-        if let Some(c) = state.cursor {
-            let coords = format!("X {:>9}  Y {:>9}", format::meters(c.x), format::meters(c.y));
-            ui.label(RichText::new(coords).monospace().color(PALETTE.text_muted));
-            ui.separator();
+        if is_rtl {
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                if let Some(c) = state.cursor {
+                    let coords = format!("X {:>9}  Y {:>9}", format::meters(c.x), format::meters(c.y));
+                    ui.label(RichText::new(coords).monospace().color(PALETTE.text_muted));
+                    ui.separator();
+                }
+                if !state.typed.length.is_empty() {
+                    ui.label(RichText::new(t!("status-length", "value" => state.typed.length)).strong());
+                    ui.separator();
+                }
+                if !state.typed.angle.is_empty() || state.typed.angle_active {
+                    ui.label(RichText::new(t!("status-angle", "value" => state.typed.angle)).strong());
+                    ui.separator();
+                }
+                let n = state.selection.len();
+                if n > 0 {
+                    ui.label(t!("status-selected", "count" => n));
+                    ui.separator();
+                }
+                ui.label(theme::muted(&state.message));
+                if state.updates.available.is_some() {
+                    ui.separator();
+                    crate::update::notice(ui, &mut state.updates);
+                }
+                ui.with_layout(Layout::left_to_right(Align::Center), |ui| {
+                    let file = state
+                        .session
+                        .doc
+                        .path
+                        .as_ref()
+                        .and_then(|p| p.file_name())
+                        .map(|f| f.to_string_lossy().to_string())
+                        .unwrap_or_else(|| t!("status-unsaved-file"));
+                    let dirty = if state.session.doc.is_dirty() { " *" } else { "" };
+                    ui.label(RichText::new(format!("{file}{dirty}")).color(PALETTE.text_faint));
+                });
+            });
+        } else {
+            if let Some(c) = state.cursor {
+                let coords = format!("X {:>9}  Y {:>9}", format::meters(c.x), format::meters(c.y));
+                ui.label(RichText::new(coords).monospace().color(PALETTE.text_muted));
+                ui.separator();
+            }
+            if !state.typed.length.is_empty() {
+                ui.label(RichText::new(t!("status-length", "value" => state.typed.length)).strong());
+                ui.separator();
+            }
+            if !state.typed.angle.is_empty() || state.typed.angle_active {
+                ui.label(RichText::new(t!("status-angle", "value" => state.typed.angle)).strong());
+                ui.separator();
+            }
+            let n = state.selection.len();
+            if n > 0 {
+                ui.label(t!("status-selected", "count" => n));
+                ui.separator();
+            }
+            ui.label(theme::muted(&state.message));
+            if state.updates.available.is_some() {
+                ui.separator();
+                crate::update::notice(ui, &mut state.updates);
+            }
+            ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                let file = state
+                    .session
+                    .doc
+                    .path
+                    .as_ref()
+                    .and_then(|p| p.file_name())
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_else(|| t!("status-unsaved-file"));
+                let dirty = if state.session.doc.is_dirty() { " *" } else { "" };
+                ui.label(RichText::new(format!("{file}{dirty}")).color(PALETTE.text_faint));
+            });
         }
-        if !state.typed.length.is_empty() {
-            ui.label(RichText::new(t!("status-length", "value" => state.typed.length)).strong());
-            ui.separator();
-        }
-        if !state.typed.angle.is_empty() || state.typed.angle_active {
-            ui.label(RichText::new(t!("status-angle", "value" => state.typed.angle)).strong());
-            ui.separator();
-        }
-        let n = state.selection.len();
-        if n > 0 {
-            ui.label(t!("status-selected", "count" => n));
-            ui.separator();
-        }
-        ui.label(theme::muted(&state.message));
-        if state.updates.available.is_some() {
-            ui.separator();
-            crate::update::notice(ui, &mut state.updates);
-        }
-        ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-            let file = state
-                .session
-                .doc
-                .path
-                .as_ref()
-                .and_then(|p| p.file_name())
-                .map(|f| f.to_string_lossy().to_string())
-                .unwrap_or_else(|| t!("status-unsaved-file"));
-            let dirty = if state.session.doc.is_dirty() { " *" } else { "" };
-            ui.label(RichText::new(format!("{file}{dirty}")).color(PALETTE.text_faint));
-        });
     });
 }
 

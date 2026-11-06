@@ -307,13 +307,21 @@ fn fonts() -> FontDefinitions {
         "inter-semibold".into(),
         Arc::new(FontData::from_static(include_bytes!("../../../assets/fonts/Inter-SemiBold.ttf"))),
     );
+    fonts.font_data.insert(
+        "noto-arabic".into(),
+        Arc::new(FontData::from_static(include_bytes!("../../../assets/fonts/NotoSansArabic-Regular.ttf"))),
+    );
     // Inter first; egui's bundled fonts stay as fallbacks for symbols and emoji.
     let proportional = fonts.families.entry(FontFamily::Proportional).or_default();
     proportional.insert(0, "inter".into());
+    proportional.push("noto-arabic".into());
     let fallbacks: Vec<String> = proportional[1..].to_vec();
     let mut semibold_family = vec!["inter-semibold".to_string()];
     semibold_family.extend(fallbacks);
     fonts.families.insert(semibold(), semibold_family);
+
+    let monospace = fonts.families.entry(FontFamily::Monospace).or_default();
+    monospace.push("noto-arabic".into());
     // Chinese, Japanese, Korean and Lao text from the system's fonts, last.
     for (i, fallback) in cc_views::fonts::fallbacks().enumerate() {
         let name = format!("fallback-{i}");

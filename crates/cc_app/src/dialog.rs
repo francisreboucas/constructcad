@@ -138,24 +138,49 @@ impl Dialog {
             ui.set_width(width);
             ui.spacing_mut().item_spacing.y = 0.0;
 
+            let is_rtl = crate::i18n::is_rtl();
+
             // Header.
-            egui::Frame::new().inner_margin(egui::Margin { left: PAD_X, right: 12, top: 14, bottom: 6 }).show(
+            let header_margin = if is_rtl {
+                egui::Margin { left: 12, right: PAD_X, top: 14, bottom: 6 }
+            } else {
+                egui::Margin { left: PAD_X, right: 12, top: 14, bottom: 6 }
+            };
+            egui::Frame::new().inner_margin(header_margin).show(
                 ui,
                 |ui| {
                     ui.horizontal(|ui| {
-                        ui.label(RichText::new(&self.title).family(theme::semibold()).size(15.0).color(PALETTE.text));
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            let (rect, r) = ui.allocate_exact_size(vec2(26.0, 26.0), egui::Sense::click());
-                            if r.hovered() {
-                                ui.painter().rect_filled(rect, theme::RADIUS as f32, PALETTE.hover);
-                            }
-                            let color = if r.hovered() { PALETTE.text } else { PALETTE.text_muted };
-                            icons::paint(ui.painter(), rect.shrink(8.0), Icon::Close, color);
-                            r.widget_info(|| {
-                                egui::WidgetInfo::labeled(egui::WidgetType::Button, true, crate::t!("action-close"))
+                        if is_rtl {
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.label(RichText::new(&self.title).family(theme::semibold()).size(15.0).color(PALETTE.text));
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    let (rect, r) = ui.allocate_exact_size(vec2(26.0, 26.0), egui::Sense::click());
+                                    if r.hovered() {
+                                        ui.painter().rect_filled(rect, theme::RADIUS as f32, PALETTE.hover);
+                                    }
+                                    let color = if r.hovered() { PALETTE.text } else { PALETTE.text_muted };
+                                    icons::paint(ui.painter(), rect.shrink(8.0), Icon::Close, color);
+                                    r.widget_info(|| {
+                                        egui::WidgetInfo::labeled(egui::WidgetType::Button, true, crate::t!("action-close"))
+                                    });
+                                    close_clicked = r.on_hover_text(crate::t!("action-close")).clicked();
+                                });
                             });
-                            close_clicked = r.on_hover_text(crate::t!("action-close")).clicked();
-                        });
+                        } else {
+                            ui.label(RichText::new(&self.title).family(theme::semibold()).size(15.0).color(PALETTE.text));
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                let (rect, r) = ui.allocate_exact_size(vec2(26.0, 26.0), egui::Sense::click());
+                                if r.hovered() {
+                                    ui.painter().rect_filled(rect, theme::RADIUS as f32, PALETTE.hover);
+                                }
+                                let color = if r.hovered() { PALETTE.text } else { PALETTE.text_muted };
+                                icons::paint(ui.painter(), rect.shrink(8.0), Icon::Close, color);
+                                r.widget_info(|| {
+                                    egui::WidgetInfo::labeled(egui::WidgetType::Button, true, crate::t!("action-close"))
+                                });
+                                close_clicked = r.on_hover_text(crate::t!("action-close")).clicked();
+                            });
+                        }
                     });
                 },
             );
@@ -167,14 +192,25 @@ impl Dialog {
                     ui.spacing_mut().item_spacing.y = 6.0;
                     match self.kind {
                         Some(kind) => {
-                            ui.horizontal_top(|ui| {
-                                alert_icon(ui, kind);
-                                ui.add_space(6.0);
-                                ui.vertical(|ui| {
-                                    ui.set_width(self.width - 48.0);
-                                    body(ui);
+                            if is_rtl {
+                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                                    alert_icon(ui, kind);
+                                    ui.add_space(6.0);
+                                    ui.vertical(|ui| {
+                                        ui.set_width(self.width - 48.0);
+                                        body(ui);
+                                    });
                                 });
-                            });
+                            } else {
+                                ui.horizontal_top(|ui| {
+                                    alert_icon(ui, kind);
+                                    ui.add_space(6.0);
+                                    ui.vertical(|ui| {
+                                        ui.set_width(self.width - 48.0);
+                                        body(ui);
+                                    });
+                                });
+                            }
                         }
                         None => {
                             ui.set_width(self.width);
@@ -191,19 +227,37 @@ impl Dialog {
                 .show(ui, |ui| {
                     ui.set_width(self.width);
                     ui.horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
-                        for (i, label) in buttons.extras.iter().enumerate() {
-                            if styled_button(ui, label, Style::Secondary).clicked() {
-                                clicked = Some(1000 + i);
-                            }
-                        }
-                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                            for (i, (label, style)) in buttons.actions.iter().enumerate().rev() {
-                                if styled_button(ui, label, *style).clicked() {
-                                    clicked = Some(i);
+                        if is_rtl {
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                ui.spacing_mut().item_spacing.x = 8.0;
+                                for (i, label) in buttons.extras.iter().enumerate() {
+                                    if styled_button(ui, label, Style::Secondary).clicked() {
+                                        clicked = Some(1000 + i);
+                                    }
+                                }
+                                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                                    for (i, (label, style)) in buttons.actions.iter().enumerate().rev() {
+                                        if styled_button(ui, label, *style).clicked() {
+                                            clicked = Some(i);
+                                        }
+                                    }
+                                });
+                            });
+                        } else {
+                            ui.spacing_mut().item_spacing.x = 8.0;
+                            for (i, label) in buttons.extras.iter().enumerate() {
+                                if styled_button(ui, label, Style::Secondary).clicked() {
+                                    clicked = Some(1000 + i);
                                 }
                             }
-                        });
+                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                                for (i, (label, style)) in buttons.actions.iter().enumerate().rev() {
+                                    if styled_button(ui, label, *style).clicked() {
+                                        clicked = Some(i);
+                                    }
+                                }
+                            });
+                        }
                     });
                 });
             let r = response.response.rect;
