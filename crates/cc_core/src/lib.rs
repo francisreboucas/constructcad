@@ -10,6 +10,7 @@ pub mod component;
 pub mod component_file;
 pub mod component_ref;
 pub mod component_script;
+pub mod curtain;
 pub mod dim_line;
 pub mod dim_refs;
 mod document;

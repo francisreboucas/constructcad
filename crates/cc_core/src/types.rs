@@ -254,6 +254,9 @@ pub enum TypeData {
         layers: Vec<Layer>,
         #[serde(default)]
         function: WallFunction,
+        /// A curtain wall type: a grid of panels and mullions instead of layers.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        curtain: Option<crate::curtain::CurtainSystem>,
     },
     Door {
         width: f64,
@@ -407,6 +410,7 @@ impl TypeData {
     /// Material names referenced by this type.
     pub fn materials(&self) -> Vec<&str> {
         match self {
+            TypeData::Wall { curtain: Some(c), .. } => c.materials(),
             TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
                 layers.iter().map(|l| l.material.as_str()).collect()
             }
@@ -453,6 +457,7 @@ impl TypeData {
     /// structure layer of layered types (else the thickest), or the main material.
     pub fn cut_material(&self) -> &str {
         match self {
+            TypeData::Wall { curtain: Some(c), .. } => c.main_material(),
             TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers, .. } => layers
                 .iter()
                 .find(|l| l.function == LayerFunction::Structure)
@@ -474,9 +479,13 @@ impl TypeData {
             }
         };
         match self {
-            TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
-                layers.iter_mut().for_each(|l| fix(&mut l.material))
+            TypeData::Wall { layers, curtain, .. } => {
+                layers.iter_mut().for_each(|l| fix(&mut l.material));
+                if let Some(c) = curtain {
+                    c.rename_material(old, new);
+                }
             }
+            TypeData::Floor { layers } => layers.iter_mut().for_each(|l| fix(&mut l.material)),
             TypeData::Roof { layers, framing, .. } => {
                 layers.iter_mut().for_each(|l| fix(&mut l.material));
                 fix(&mut framing.material);
@@ -653,8 +662,10 @@ impl ElementType {
         }
     }
 
+    /// The layers of a layered type (none for curtain walls).
     pub fn layers(&self) -> &[Layer] {
         match &self.data {
+            TypeData::Wall { curtain: Some(_), .. } => &[],
             TypeData::Wall { layers, .. } | TypeData::Floor { layers } | TypeData::Roof { layers, .. } => layers,
             _ => &[],
         }
@@ -664,6 +675,7 @@ impl ElementType {
     pub fn thickness(&self) -> f64 {
         match &self.data {
             TypeData::Ceiling { thickness, .. } | TypeData::Foundation { thickness, .. } => *thickness,
+            TypeData::Wall { curtain: Some(c), .. } => c.thickness(),
             _ => self.layers().iter().map(|l| l.thickness).sum(),
         }
     }
@@ -674,6 +686,14 @@ impl ElementType {
             TypeData::Pipe { diameter, .. } | TypeData::Conduit { diameter, .. } | TypeData::Rebar { diameter, .. } => {
                 Some(diameter)
             }
+            _ => None,
+        }
+    }
+
+    /// The curtain grid of a curtain wall type.
+    pub fn curtain(&self) -> Option<&crate::curtain::CurtainSystem> {
+        match &self.data {
+            TypeData::Wall { curtain, .. } => curtain.as_ref(),
             _ => None,
         }
     }
@@ -728,6 +748,7 @@ impl ElementType {
             TypeData::Door { material, .. }
             | TypeData::Window { material, .. }
             | TypeData::Ceiling { material, .. } => material,
+            TypeData::Wall { curtain: Some(c), .. } => c.main_material(),
             TypeData::Wall { layers, .. } | TypeData::Roof { layers, .. } => {
                 layers.first().map_or("", |l| l.material.as_str())
             }

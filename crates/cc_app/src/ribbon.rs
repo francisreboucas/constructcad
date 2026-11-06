@@ -73,6 +73,7 @@ fn tool_icon(tool: &Tool) -> Icon {
         Tool::Dimension { mode, .. } => dimension_icon(*mode),
         Tool::MatchType => Icon::MatchType,
         Tool::Demolish => Icon::Demolish,
+        Tool::CurtainGrid => Icon::CurtainGrid,
         Tool::AddLeader { .. } => Icon::Leader,
         Tool::Opening { floor: false, .. } => category_icon(Category::Roof),
         Tool::Opening { floor: true, .. } => category_icon(Category::Floor),
@@ -604,7 +605,10 @@ fn place(category: Category) -> UiCommand {
 fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     use Category::*;
     let buttons = |list: &[Category]| list.iter().map(|c| place(*c)).collect::<Vec<_>>();
-    group(ui, t!("group-build"), |ui| command_buttons(ui, state, &buttons(&[Wall, Door, Window])));
+    group(ui, t!("group-build"), |ui| {
+        command_buttons(ui, state, &buttons(&[Wall, Door, Window]));
+        command_button(ui, state, UiCommand::CurtainGrid);
+    });
     group(ui, t!("group-horizontal"), |ui| command_buttons(ui, state, &buttons(&[Floor, Ceiling, Roof, Shaft])));
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
@@ -943,6 +947,9 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
         if let (Some(category), Some(type_id)) = (state.tool.category(), state.tool.type_id()) {
             let types: Vec<_> = state.project().types_of(category).map(|t| (t.id, t.name.clone())).collect();
             let mut selected = type_id;
+            // Walls: a project without a curtain type gets one from the list.
+            let offer_curtain = category == Category::Wall && !crate::curtain_ui::has_curtain_type(state);
+            let mut new_curtain = false;
             egui::ComboBox::from_id_salt("tool_type")
                 .selected_text(state.project().type_name(type_id).to_string())
                 .width(200.0)
@@ -950,7 +957,14 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
                     for (id, name) in types {
                         ui.selectable_value(&mut selected, id, name);
                     }
+                    if offer_curtain {
+                        ui.separator();
+                        new_curtain = ui.selectable_label(false, crate::curtain_ui::new_type_label()).clicked();
+                    }
                 });
+            if new_curtain && let Some(id) = crate::curtain_ui::new_curtain_type(state) {
+                selected = id;
+            }
             if selected != type_id {
                 state.tool = state.tool.with_type(selected);
             }
@@ -1180,6 +1194,7 @@ pub fn options_bar(ui: &mut Ui, state: &mut AppState) {
             Tool::Demolish => {
                 ui.label(theme::muted(t!("hint-demolish")));
             }
+            Tool::CurtainGrid => crate::curtain_ui::options_bar(ui, state),
             Tool::Mirror { draw } => {
                 ui.checkbox(&mut state.modify.mirror_copy, t!("opt-copy"));
                 ui.label(theme::muted(if draw { t!("hint-mirror-draw") } else { t!("hint-mirror-pick") }));

@@ -554,6 +554,7 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
                 readonly_row(ui, &t!("prop-thickness"), format::length(thickness));
                 readonly_row(ui, &t!("prop-volume"), format::volume(state.session.geom().volume(id)));
             });
+            crate::curtain_ui::palette_rows(ui, state, &el, w);
         }
         ElementKind::Door(h) | ElementKind::Window(h) => {
             section(ui, "constraints", t!("section-constraints"), |ui| {

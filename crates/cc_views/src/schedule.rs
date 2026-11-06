@@ -373,6 +373,14 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             .get(&e.id)
             .filter(|g| !g.members.is_empty())
             .map_or(Value::Missing, |g| Value::Volume(g.volume())),
+        F::PanelCount | F::GlazedArea | F::MullionLength => {
+            match geom.walls.get(&e.id).and_then(|g| g.curtain.as_ref()) {
+                Some(c) if field == F::PanelCount => Value::Count(c.layout.panel_count()),
+                Some(c) if field == F::GlazedArea => Value::Area(c.layout.glazed_area()),
+                Some(c) => Value::Length(c.layout.mullion_length()),
+                None => Value::Missing,
+            }
+        }
         F::Number => match &e.kind {
             ElementKind::Room(r) => text(&r.number),
             _ => Value::Missing,

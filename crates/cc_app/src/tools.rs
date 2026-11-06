@@ -127,6 +127,8 @@ pub enum Tool {
     },
     /// Click elements to demolish them in the view's phase.
     Demolish,
+    /// Click curtain walls to edit their grids and panels (options in `AppState::curtain`).
+    CurtainGrid,
 }
 
 impl Tool {
@@ -178,6 +180,7 @@ impl Tool {
             Tool::Paste => "action-paste",
             Tool::MatchType => "tool-match-type",
             Tool::Demolish => "tool-demolish",
+            Tool::CurtainGrid => "tool-curtain-grid",
             Tool::Text { .. } => "tool-text",
             Tool::AddLeader { .. } => "tool-add-leader",
             Tool::Opening { floor: false, .. } => "tool-roof-opening",
@@ -1215,6 +1218,8 @@ pub fn handle(
         (Tool::MatchType, _) => crate::clipboard::match_type_tool(resp, painter, state, xf, drawing),
         // Demolishing works in plans, elevations and sections.
         (Tool::Demolish, _) => crate::phases_dialog::demolish_tool(resp, painter, state, view, xf, drawing),
+        // Curtain grids are edited in plans, elevations and sections.
+        (Tool::CurtainGrid, _) => crate::curtain_ui::grid_tool(resp, painter, state, view, xf),
         // Dimensions work in any 2D view.
         (Tool::Dimension { type_id, mode }, _) => {
             dimension_tool(ui, resp, painter, state, view, (*type_id, *mode), xf, drawing)

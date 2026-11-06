@@ -144,6 +144,10 @@ registry![
     ],
     "Creating elements" => [
         create::WallCreate,
+        curtain::CurtainTypeCreate,
+        curtain::CurtainGet,
+        curtain::CurtainGridSet,
+        curtain::CurtainPanelSet,
         create::DoorCreate,
         create::WindowCreate,
         create::FloorCreate,

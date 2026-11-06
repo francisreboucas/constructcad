@@ -1,6 +1,6 @@
 use crate::beam::{BeamGeom, BeamInput, ColumnInput, resolve_beams};
 use crate::polygon;
-use crate::wall::{LayerGap, Opening, WallGeom, WallLine, core_through, resolve_join};
+use crate::wall::{LayerGap, Opening, WallGeom, WallLine, core_through, embedded_in, resolve_join};
 use crate::{Ray, Solid};
 use cc_core::{Category, ElementId, ElementKind, Project, RoofShape, TypeData};
 use glam::{DVec2, DVec3};
@@ -310,7 +310,7 @@ impl ModelGeometry {
     /// leaves its joints open, so it is rebuilt with both ends capped.
     fn closed_meshes(&self, id: ElementId) -> Vec<Vec<Vec<DVec3>>> {
         let mesh = |s: &Solid| s.faces.iter().map(|f| f.verts.clone()).collect::<Vec<_>>();
-        if let Some(wall) = self.walls.get(&id) {
+        if let Some(wall) = self.walls.get(&id).filter(|w| w.curtain.is_none()) {
             let mut closed = wall.clone();
             closed.start_joined = false;
             closed.end_joined = false;
@@ -649,7 +649,8 @@ impl ModelGeometry {
             .filter_map(|(e, w)| Some((e.id, w.attach_top?)))
             .collect();
         for (wall, target) in attached {
-            let Some(g) = self.walls.get(&wall) else { continue };
+            // Curtain walls keep their grid under a flat top.
+            let Some(g) = self.walls.get(&wall).filter(|g| g.curtain.is_none()) else { continue };
             // The target's undersides (faces turned down) as plan outlines,
             // reaching half the wall further, with their planes.
             let reach = g.half + 0.01;
@@ -747,7 +748,7 @@ impl ModelGeometry {
         for walls in by_level.values() {
             // Joins work on the body centerlines (location lines shifted by the location line
             // setting); ends meet where the drawn location lines do.
-            let lines: Vec<WallLine> = walls
+            let mut lines: Vec<WallLine> = walls
                 .iter()
                 .map(|(e, w)| {
                     let (start, end) = project.wall_axis(e, w);
@@ -762,6 +763,23 @@ impl ModelGeometry {
                     }
                 })
                 .collect();
+            let curtains: Vec<Option<&cc_core::curtain::CurtainSystem>> =
+                walls.iter().map(|(e, _)| project.element_type(e.type_id).and_then(|t| t.curtain())).collect();
+            // A curtain wall inside another wall opens it where it stands, and joins nothing.
+            let mut embedded: Vec<(usize, Opening)> = Vec::new();
+            for (i, (e, w)) in walls.iter().enumerate() {
+                if curtains[i].is_none() {
+                    continue;
+                }
+                let host = (0..lines.len())
+                    .filter(|&j| curtains[j].is_none())
+                    .find_map(|j| Some((j, embedded_in(&lines[i], &lines[j])?)));
+                let Some((j, (u0, u1))) = host else { continue };
+                let (z0, z1) = (project.wall_base_z(e, w), project.wall_top_z(e, w));
+                embedded.push((j, Opening { element: e.id, u0, u1, z0, z1 }));
+                lines[i].join_start = false;
+                lines[i].join_end = false;
+            }
             // Each wall's layers as `(v_from, v_to, material)` from the left face
             // inward, and the offsets of its core's faces.
             let layered: Vec<Layered> = walls
@@ -804,8 +822,9 @@ impl ModelGeometry {
                         layer_gaps.push((host, gap));
                     }
                 }
-                let openings = project
-                    .hosted_by(e.id)
+                // Curtain walls host no doors or windows: their panels are the openings.
+                let hosted = project.hosted_by(e.id).filter(|_| curtains[i].is_none());
+                let mut openings: Vec<Opening> = hosted
                     .filter_map(|h| {
                         let host = h.as_hosted()?;
                         let (width, height) = project.element_type(h.type_id)?.opening_size()?;
@@ -819,7 +838,16 @@ impl ModelGeometry {
                         })
                     })
                     .collect();
+                openings.extend(embedded.iter().filter(|(j, _)| *j == i).map(|(_, o)| o.clone()));
                 g.set_openings(openings);
+                if let Some(system) = curtains[i] {
+                    let c = crate::curtain::build(project, e, &g, system);
+                    self.solids.extend(crate::curtain::solids(project, e, &c));
+                    g.curtain = Some(c);
+                    ids.push(e.id);
+                    self.walls.insert(e.id, g);
+                    continue;
+                }
                 let material = ty.map_or("", |t| t.main_material());
                 let mut solid = g.to_solid(project.material_color(material));
                 solid.set_appearance(project, material);
@@ -1055,6 +1083,9 @@ impl ModelGeometry {
     /// Volume of an element's main body (frames/glass excluded for openings).
     pub fn volume(&self, id: ElementId) -> f64 {
         if let Some(wall) = self.walls.get(&id) {
+            if let Some(c) = &wall.curtain {
+                return crate::curtain::volume(c);
+            }
             let shared = self.join_deductions.get(&id).copied().unwrap_or(0.0);
             return (wall.volume() - shared).max(0.0);
         }

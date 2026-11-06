@@ -1480,6 +1480,7 @@ impl<'a> Exporter<'a> {
             TypeData::Stair { .. } => ("IFCSTAIRTYPE", args![Value::Enum("STRAIGHT_RUN_STAIR")]),
             TypeData::Ramp { .. } => ("IFCRAMPTYPE", args![Value::Enum("NOTDEFINED")]),
             TypeData::Railing { .. } => ("IFCRAILINGTYPE", args![Value::Enum("GUARDRAIL")]),
+            TypeData::Wall { curtain: Some(_), .. } => ("IFCCURTAINWALLTYPE", args![Value::Enum("NOTDEFINED")]),
             TypeData::Wall { .. } => ("IFCWALLTYPE", args![Value::Enum("STANDARD")]),
             TypeData::Floor { .. } => ("IFCSLABTYPE", args![Value::Enum("FLOOR")]),
             TypeData::Ceiling { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("CEILING")]),
@@ -1587,6 +1588,10 @@ impl<'a> Exporter<'a> {
             Some(storey),
             Frame::horizontal(DVec3::new(g.origin.x, g.origin.y, g.base_z - level_z), g.dir),
         );
+        if let Some(c) = &g.curtain {
+            self.write_curtain_wall(e, wall, g, c, placement, storey, level_z);
+            return;
+        }
 
         let h = g.half;
         let (body, axis) = if let Some(arc) = g.arc {
@@ -1668,6 +1673,167 @@ impl<'a> Exporter<'a> {
         }
     }
 
+    /// A curtain wall: an `IfcCurtainWall` (its axis only) aggregating an
+    /// `IfcPlate` per panel and an `IfcMember` per mullion piece, each a B-rep
+    /// in its material and typed by an `IfcPlateType` or `IfcMemberType` per
+    /// curtain type and kind; the type's grid and the wall's adjustments go in
+    /// [`CURTAIN_PSET`] so importers can rebuild the wall.
+    #[allow(clippy::too_many_arguments)]
+    fn write_curtain_wall(
+        &mut self,
+        e: &Element,
+        wall: &cc_core::Wall,
+        g: &WallGeom,
+        c: &cc_geom::curtain::CurtainGeom,
+        placement: Id,
+        storey: Id,
+        level_z: f64,
+    ) {
+        use cc_core::curtain::{CurtainPanel, GridAxis};
+        let project = self.project;
+        let n = Value::Null;
+        // The axis: the body centerline, a polyline or a trimmed circle.
+        let axis = match g.arc {
+            Some(arc) => {
+                let center = self.point2(wall_local(g, arc.center));
+                let position = self.w.add("IFCAXIS2PLACEMENT2D", args![center, Value::Null]);
+                let circle = self.w.add("IFCCIRCLE", args![position, arc.radius]);
+                let end = self.point2(wall_local(g, g.world(g.length, 0.0)));
+                let sense = arc.sweep >= 0.0;
+                self.w.add(
+                    "IFCTRIMMEDCURVE",
+                    args![circle, vec![self.origin2], vec![end], sense, Value::Enum("CARTESIAN")],
+                )
+            }
+            None => {
+                let end = self.point2(DVec2::new(g.length, 0.0));
+                self.w.add("IFCPOLYLINE", args![vec![self.origin2, end]])
+            }
+        };
+        let rep = self.w.add("IFCSHAPEREPRESENTATION", args![self.axis_ctx, "Axis", "Curve2D", vec![axis]]);
+        let shape = self.w.add("IFCPRODUCTDEFINITIONSHAPE", args![n.clone(), n.clone(), vec![rep]]);
+        let mut attrs = self.element_args(e, placement, shape);
+        attrs.push(Value::Enum("NOTDEFINED"));
+        let product = self.w.add("IFCCURTAINWALL", attrs);
+        self.products.insert(e.id, product);
+        self.register(e, product);
+
+        let ty = project.element_type(e.type_id);
+        let mut props =
+            vec![("Reference", Value::Typed("IFCIDENTIFIER", Box::new(project.type_name(e.type_id).into())))];
+        if let Some(function) = ty.and_then(|t| t.wall_function()) {
+            props.push(("IsExternal", Value::Typed("IFCBOOLEAN", Box::new(function.is_external().into()))));
+        }
+        let status = ifc_status(project, e);
+        self.status_written.insert(e.id);
+        self.property_set_status(&format!("curtain-{}", e.id), "Pset_CurtainWallCommon", vec![product], props, status);
+        if let Some(system) = ty.and_then(|t| t.curtain()) {
+            let text = |s: String| Value::Typed("IFCTEXT", Box::new(s.into()));
+            let props = vec![
+                ("System", text(cc_core::curtain::to_text(system))),
+                ("Edits", text(cc_core::curtain::to_text(&wall.curtain))),
+                ("Height", Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(g.top_z - g.base_z)))),
+                ("Bulge", Value::Typed("IFCREAL", Box::new(Value::Real(wall.bulge)))),
+            ];
+            self.property_set(&format!("curtain-grid-{}", e.id), CURTAIN_PSET, vec![product], props);
+        }
+
+        // Panels and mullions as (faces, material, entity, name, predefined type).
+        let solid = || cc_geom::Solid::new(e.id, cc_core::Category::Wall, [0; 3]);
+        let mut pieces: Vec<(Vec<cc_geom::Face>, String, &'static str, &'static str, &'static str)> = Vec::new();
+        for p in &c.panels {
+            let Some(cell) = c.layout.panels.get(p.cell) else { continue };
+            match &cell.panel {
+                CurtainPanel::Glass { thickness, material } | CurtainPanel::Solid { thickness, material } => {
+                    let mut s = solid();
+                    let (d, nrm) = p.frame();
+                    let t = thickness * 0.5;
+                    s.add_box(p.start, d, nrm, 0.0, p.width(), -t, t, p.z.0, p.z.1);
+                    let name = if cell.panel.is_glazed() { "Glass Panel" } else { "Solid Panel" };
+                    pieces.push((s.faces, material.clone(), "IFCPLATE", name, "CURTAIN_PANEL"));
+                }
+                CurtainPanel::Empty => {}
+                CurtainPanel::Component { .. } => {
+                    let mut s = solid();
+                    for part in p.parts.iter().filter(|q| !q.plan_only && !q.void) {
+                        if part.faces.is_empty() {
+                            s.add_prism(&part.footprint, |_| part.z0, |_| part.z1);
+                        } else {
+                            s.add_polygons(part.faces.clone());
+                        }
+                    }
+                    let material = p.parts.first().map_or(String::new(), |q| q.material.clone());
+                    pieces.push((s.faces, material, "IFCPLATE", "Component Panel", "CURTAIN_PANEL"));
+                }
+            }
+        }
+        for m in &c.mullions {
+            let Some(layout) = c.layout.mullions.get(m.piece) else { continue };
+            let mut s = solid();
+            s.add_prism(&m.footprint, |_| m.z.0, |_| m.z.1);
+            let name = match (layout.border, layout.axis) {
+                (true, _) => "Border Mullion",
+                (false, GridAxis::Vertical) => "Vertical Mullion",
+                (false, GridAxis::Horizontal) => "Horizontal Mullion",
+            };
+            pieces.push((s.faces, layout.mullion.material.clone(), "IFCMEMBER", name, "MULLION"));
+        }
+
+        let mut parts = Vec::with_capacity(pieces.len());
+        let mut by_material: BTreeMap<String, Vec<Id>> = BTreeMap::new();
+        for (i, (faces, material, entity, name, kind)) in pieces.into_iter().enumerate() {
+            if faces.is_empty() {
+                continue;
+            }
+            let local = self.local_placement(Some(storey), Frame::at(DVec3::ZERO));
+            let body = self.faceted_brep(&faces, level_z);
+            let style = self.material_style(&material);
+            self.styled(body, style);
+            let shape = self.shape_of_type(vec![body], None, "Brep");
+            let gid = self.guid(&format!("curtain-part-{}-{i}", e.id));
+            let part = self.w.add(
+                entity,
+                args![gid, n.clone(), name, n.clone(), n.clone(), local, shape, n.clone(), Value::Enum(kind)],
+            );
+            parts.push(part);
+            if !material.is_empty() {
+                by_material.entry(material).or_default().push(part);
+            }
+            let key = (e.type_id, name);
+            if !self.member_types.contains_key(&key) {
+                let gid = self.guid(&format!("curtain-type-{}-{name}", e.type_id));
+                let ty_name = format!("{} - {name}", project.type_name(e.type_id));
+                let type_entity = if entity == "IFCPLATE" { "IFCPLATETYPE" } else { "IFCMEMBERTYPE" };
+                let t = self.w.add(
+                    type_entity,
+                    args![
+                        gid,
+                        n.clone(),
+                        ty_name,
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        n.clone(),
+                        Value::Enum(kind)
+                    ],
+                );
+                self.member_types.insert(key, (t, Vec::new()));
+            }
+            if let Some((_, objects)) = self.member_types.get_mut(&key) {
+                objects.push(part);
+            }
+        }
+        for (material, objects) in by_material {
+            let m = self.material(&material);
+            self.associate_material(&format!("mat-curtain-{}-{material}", e.id), objects, m);
+        }
+        if !parts.is_empty() {
+            self.aggregate(&format!("agg-curtain-{}", e.id), product, parts);
+        }
+    }
+
     fn write_opening(&mut self, g: &WallGeom, wall_placement: Id, wall: Id, o: &cc_geom::Opening) {
         let project = self.project;
         let Some(e) = project.element(o.element) else { return };
@@ -1708,6 +1874,10 @@ impl<'a> Exporter<'a> {
         );
         let gid = self.guid(&format!("voids-{}", e.id));
         self.w.add("IFCRELVOIDSELEMENT", args![gid, Value::Null, Value::Null, Value::Null, wall, opening]);
+        // A curtain wall standing in the wall is written on its own: the wall only opens.
+        if matches!(e.kind, ElementKind::Wall(_)) {
+            return;
+        }
 
         // The filling shares the opening's frame.
         let fill_placement = self.local_placement(Some(placement), fill_frame);
@@ -2207,6 +2377,9 @@ fn section_area(section: cc_core::ColumnSection) -> f64 {
 pub const COMPONENT_PSET: &str = "ConstructCAD_Parameters";
 /// Property set of an element's construction phases (`PhaseCreated`, `PhaseDemolished`).
 pub const PHASING_PSET: &str = "ConstructCAD_Phasing";
+/// Property set of a curtain wall's grid: the type's `System` and the wall's
+/// `Edits` as text (see `cc_core::curtain::to_text`), its `Height` and `Bulge`.
+pub const CURTAIN_PSET: &str = "ConstructCAD_Curtain";
 /// Property set of a roof's covering and framing (see `write_roof_framing`).
 pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
 /// A terrain's points, boundary, base depth and type settings, for importers

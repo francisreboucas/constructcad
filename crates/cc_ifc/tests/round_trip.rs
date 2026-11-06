@@ -291,6 +291,11 @@ fn roof_fixture_round_trips() {
 }
 
 #[test]
+fn curtain_fixture_round_trips() {
+    check(&load(include_str!("fixtures/curtains.ccad")));
+}
+
+#[test]
 fn arc_fixture_round_trips() {
     check(&load(include_str!("fixtures/arcs.ccad")));
 }
@@ -583,4 +588,142 @@ fn terrain_round_trips() {
     let (imported, _) = import(&other, Project::from_template()).unwrap();
     assert_eq!(imported.elements.values().filter(|e| e.category() == Category::Topography).count(), 0);
     assert!(imported.elements.values().filter(|e| e.category() == Category::Component).count() >= 2);
+}
+
+/// A project with curtain walls: one standing in a plain wall (with its own
+/// lines, a removed segment and a solid panel), an arc one and a free one.
+fn curtain_project() -> Project {
+    use cc_core::curtain::{CurtainGrid, CurtainPanel, CurtainSystem, GridAxis, GridLayout, GridSegment, PanelSwap};
+    use cc_core::{Document, ElementType, ElementTypeId, Wall};
+    let mut doc = Document::new(Project::from_template());
+    doc.edit("curtains", |e| {
+        let level = e.project().levels[0].id;
+        let glass = e.project().materials.iter().find(|m| m.name == "Vidro").unwrap().name.clone();
+        let mut system = CurtainSystem::with_materials(&glass, &glass);
+        system.vertical = CurtainGrid { layout: GridLayout::FixedDistance, spacing: 1.0, ..Default::default() };
+        system.horizontal = CurtainGrid { layout: GridLayout::FixedNumber, count: 2, ..Default::default() };
+        let type_id = ElementTypeId(e.alloc_id());
+        let data =
+            TypeData::Wall { layers: Vec::new(), function: cc_core::WallFunction::Exterior, curtain: Some(system) };
+        e.add_type(ElementType {
+            id: type_id,
+            name: "Glazing".into(),
+            data,
+            info: Default::default(),
+            uid: Uid::default(),
+        });
+        let plain = e.project().default_type(Category::Wall).unwrap();
+        let add = |e: &mut cc_core::EditCtx, type_id, wall: Wall| {
+            let id = cc_core::ElementId(e.alloc_id());
+            e.add_element(Element {
+                id,
+                level,
+                type_id,
+                mark: String::new(),
+                comments: String::new(),
+                kind: ElementKind::Wall(wall),
+                uid: Uid::default(),
+                phase_created: Default::default(),
+                phase_demolished: None,
+            });
+        };
+        add(e, plain, Wall { start: DVec2::new(0.0, 0.0), end: DVec2::new(10.0, 0.0), ..Default::default() });
+        let mut embedded =
+            Wall { start: DVec2::new(2.0, 0.0), end: DVec2::new(6.0, 0.0), height: 2.5, ..Default::default() };
+        embedded.curtain.vertical = Some(vec![1.5, 2.5]);
+        embedded.curtain.removed.push(GridSegment { axis: GridAxis::Vertical, at: 1.5, along: 0.5 });
+        let solid = CurtainPanel::Solid { thickness: 0.03, material: glass.clone() };
+        embedded.curtain.panels.push(PanelSwap { u: 3.5, z: 2.0, panel: solid });
+        add(e, type_id, embedded);
+        add(
+            e,
+            type_id,
+            Wall { start: DVec2::new(4.0, 6.0), end: DVec2::new(-4.0, 6.0), bulge: 0.5, ..Default::default() },
+        );
+        add(
+            e,
+            type_id,
+            Wall { start: DVec2::new(0.0, 12.0), end: DVec2::new(3.0, 12.0), height: 3.0, ..Default::default() },
+        );
+    });
+    doc.project
+}
+
+/// Figures of each curtain wall's grid by uid: columns, rows, panels, glazed area, mullion length.
+fn curtain_figures(p: &Project) -> Vec<(Uid, usize, usize, usize, f64, f64)> {
+    let g = cc_geom::ModelGeometry::build(p);
+    let mut out: Vec<_> = p
+        .walls()
+        .filter_map(|(e, _)| {
+            let c = g.walls.get(&e.id)?.curtain.as_ref()?;
+            let l = &c.layout;
+            Some((e.uid, l.columns(), l.rows(), l.panel_count(), l.glazed_area(), l.mullion_length()))
+        })
+        .collect();
+    out.sort_by_key(|f| f.0);
+    out
+}
+
+#[test]
+fn curtain_walls_round_trip() {
+    let original = curtain_project();
+    check(&original);
+    let text =
+        export(&original, &ExportOptions { time_stamp: Some("2026-01-01T00:00:00".into()), file_name: "t.ifc".into() });
+    assert_eq!(text.matches("IFCCURTAINWALL(").count(), 3);
+    assert!(text.contains("IFCCURTAINWALLTYPE(") && text.contains("IFCPLATETYPE(") && text.contains("IFCMEMBERTYPE("));
+    assert!(text.contains(".CURTAIN_PANEL.") && text.contains(".MULLION."));
+    // The plain wall opens for the curtain wall in it, with nothing filling the opening.
+    assert_eq!(text.matches("IFCOPENINGELEMENT(").count(), 1);
+    assert!(!text.contains("IFCWINDOW(") && !text.contains("IFCRELFILLSELEMENT("));
+
+    // Imported: the same grids, panels and mullions, the wall's own lines,
+    // removed segment and swapped panel kept; no plate or member on its own.
+    let (imported, report) = round_trip(&original);
+    assert_eq!(report.generic.len(), 0, "{:?}", report.generic);
+    let (a, b) = (curtain_figures(&original), curtain_figures(&imported));
+    assert_eq!(a.len(), 3);
+    for (x, y) in a.iter().zip(&b) {
+        assert_eq!((x.0, x.1, x.2, x.3), (y.0, y.1, y.2, y.3));
+        close(x.4, y.4, 1e-6, "glazed area");
+        close(x.5, y.5, 1e-6, "mullion length");
+    }
+    let edits = |p: &Project| {
+        let mut v: Vec<_> =
+            p.walls().filter(|(_, w)| !w.curtain.is_empty()).map(|(e, w)| (e.uid, w.curtain.clone())).collect();
+        v.sort_by_key(|x| x.0);
+        v
+    };
+    assert_eq!(edits(&original), edits(&imported));
+    // The plain wall still opens for it.
+    let volume = |p: &Project| {
+        let g = cc_geom::ModelGeometry::build(p);
+        p.walls()
+            .filter(|(e, _)| p.element_type(e.type_id).is_some_and(|t| t.curtain().is_none()))
+            .map(|(e, _)| g.volume(e.id))
+            .sum::<f64>()
+    };
+    close(volume(&original), volume(&imported), 1e-6, "plain wall volume");
+}
+
+/// A curtain wall from another program (no grid property set): rebuilt from
+/// its plates and members when they make a plain grid, else they come in one
+/// by one as before.
+#[test]
+fn foreign_curtain_walls_rebuild_from_their_parts() {
+    let original = curtain_project();
+    let text =
+        export(&original, &ExportOptions { time_stamp: Some("2026-01-01T00:00:00".into()), file_name: "t.ifc".into() });
+    let foreign = text.replace("ConstructCAD_Curtain", "Other_Curtain");
+    let (imported, report) = import(&foreign, Project::from_template()).unwrap();
+    let (a, b) = (curtain_figures(&original), curtain_figures(&imported));
+    // The free straight wall (a plain grid) comes back as a curtain wall of the same grid.
+    let free = original.walls().find(|(_, w)| w.start.y == 12.0).map(|(e, _)| e.uid).unwrap();
+    let (x, y) = (a.iter().find(|f| f.0 == free).unwrap(), b.iter().find(|f| f.0 == free).unwrap());
+    assert_eq!((x.1, x.2, x.3), (y.1, y.2, y.3));
+    close(x.4, y.4, 1e-6, "glazed area");
+    close(x.5, y.5, 1e-6, "mullion length");
+    // The merged panel and the arc have no plain grid: their parts come in as objects.
+    assert_eq!(b.len(), 1, "{b:?}");
+    assert!(report.generic.values().sum::<usize>() > 0, "{:?}", report.generic);
 }

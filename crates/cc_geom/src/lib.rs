@@ -9,6 +9,7 @@ mod beam;
 mod build;
 pub mod component;
 pub mod csg;
+pub mod curtain;
 mod cut;
 pub mod mass;
 pub mod mep;

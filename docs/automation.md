@@ -172,6 +172,15 @@ Floors, ceilings, roofs, foundation slabs and masses take their outline as `curv
 {"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
 ```
 
+### Curtain walls
+
+A curtain wall is a wall whose type has a curtain grid instead of layers: vertical lines along the wall and horizontal lines up from its base (a fixed distance, a number of divisions or a maximum spacing, justified at the start, the center or the end), a panel in each cell (glass, solid, empty or a component, such as a door) and mullions on the lines and around the border. `curtain_type_create` makes the type and `wall_create` places walls of it, straight or arc (flat panels along the arc). Each wall can adjust its grid: `curtain_grid_set` adds, moves and removes its lines and removes pieces of them (the cells beside merge into one panel), `curtain_panel_set` swaps panels, and `curtain_get` lists lines and panels. A curtain wall drawn inside another wall opens it where it stands. Wall schedules have `PanelCount`, `GlazedArea` and `MullionLength`. IFC export writes them as `IfcCurtainWall`s made of `IfcPlate`s and `IfcMember`s and import brings them back with their grid; a curtain wall from another program comes back as one when its panels make a plain grid, else as separate objects.
+
+```text
+{"command": "curtain_type_create", "args": {"name": "Storefront", "curtain": {"vertical": {"spacing": 1.2}, "horizontal": {"layout": "FixedNumber", "count": 2}}}}
+{"command": "wall_create", "args": {"start": [2, 0], "end": [6, 0], "type": "Storefront", "height": 2.8}}
+```
+
 Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, write a [Lua script](#lua-scripts), call `ccad run` from a shell script or use an agent over MCP.
 
 ## Lua scripts

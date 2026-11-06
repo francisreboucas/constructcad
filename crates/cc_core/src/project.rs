@@ -172,6 +172,7 @@ impl Project {
                         finish(&n("tpl-mat-plaster"), 0.02),
                     ],
                     function: WallFunction::Exterior,
+                    curtain: None,
                 },
             ),
             (
@@ -183,11 +184,16 @@ impl Project {
                         finish(&n("tpl-mat-plaster"), 0.025),
                     ],
                     function: WallFunction::Exterior,
+                    curtain: None,
                 },
             ),
             (
                 &n("tpl-type-drywall-10"),
-                TypeData::Wall { layers: vec![layer(&n("tpl-mat-gypsum"), 0.10)], function: WallFunction::Interior },
+                TypeData::Wall {
+                    layers: vec![layer(&n("tpl-mat-gypsum"), 0.10)],
+                    function: WallFunction::Interior,
+                    curtain: None,
+                },
             ),
             (&n("tpl-type-door-80"), door(0.8, 2.1, &n("tpl-mat-wood"))),
             (&n("tpl-type-door-90"), door(0.9, 2.1, &n("tpl-mat-wood"))),

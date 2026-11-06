@@ -172,6 +172,15 @@ Pisos, forros, telhados, radiers e massas recebem o contorno como `curves` em ve
 {"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
 ```
 
+### Cortinas de vidro
+
+Uma cortina de vidro é uma parede cujo tipo tem uma grade de cortina em vez de camadas: linhas verticais ao longo da parede e horizontais a partir da base (a uma distância fixa, em um número de divisões ou com um espaçamento máximo, justificadas no início, no centro ou no fim), um painel em cada célula (vidro, cego, vazio ou um componente, como uma porta) e montantes nas linhas e em volta da borda. `curtain_type_create` cria o tipo e `wall_create` posiciona paredes dele, retas ou em arco (painéis planos ao longo do arco). Cada parede pode ajustar a sua grade: `curtain_grid_set` acrescenta, move e remove linhas e remove trechos delas (as células vizinhas viram um só painel), `curtain_panel_set` troca painéis e `curtain_get` lista linhas e painéis. Uma cortina desenhada dentro de outra parede abre essa parede onde está. Tabelas de paredes têm `PanelCount`, `GlazedArea` e `MullionLength`. A exportação IFC as grava como `IfcCurtainWall` feitas de `IfcPlate` e `IfcMember`, e a importação as traz de volta com a grade; uma cortina de outro programa volta como cortina quando os painéis formam uma grade simples, senão como objetos separados.
+
+```text
+{"command": "curtain_type_create", "args": {"name": "Vitrine", "curtain": {"vertical": {"spacing": 1.2}, "horizontal": {"layout": "FixedNumber", "count": 2}}}}
+{"command": "wall_create", "args": {"start": [2, 0], "end": [6, 0], "type": "Vitrine", "height": 2.8}}
+```
+
 Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, escreva um [script Lua](#scripts-lua), chame `ccad run` a partir de um script de shell ou use um agente via MCP.
 
 ## Scripts Lua

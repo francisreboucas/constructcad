@@ -171,6 +171,8 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 
 ## Railings and their hosts
 
+Curtain walls are walls of a curtain type (a project without one gets one from the wall tool's type list: *+ Curtain Wall*). Their type properties set the vertical and horizontal grids (layout, spacing or number, justification), the panel (glass, solid, empty, or a door, window or other component) and the vertical, horizontal and border mullions. *Architecture → Build → Curtain Grid* edits one wall's grid by clicking it in a plan, elevation or section: *Add Line* (vertical or horizontal; plans add vertical ones), *Remove Line* (the nearest), *Merge/Split Segment* (the piece of a line between two others: the cells on both sides become one panel, or two again) and *Swap Panel* (the panel chosen in the options bar, or the type's again); hovering shows what a click does. A selected curtain wall's properties show its cells, panel count, glazed area and mullion length, and *Reset* puts back the type's lines or panels.
+
 *Architecture → Circulation → Railing* (`RA`) draws a railing along the points you click, at its level plus the base offset. A railing can also follow a stair or ramp (its host): it runs along the host's side at the pitch of the nosings or of the slope, turns at its landings, and moves, changes and is deleted with it.
 
 - **On a stair or ramp**: tick *On a stair or ramp* in the railing tool's options bar, then click a stair or ramp in a plan. The railing goes on the side nearest the click, or on both with *Both sides*. A stair's or ramp's properties also have *Add railings* for both sides at once.
