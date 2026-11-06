@@ -454,6 +454,24 @@ impl CurtainEdits {
     }
 }
 
+/// Longest text [`from_text`] reads (files are hostile input).
+pub const MAX_TEXT: usize = 1 << 20;
+
+/// A curtain system or a wall's edits as text (for exchange files, such as
+/// an IFC property). Component panels keep their type id, which only means
+/// something in the same project.
+pub fn to_text<T: Serialize>(value: &T) -> String {
+    ron::to_string(value).unwrap_or_default()
+}
+
+/// Read what [`to_text`] wrote; `None` when it is too long or not valid.
+pub fn from_text<T: serde::de::DeserializeOwned>(text: &str) -> Option<T> {
+    if text.len() > MAX_TEXT {
+        return None;
+    }
+    ron::from_str(text).ok()
+}
+
 /// A cell, or cells merged where segments were removed, and its panel.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PanelCell {
@@ -915,6 +933,21 @@ mod tests {
         e.reverse(3.0);
         assert_eq!(e.vertical, Some(vec![2.0, 2.5]));
         assert!((e.panels[0].u - 2.8).abs() < 1e-12);
+    }
+
+    #[test]
+    fn systems_and_edits_survive_as_text() {
+        let system = system();
+        let edits = CurtainEdits {
+            vertical: Some(vec![0.5]),
+            removed: vec![GridSegment { axis: GridAxis::Horizontal, at: 1.0, along: 0.2 }],
+            panels: vec![PanelSwap { u: 0.2, z: 0.4, panel: CurtainPanel::Empty }],
+            ..Default::default()
+        };
+        assert_eq!(from_text::<CurtainSystem>(&to_text(&system)), Some(system));
+        assert_eq!(from_text::<CurtainEdits>(&to_text(&edits)), Some(edits));
+        assert_eq!(from_text::<CurtainSystem>("not ron"), None);
+        assert_eq!(from_text::<CurtainSystem>(&" ".repeat(MAX_TEXT + 1)), None);
     }
 
     #[test]
