@@ -408,6 +408,11 @@ impl Project {
         let elements = &self.elements;
         self.pinned.retain(|id| elements.contains_key(id));
         repairs += before - self.pinned.len();
+        // Graph bindings need their element, and one element per graph call.
+        let before = self.graph_bindings.len();
+        let mut calls = std::collections::BTreeSet::new();
+        self.graph_bindings.retain(|id, b| elements.contains_key(id) && b.is_valid() && calls.insert(b.clone()));
+        repairs += before - self.graph_bindings.len();
         // Joins need two distinct elements with a body, joined once.
         let before = self.joins.len();
         let mut seen = std::collections::BTreeSet::new();

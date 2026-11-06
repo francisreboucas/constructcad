@@ -13,6 +13,7 @@ pub mod curtain;
 pub mod edit;
 pub mod foundation;
 pub mod framing;
+pub mod graph;
 pub mod graphics;
 pub mod io;
 pub mod levels;

@@ -19,6 +19,7 @@ mod dialogs;
 mod dim_edit;
 mod engine_edit;
 mod gpu;
+mod graph_ui;
 mod graphics_dialog;
 mod home;
 mod i18n;
@@ -114,7 +115,7 @@ fn app_icon() -> egui::IconData {
     eframe::icon_data::from_png_bytes(theme::APP_ICON_PNG).unwrap_or_default()
 }
 
-/// `constructcad [project.ccad] [--view NAME]... [--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja]`
+/// `constructcad [project.ccad] [--view NAME]... [--graph FILE.ccgraph] [--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja]`
 ///
 /// Named views replace the default layout (the first floor plan beside the
 /// 3D view): the first on the left, the second on the right, others as tabs.
@@ -124,6 +125,7 @@ fn parse_args(args: impl Iterator<Item = String>) -> app::Args {
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--view" => out.views.extend(args.next()),
+            "--graph" => out.graph = args.next().map(std::path::PathBuf::from),
             "--lang" => out.language = args.next().and_then(|c| i18n::Language::from_code(&c)),
             _ if out.path.is_none() => out.path = Some(std::path::PathBuf::from(arg)),
             _ => {}

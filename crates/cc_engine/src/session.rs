@@ -368,6 +368,12 @@ impl Session {
         self.extension.as_mut().map(|e| e.take_messages()).unwrap_or_default()
     }
 
+    /// Whether the command running was called by another command (a plugin
+    /// command), not by the user.
+    pub fn called_by_command(&self) -> bool {
+        self.nesting > 1
+    }
+
     /// Whether a command is running (a plugin command running others).
     pub fn is_nested(&self) -> bool {
         self.nesting > 0

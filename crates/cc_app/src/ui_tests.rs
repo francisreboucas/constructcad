@@ -1369,6 +1369,90 @@ fn sketch_mode_creates_and_edits_outlines() {
     assert_eq!(state.session.doc.revision(), revision, "cancel changes nothing");
 }
 
+/// Issue #179: a slab's sketch takes typed sizes. A rectangle takes its
+/// width, then (after Tab) its depth, and Enter places it; a line takes its
+/// length; Escape drops what was typed before the picks.
+#[test]
+fn sketches_take_typed_lengths() {
+    use crate::sketch_mode::Draw;
+    use cc_core::sketch::SketchCurve;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Floor);
+    state.sketch.as_mut().unwrap().draw = Draw::Rect;
+    // The app's keys and a canvas of the sketch, 20 points per meter around the origin.
+    let mut harness = themed_harness(state, egui::vec2(600.0, 400.0), egui::Theme::Light, |ui, state| {
+        crate::app::shortcuts(ui.ctx(), state);
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click());
+        let xf = crate::paint::Xf { screen: resp.rect.center(), origin: glam::DVec2::ZERO, scale: 20.0 };
+        let raw = resp.hover_pos().map(|p| xf.to_world(p));
+        let snapped = raw.map(|r| crate::tools::Snap::plain(r, false));
+        let Some(mut s) = state.sketch.take() else { return };
+        crate::sketch_mode::interact(ui, &resp, &painter, &mut s, &state.modify, raw, snapped, &xf);
+        state.sketch = Some(s);
+    });
+    harness.run();
+    let center = egui::pos2(300.0, 200.0);
+    let pointer = |h: &mut Harness<'static, AppState>, pos: egui::Pos2, click: bool| {
+        h.input_mut().events.push(egui::Event::PointerMoved(pos));
+        h.run();
+        if click {
+            for pressed in [true, false] {
+                let (button, modifiers) = (egui::PointerButton::Primary, egui::Modifiers::NONE);
+                h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed, modifiers });
+                h.run();
+            }
+        }
+    };
+    let typed = |h: &mut Harness<'static, AppState>, text: &str| {
+        h.input_mut().events.push(egui::Event::Text(text.into()));
+        h.run();
+    };
+    let sketch = |h: &Harness<'static, AppState>| h.state().sketch.clone().unwrap();
+
+    // The first corner at the origin; the cursor up and to the left; 5, Tab, 4, Enter.
+    pointer(&mut harness, center, true);
+    assert!(sketch(&harness).typing());
+    pointer(&mut harness, center + egui::vec2(-30.0, -50.0), false);
+    typed(&mut harness, "5");
+    // Tab switches the field in the app's raw input hook, which the harness skips.
+    harness.state_mut().sketch.as_mut().unwrap().typed.angle_active = true;
+    typed(&mut harness, "4");
+    assert_eq!((sketch(&harness).typed.length.as_str(), sketch(&harness).typed.angle.as_str()), ("5", "4"));
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let s = sketch(&harness);
+    assert_eq!(s.curves.len(), 4, "Enter placed the rectangle");
+    let pts: Vec<glam::DVec2> = s.curves.iter().flat_map(|c| c.points()).collect();
+    let (min, max) = pts.iter().fold((pts[0], pts[0]), |(lo, hi), p| (lo.min(*p), hi.max(*p)));
+    assert!((max - min).distance(glam::DVec2::new(5.0, 4.0)) < 1e-9, "{min} {max}");
+    assert!(min.x.abs() > 1.0 && max.x.abs() < 1e-9, "on the cursor's side: {min} {max}");
+    assert!(s.typed.is_empty() && s.picks.is_empty());
+
+    // A line: 3 m towards the cursor.
+    harness.state_mut().sketch.as_mut().unwrap().draw = Draw::Line;
+    let start = center + egui::vec2(0.0, 100.0);
+    pointer(&mut harness, start, true);
+    pointer(&mut harness, start + egui::vec2(60.0, 0.0), false);
+    typed(&mut harness, "3");
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let s = sketch(&harness);
+    let Some(SketchCurve::Line { a, b }) = s.curves.last().copied() else { panic!("{:?}", s.curves) };
+    assert!((a.distance(b) - 3.0).abs() < 1e-9 && (b - a).x > 0.0, "{a} {b}");
+    assert_eq!(s.picks, vec![b], "the line goes on from its end");
+    // Escape drops the typed value first, then the chain.
+    typed(&mut harness, "7");
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+    let s = sketch(&harness);
+    assert!(s.typed.is_empty() && s.picks == vec![b]);
+    // Letters are not lengths.
+    typed(&mut harness, "x");
+    assert!(sketch(&harness).typed.is_empty());
+}
+
 /// A piece of the component environment is sketched in the same sketch as
 /// outlines in plans: its ribbon, options, picked curve and Finish.
 #[test]
@@ -2052,4 +2136,80 @@ fn wall_tool_offers_a_curtain_type() {
     let ty = state.tool.type_id().and_then(|id| state.project().element_type(id)).unwrap();
     assert!(ty.curtain().is_some(), "the tool draws curtain walls");
     assert_eq!(state.project().types_of(cc_core::Category::Wall).filter(|t| t.curtain().is_some()).count(), 1);
+}
+
+/// The graph editor alone, in a panel of its own.
+fn graph_harness(state: AppState) -> Harness<'static, AppState> {
+    themed_harness(state, egui::vec2(1200.0, 520.0), egui::Theme::Light, |ui, state| {
+        crate::app::shortcuts(ui.ctx(), state);
+        crate::graph_ui::show(ui, state);
+        crate::dialogs::show(ui.ctx(), state);
+    })
+}
+
+fn wall_count(state: &AppState) -> usize {
+    state.project().elements.values().filter(|e| e.category() == cc_core::Category::Wall).count()
+}
+
+/// Visual Programming opens the graph editor from the Manage tab.
+#[test]
+fn visual_programming_opens_from_the_manage_tab() {
+    let mut state = sample_state();
+    state.ribbon_tab = RibbonTab::Manage;
+    let mut harness = app_harness(state);
+    harness.get_by_role_and_label(Role::Button, &t!("action-visual-programming")).click();
+    harness.run();
+    assert!(harness.state().graph.open);
+}
+
+/// Run builds the graph's walls once; running again changes them in place.
+#[test]
+fn the_graph_editor_runs_the_graph() {
+    let mut state = sample_state();
+    let graph = serde_json::json!({
+        "uid": "00000000000000000000000000000abc",
+        "nodes": [
+            {"id": 1, "kind": {"builtin": "number"}, "values": {"value": 3}, "pos": [0, 0]},
+            {"id": 2, "kind": {"builtin": "sequence"}, "values": {"start": 30, "step": 4}, "pos": [220, 0]},
+            {"id": 3, "kind": {"builtin": "point"}, "values": {"y": 30}, "pos": [440, 0]},
+            {"id": 4, "kind": {"builtin": "point"}, "values": {"y": 34}, "pos": [440, 120]},
+            {"id": 5, "kind": {"command": "wall_create"}, "pos": [660, 0]}
+        ],
+        "wires": [
+            {"from": [1, "value"], "to": [2, "count"]},
+            {"from": [2, "list"], "to": [3, "x"]},
+            {"from": [2, "list"], "to": [4, "x"]},
+            {"from": [3, "point"], "to": [5, "start"]},
+            {"from": [4, "point"], "to": [5, "end"]}
+        ]
+    });
+    state.graph.graph = cc_engine::graph::Graph::from_value(graph).unwrap().0;
+    state.graph.open = true;
+    let before = wall_count(&state);
+    let mut harness = graph_harness(state);
+    harness.get_by_role_and_label(Role::Button, &t!("graph-run")).click();
+    harness.run();
+    let report = harness.state().graph.report.clone().unwrap().unwrap();
+    assert_eq!(report["errors"], 0, "{report}");
+    assert_eq!(wall_count(harness.state()), before + 3);
+    harness.get_by_role_and_label(Role::Button, &t!("graph-run")).click();
+    harness.run();
+    assert_eq!(wall_count(harness.state()), before + 3, "a second run changes the same walls");
+}
+
+/// The node search adds the node typed, where it was opened.
+#[test]
+fn the_node_search_adds_a_node() {
+    let mut state = sample_state();
+    state.graph.open = true;
+    crate::graph_ui::open_search(&mut state, egui::pos2(100.0, 50.0), egui::pos2(300.0, 200.0));
+    let mut harness = graph_harness(state);
+    harness.get_by_label(&t!("graph-search-hint")).type_text("polygon_points");
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let g = &harness.state().graph.graph;
+    assert_eq!(g.nodes.len(), 1, "one node added");
+    assert_eq!(g.nodes[0].kind, cc_engine::graph::NodeKind::Builtin("polygon_points".into()));
+    assert_eq!(g.nodes[0].pos, [100.0, 50.0]);
 }

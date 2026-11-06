@@ -16,6 +16,7 @@ Every command runs the same way from the desktop app, `ccad run` / `ccad script`
 - **Levels and views**: [`level_create`](#level_create), [`level_set`](#level_set), [`level_delete`](#level_delete), [`view_create`](#view_create), [`view_set`](#view_set), [`view_duplicate`](#view_duplicate), [`view_delete`](#view_delete), [`sheet_place_view`](#sheet_place_view), [`sheet_remove_viewport`](#sheet_remove_viewport), [`sheet_set`](#sheet_set), [`sheet_fields`](#sheet_fields), [`title_block_create`](#title_block_create), [`component_sheet_piece_add`](#component_sheet_piece_add), [`component_sheet_piece_set`](#component_sheet_piece_set), [`component_sheet_piece_delete`](#component_sheet_piece_delete)
 - **View graphics**: [`view_graphics_get`](#view_graphics_get), [`view_graphics_set`](#view_graphics_set), [`element_override_set`](#element_override_set), [`element_hide_in_view`](#element_hide_in_view), [`filters_list`](#filters_list), [`filter_create`](#filter_create), [`filter_set`](#filter_set), [`filter_delete`](#filter_delete), [`filter_elements`](#filter_elements), [`view_filter_add`](#view_filter_add), [`view_filter_set`](#view_filter_set), [`view_filter_remove`](#view_filter_remove), [`view_filter_move`](#view_filter_move), [`templates_list`](#templates_list), [`template_create`](#template_create), [`template_set`](#template_set), [`template_delete`](#template_delete), [`view_template_apply`](#view_template_apply), [`view_template_assign`](#view_template_assign), [`view_temporary`](#view_temporary), [`view_temporary_apply`](#view_temporary_apply)
 - **Phases**: [`phases_list`](#phases_list), [`phase_create`](#phase_create), [`phase_set`](#phase_set), [`phase_delete`](#phase_delete), [`elements_phase_set`](#elements_phase_set), [`elements_demolish`](#elements_demolish), [`phase_creation_set`](#phase_creation_set), [`phase_filters_list`](#phase_filters_list), [`phase_filter_create`](#phase_filter_create), [`phase_filter_set`](#phase_filter_set), [`phase_filter_delete`](#phase_filter_delete), [`phase_graphics_get`](#phase_graphics_get), [`phase_graphics_set`](#phase_graphics_set)
+- **Visual programming**: [`graph_run`](#graph_run), [`graph_check`](#graph_check), [`graph_nodes`](#graph_nodes), [`graph_elements`](#graph_elements), [`graph_release`](#graph_release)
 
 ## Project and files
 
@@ -2435,3 +2436,51 @@ No parameters.
 | `status` | string | required | `existing`, `demolished`, `new` or `temporary`. |
 | `overrides` | JSON | optional | Overrides to merge. |
 | `reset` | boolean | optional | Clear the status overrides before merging. |
+
+## Visual programming
+
+### `graph_run`
+
+*edit* — Run a visual programming graph (a `.ccgraph` file, or the graph as JSON) as one undo step. Elements its nodes create are bound to the node and the item that made them: running the graph again changes them in place (keeping their ids), makes the new ones and deletes the ones it no longer makes. Returns each node's outputs or error, the values of its `output` nodes and how many elements were created, changed and deleted.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `brief` | boolean | optional | Leave each node's outputs out of the result (only errors, outputs and counts). |
+| `graph` | JSON | optional | The graph itself (the contents of a `.ccgraph` file), instead of `path`. |
+| `inputs` | object | optional | Values of the graph's input nodes, by their names. |
+| `path` | string | optional | Path of the `.ccgraph` file. |
+
+### `graph_check`
+
+*query* — Check a graph without running it: nodes that cannot run here (unknown commands or nodes, file commands the graph does not allow), wires to ports that do not exist or whose types do not fit, required inputs with no value, and what reading the file fixed.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `graph` | JSON | optional | The graph itself, instead of `path`. |
+| `path` | string | optional | Path of the `.ccgraph` file. |
+
+### `graph_nodes`
+
+*query* — The nodes a graph can use: built-in nodes (inputs, math, logic, lists, geometry, element parameters, outputs), the Lua node and a node per engine command, each with its inputs and outputs (name, type, whether required, default). Filter by words of the name or description, or by group.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `group` | string | optional | Only this group (`Math`, `Lists`, `Creating elements`…). |
+| `search` | string | optional | Words that must all appear in the node's name, group or description. |
+
+### `graph_elements`
+
+*query* — The elements a graph made, with the node and item (lacing path) that made each.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `graph` | string | required | The graph's uid (its file's `uid`, also in `graph_run`'s result). |
+
+### `graph_release`
+
+*edit* — Release elements from the graph that made them: they become ordinary elements, and the next run of the graph makes new ones in their place. Without `elements`, every element of the graph is released.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `graph` | string | required | The graph's uid. |
+| `elements` | [id, …] | optional | Ids of the elements to release (default: all of the graph's). |

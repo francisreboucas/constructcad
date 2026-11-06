@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 
 /// Current file format version. Bump when the schema changes incompatibly.
-pub const FORMAT_VERSION: u32 = 21;
+pub const FORMAT_VERSION: u32 = 22;
 
 #[derive(Debug, thiserror::Error)]
 pub enum PersistError {
@@ -64,7 +64,7 @@ pub fn from_ron_with_repairs_localized(
     // version 12 makes door and window types components (older files: the
     // built-in door and window components with the same sizes); version 18
     // adds script pieces and text, boolean, choice and material parameters
-    // (older files have none); version 21 makes title blocks components
+    // (older files have none); version 22 makes title blocks components
     // (older files: the standard title block on every sheet).
     let mut project = file.project;
     if file.format_version < 11 {
@@ -72,7 +72,7 @@ pub fn from_ron_with_repairs_localized(
     }
     project.convert_opening_types(&|key| crate::project::template_default(key).to_string());
     let mut repairs = project.repair();
-    if file.format_version < 21 && project.title_blocks().is_empty() {
+    if file.format_version < 22 && project.title_blocks().is_empty() {
         let n = |k: &str| translate(k).unwrap_or_else(|| crate::project::template_default(k).to_string());
         let id = project.add_standard_title_block(&n);
         repairs += 1 + project.give_sheets_title_block(id);
@@ -134,6 +134,9 @@ mod tests {
         let english = |k: &str| (k == "tpl-tb-project").then(|| "PROJECT".to_string());
         let (q, repairs) = from_ron_with_repairs_localized(&text, &english).unwrap();
         assert!(repairs >= 1);
+        // Format 21 (graph bindings) had no title blocks either.
+        let (q21, _) = from_ron_with_repairs(&text.replace("format_version: 20", "format_version: 21")).unwrap();
+        assert_eq!(q21.title_blocks().len(), 1);
         let blocks = q.title_blocks();
         assert_eq!(blocks.len(), 1);
         assert!(q.views.values().all(|v| match &v.kind {

@@ -229,6 +229,68 @@ Argumentos e resultados são JSON: objetos são tabelas com chaves de texto, lis
 
 **O sandbox.** Os scripts rodam num Lua restrito: as bibliotecas `table`, `string`, `math`, `utf8` e `coroutine` e as funções básicas, sem `io`, `os`, `debug`, `package`, `require`, `load`, `dofile` nem `loadfile`. Um script só chega ao projeto pelos comandos, e a arquivos só pelos comandos que os leem ou gravam. Cada execução tem um limite de 500 milhões de instruções Lua e 256 MB de memória; passando deles, ela para com um erro `script` (capturar esse erro com `pcall` não faz o script continuar). Cada comando que um script executa é um passo de desfazer.
 
+## Grafos de programação visual
+
+Um grafo (`.ccgraph`, JSON) é um conjunto de nós ligados por fios e
+executado como um fluxo de dados. **Todo comando do motor é um nó**: seus
+parâmetros são as entradas do nó e o resultado é a saída `result` (mais
+`element`, o id, nos comandos `*_create`). Os nós internos dão valores de
+entrada (`number`, `integer`, `slider`, `boolean`, `text`,
+`select_elements`, `elements_of_category`, `levels`), matemática, lógica,
+listas, geometria nos valores que os comandos recebem (pontos `[x, y]`,
+`line`, `arc`, `circle`, `rectangle`, `rectangle_points`, `polygon_points`,
+`polyline_segments`, `divide_line`…), parâmetros de elementos
+(`parameter_get`, `parameter_set`) e saídas (`watch`, `output`). Um nó Lua
+executa uma função das suas entradas no sandbox (sem acesso ao modelo); ele
+retorna as saídas em ordem, ou uma tabela com os nomes delas. `graph_nodes`
+lista todos os nós com suas portas e tipos.
+
+- **Listas percorrem os nós.** Um nó que recebe uma lista onde espera um
+  valor roda uma vez por item, e suas saídas viram listas (`lacing`:
+  `shortest`, `longest` ou `cross`). Uma lista de 4 pontos iniciais e 4
+  finais em `wall_create` faz 4 paredes.
+- **Rodar de novo atualiza.** Cada elemento criado por um nó fica vinculado
+  ao nó e ao item que o fez. A próxima execução o altera no lugar (mesmo id,
+  id persistente, marca e comentários), cria os novos e apaga os que não são
+  mais feitos; sem mudanças, nada acontece. Uma execução é um passo de
+  desfazer. `graph_elements` lista os elementos de um grafo, `graph_release`
+  os libera (a próxima execução cria outros).
+- **Ordem.** Um nó roda depois dos nós ligados a ele; nós independentes
+  rodam na ordem em que foram adicionados (menor id primeiro).
+- **Erros são por nó.** Um nó que falha mostra a mensagem, os nós depois
+  dele são pulados, os demais rodam, e os elementos dele ficam como estavam.
+- Um grafo nunca roda `project_new`, `project_open`, `undo`, `redo`,
+  `language_set` nem grafos, e só roda comandos de arquivo quando tem
+  `allow_files` (e nunca quando um plugin o executa).
+
+```sh
+ccad --save-as casa.ccad graph examples/graphs/house.ccgraph width=12 depth=8
+ccad run graph_check path=examples/graphs/house.ccgraph
+ccad run graph_nodes search=wall
+```
+
+Nós de entrada com `name` são as entradas do grafo (`chave=valor` acima,
+`inputs` de `graph_run`); nós `output` com `name` são seus resultados. Um
+grafo mínimo:
+
+```json
+{
+  "uid": "6f1c2a0e9b3d4c8a8e2f5a7b1c3d9e02",
+  "nodes": [
+    { "id": 1, "kind": { "builtin": "range" }, "values": { "end": 15, "step": 5 } },
+    { "id": 2, "kind": { "builtin": "point" } },
+    { "id": 3, "kind": { "builtin": "point" }, "values": { "y": 4 } },
+    { "id": 4, "kind": { "command": "wall_create" }, "values": { "height": 2.8 } }
+  ],
+  "wires": [
+    { "from": [1, "list"], "to": [2, "x"] },
+    { "from": [1, "list"], "to": [3, "x"] },
+    { "from": [2, "point"], "to": [4, "start"] },
+    { "from": [3, "point"], "to": [4, "end"] }
+  ]
+}
+```
+
 ## Plugins
 
 Um plugin é uma pasta com um manifesto `plugin.toml` e código Lua que acrescenta comandos ao catálogo. Os comandos dele são listados e executados como os nativos, pelo `ccad run`, por scripts, por scripts Lua e por agentes MCP, e se chamam `<id do plugin>__<comando>` (dois sublinhados, que os nomes nativos nunca têm).

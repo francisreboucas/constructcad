@@ -21,6 +21,7 @@ Usage:
   ccad [options] run <command> [args] run one command
   ccad [options] script <file|->      run a script of commands
   ccad [options] lua <file|-> [args]  run a Lua script
+  ccad [options] graph <file> [inputs] run a visual programming graph (.ccgraph)
   ccad [options] plugins              list the plugins loaded with --plugins
   ccad plugins install <zip> <folder> install a plugin archive into a plugins folder
   ccad plugins remove <id> <folder>   remove an installed plugin
@@ -32,6 +33,11 @@ key=value pairs whose values are JSON or plain text, e.g.
 
 A script is a JSON array of {\"command\": ..., \"args\": {...}} objects, or one
 such object per line; it stops at the first error.
+
+A graph (.ccgraph) takes its named input nodes as key=value pairs, e.g.
+  ccad --save-as row.ccad graph examples/graphs/house.ccgraph width=12
+It prints each failing node, its output nodes and the elements created,
+changed and deleted.
 
 A Lua script calls commands with ccad.run(name, args) and gets its arguments
 (same forms as `run`) as ccad.args; what it prints goes to standard output,
@@ -335,6 +341,26 @@ fn main() -> ExitCode {
                 Ok(v) => {
                     print(&v);
                     ExitCode::SUCCESS
+                }
+                Err(e) => fail(&e),
+            }
+        }
+        "graph" => {
+            let Some((file, args)) = rest.split_first() else { return usage_error("graph needs a .ccgraph file") };
+            let inputs = match parse_args(args) {
+                Ok(a) => a,
+                Err(e) => return usage_error(&format!("invalid arguments: {e}")),
+            };
+            let mut s = match session(&o) {
+                Ok(s) => s,
+                Err(e) => return fail(&e),
+            };
+            let result = s.execute("graph_run", json!({ "path": file, "inputs": inputs, "brief": true }));
+            flush_messages(&mut s);
+            match result.and_then(|out| save(&mut s, &o).map(|()| out)) {
+                Ok(out) => {
+                    print(&out);
+                    if out["errors"].as_u64().unwrap_or(0) > 0 { ExitCode::from(1) } else { ExitCode::SUCCESS }
                 }
                 Err(e) => fail(&e),
             }

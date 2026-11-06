@@ -85,6 +85,10 @@ pub struct Project {
     /// Graphics of each phase status, where a phase filter overrides it.
     #[serde(default, skip_serializing_if = "crate::phase::phase_graphics_is_default")]
     pub phase_graphics: crate::PhaseGraphics,
+    /// Elements made by visual programming graphs, and the call that made
+    /// each (see [`crate::graph_binding`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub graph_bindings: BTreeMap<ElementId, crate::graph_binding::GraphBinding>,
     next_id: u64,
 }
 
@@ -116,6 +120,7 @@ impl Project {
             phases: Vec::new(),
             phase_filters: BTreeMap::new(),
             phase_graphics: crate::PhaseGraphics::default(),
+            graph_bindings: BTreeMap::new(),
             next_id: 1,
         }
     }
@@ -827,6 +832,12 @@ impl Project {
     }
 
     /// Allocate a new unique id (shared by all id kinds).
+    /// The id the next new element, view or type gets (every id after it is
+    /// newer).
+    pub fn next_id(&self) -> u64 {
+        self.next_id
+    }
+
     pub fn alloc_id(&mut self) -> u64 {
         let id = self.next_id;
         self.next_id += 1;

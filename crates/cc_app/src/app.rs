@@ -17,6 +17,8 @@ pub struct Args {
     /// Views (by name or tab title) to open at startup.
     pub views: Vec<String>,
     pub language: Option<Language>,
+    /// A visual programming graph to open in the graph editor.
+    pub graph: Option<std::path::PathBuf>,
 }
 
 pub struct ConstructApp {
@@ -45,7 +47,7 @@ fn set_title(ctx: &egui::Context, last: &mut String, title: String) {
 impl ConstructApp {
     /// Create the app; see [`Args`] for the startup options.
     pub fn new(cc: &eframe::CreationContext<'_>, args: Args) -> Self {
-        let Args { path, views, language } = args;
+        let Args { path, views, language, graph } = args;
         crate::theme::apply(&cc.egui_ctx);
         // wgpu panics on an uncaptured GPU error (a validation error or a
         // failed allocation) by default; log it and keep the app (and the
@@ -88,6 +90,9 @@ impl ConstructApp {
                 state.project_open = false;
                 state.show_home = true;
             }
+        }
+        if let Some(graph) = graph {
+            crate::graph_ui::open_path(&mut state, graph);
         }
         let mut named = Vec::new();
         for name in views {
@@ -236,6 +241,10 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
     if state.show_home || !state.project_open {
         return;
     }
+    // Over the graph editor, its keys go to the graph.
+    if crate::graph_ui::keys(ctx, state, undo, redo, save, save_as) {
+        return;
+    }
     if close {
         actions::guarded(state, PendingAction::Close);
     }
@@ -270,8 +279,22 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         if escape {
             crate::sketch_mode::escape(state);
         }
-        if delete && let Some(s) = state.sketch.as_mut() {
-            s.delete_selected();
+        if let Some(s) = state.sketch.as_mut() {
+            if delete {
+                s.delete_selected();
+            }
+            // Lengths typed after the first point (issue #179).
+            if s.typing() {
+                if backspace {
+                    s.typed.pop();
+                }
+                let both = s.draw == crate::sketch_mode::Draw::Rect;
+                for event in &events {
+                    if let Event::Text(text) = event {
+                        text.chars().for_each(|ch| _ = s.typed.type_char(ch, both));
+                    }
+                }
+            }
         }
         return;
     }
@@ -326,18 +349,7 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
     for event in events {
         let Event::Text(text) = event else { continue };
         for ch in text.chars() {
-            if typing_length && (ch.is_ascii_digit() || ch == ',' || ch == '.') {
-                state.typed.push(ch);
-                continue;
-            }
-            // Feet and inch marks and fractions (`12'6 1/2"`); a space or a
-            // dash only inside a length already started.
-            let started = !state.typed.length.is_empty() && !state.typed.angle_active;
-            if typing_length
-                && cc_views::format::imperial()
-                && (matches!(ch, '\'' | '"' | '/') || (started && matches!(ch, ' ' | '-')))
-            {
-                state.typed.push(ch);
+            if typing_length && state.typed.type_char(ch, false) {
                 continue;
             }
             if !ch.is_ascii_alphabetic() {
@@ -378,7 +390,8 @@ impl eframe::App for ConstructApp {
     /// While a segment is drawn, Tab switches the typed field (length or
     /// angle) instead of moving keyboard focus between widgets.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        if !self.state.typing_segment() || ctx.memory(|m| m.focused().is_some()) {
+        let sketch = self.state.sketch.as_ref().is_some_and(|s| s.typing());
+        if !(sketch || self.state.typing_segment()) || ctx.memory(|m| m.focused().is_some()) {
             return;
         }
         let is_tab = |e: &Event| matches!(e, Event::Key { key: Key::Tab, .. });
@@ -386,7 +399,11 @@ impl eframe::App for ConstructApp {
             raw_input.events.iter().filter(|e| matches!(e, Event::Key { key: Key::Tab, pressed: true, .. })).count();
         raw_input.events.retain(|e| !is_tab(e));
         if presses % 2 == 1 {
-            self.state.typed.angle_active = !self.state.typed.angle_active;
+            let typed = match self.state.sketch.as_mut() {
+                Some(s) => &mut s.typed,
+                None => &mut self.state.typed,
+            };
+            typed.angle_active = !typed.angle_active;
         }
     }
 
@@ -515,6 +532,22 @@ impl ConstructApp {
                     .show(ui, |ui| browser::show(ui, state));
                 properties::show(ui, state);
             });
+        // The visual programming editor, under the views.
+        if state.graph.open && !env {
+            egui::Panel::bottom("graph")
+                .frame(
+                    egui::Frame::new()
+                        .fill(PALETTE.panel)
+                        .stroke(egui::Stroke::new(1.0, PALETTE.border))
+                        .inner_margin(egui::Margin::same(6)),
+                )
+                .resizable(true)
+                .default_size(360.0)
+                .size_range(160.0..=900.0)
+                .show(ui, |ui| crate::graph_ui::show(ui, state));
+        } else {
+            state.graph.hovered = false;
+        }
         let render_state = frame.wgpu_render_state();
         let central = egui::Frame::new().fill(PALETTE.app_bg).inner_margin(egui::Margin::same(4));
         egui::CentralPanel::no_frame().frame(central).show(ui, |ui| {
