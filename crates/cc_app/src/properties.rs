@@ -10,7 +10,7 @@ use crate::state::AppState;
 use crate::t;
 use crate::table::{header_block, padded, readonly_row, row, section};
 use crate::theme::{self, PALETTE};
-use cc_core::{Category, Element, ElementId, ElementKind, RoofShape, SheetSize, ViewId, ViewKind};
+use cc_core::{Category, Element, ElementId, ElementKind, RoofShape, ViewId, ViewKind};
 use cc_views::format;
 use egui::{DragValue, Response, RichText, Sense, Ui, vec2};
 use std::hash::{Hash, Hasher};
@@ -2599,32 +2599,8 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
                 readonly_row(ui, &t!("prop-category"), actions::t_category(*category));
             });
         }
-        ViewKind::Sheet { number, size, .. } => {
-            section(ui, "sheet", t!("section-graphics"), |ui| {
-                view_text_row(ui, state, id, &t!("prop-sheet-number"), "number", number.clone(), |v, s| {
-                    if let ViewKind::Sheet { number, .. } = &mut v.kind {
-                        *number = s;
-                    }
-                });
-                let mut sz = *size;
-                row(ui, &t!("prop-sheet-size"), |ui| {
-                    egui::ComboBox::from_id_salt(("size", id.0)).selected_text(sz.label()).show_ui(ui, |ui| {
-                        for s in SheetSize::ALL {
-                            ui.selectable_value(&mut sz, s, s.label());
-                        }
-                    });
-                });
-                if sz != *size {
-                    crate::engine_edit::view(state, id, None, |x| {
-                        if let ViewKind::Sheet { size, .. } = &mut x.kind {
-                            *size = sz;
-                        }
-                    });
-                    if let Some(st) = state.view2d.get_mut(&id) {
-                        st.fitted = false;
-                    }
-                }
-            });
+        ViewKind::Sheet { .. } => {
+            section(ui, "sheet", t!("section-graphics"), |ui| crate::sheet_props::rows(ui, state, id));
         }
         ViewKind::ThreeD { .. } | ViewKind::Legend { .. } | ViewKind::Elevation { .. } | ViewKind::Diagram { .. } => {}
     }

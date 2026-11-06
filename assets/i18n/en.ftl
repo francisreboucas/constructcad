@@ -2431,3 +2431,14 @@ graph-discard-body = The graph has changes that were not saved.
 graph-open-failed = The graph could not be opened: { $error }
 graph-save-failed = The graph could not be saved: { $error }
 graph-repaired = The graph file was repaired ({ $count } problems)
+
+# Title blocks (app)
+prop-title-block = Title Block
+prop-title-block-none = None
+prop-paper-custom = Custom
+prop-portrait = Portrait
+prop-paper-dimensions = Width × height
+prop-issue-date = Issue Date
+prop-date-hint = YYYY-MM-DD
+action-today = Today
+msg-invalid-date = Type the date as YYYY-MM-DD, or leave it empty

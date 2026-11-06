@@ -2433,3 +2433,14 @@ graph-discard-body = ກຣາຟມີການປ່ຽນແປງທີ່�
 graph-open-failed = ເປີດກຣາຟບໍ່ໄດ້: { $error }
 graph-save-failed = ບັນທຶກກຣາຟບໍ່ໄດ້: { $error }
 graph-repaired = ໄດ້ສ້ອມແປງຟາຍກຣາຟແລ້ວ ({ $count } ບັນຫາ)
+
+# Title blocks (app)
+prop-title-block = ປ້າຍຊື່
+prop-title-block-none = ບໍ່ມີ
+prop-paper-custom = ກຳນົດເອງ
+prop-portrait = ແນວຕັ້ງ
+prop-paper-dimensions = ກວ້າງ × ສູງ
+prop-issue-date = ວັນທີອອກ
+prop-date-hint = YYYY-MM-DD
+action-today = ມື້ນີ້
+msg-invalid-date = ພິມວັນທີເປັນ YYYY-MM-DD ຫຼື ປ່ອຍວ່າງ

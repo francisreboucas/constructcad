@@ -2431,3 +2431,14 @@ graph-discard-body = グラフに保存されていない変更があります�
 graph-open-failed = グラフを開けませんでした: { $error }
 graph-save-failed = グラフを保存できませんでした: { $error }
 graph-repaired = グラフファイルを修復しました ({ $count } 件の問題)
+
+# Title blocks (app)
+prop-title-block = 表題欄
+prop-title-block-none = なし
+prop-paper-custom = カスタム
+prop-portrait = 縦向き
+prop-paper-dimensions = 幅 × 高さ
+prop-issue-date = 発行日
+prop-date-hint = YYYY-MM-DD
+action-today = 今日
+msg-invalid-date = 日付は YYYY-MM-DD で入力するか、空にしてください

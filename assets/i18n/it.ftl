@@ -2431,3 +2431,14 @@ graph-discard-body = Il grafo ha modifiche non salvate.
 graph-open-failed = Impossibile aprire il grafo: { $error }
 graph-save-failed = Impossibile salvare il grafo: { $error }
 graph-repaired = Il file del grafo è stato riparato ({ $count } problemi)
+
+# Title blocks (app)
+prop-title-block = Cartiglio
+prop-title-block-none = Nessuno
+prop-paper-custom = Personalizzato
+prop-portrait = Verticale
+prop-paper-dimensions = Larghezza × altezza
+prop-issue-date = Data di emissione
+prop-date-hint = AAAA-MM-GG
+action-today = Oggi
+msg-invalid-date = Scrivi la data come AAAA-MM-GG, o lasciala vuota

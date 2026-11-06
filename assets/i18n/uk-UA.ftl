@@ -2432,3 +2432,14 @@ graph-discard-body = Граф має незбережені зміни.
 graph-open-failed = Не вдалося відкрити граф: { $error }
 graph-save-failed = Не вдалося зберегти граф: { $error }
 graph-repaired = Файл графа виправлено (проблем: { $count })
+
+# Title blocks (app)
+prop-title-block = Штамп
+prop-title-block-none = Немає
+prop-paper-custom = Власний
+prop-portrait = Книжкова
+prop-paper-dimensions = Ширина × висота
+prop-issue-date = Дата випуску
+prop-date-hint = РРРР-ММ-ДД
+action-today = Сьогодні
+msg-invalid-date = Введіть дату як РРРР-ММ-ДД або залиште порожнім

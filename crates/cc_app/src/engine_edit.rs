@@ -128,7 +128,6 @@ pub fn view(state: &mut AppState, id: ViewId, key: Option<u64>, f: impl FnOnce(&
 /// Change sheet `id` as `f` changes a copy of it (`sheet_set`): its
 /// number, paper, title block, per-sheet field values and issue date, in
 /// one undo step per `key`.
-#[cfg_attr(not(test), expect(dead_code, reason = "the sheet rows call it in the next commit"))]
 pub fn sheet(state: &mut AppState, id: ViewId, key: Option<u64>, f: impl FnOnce(&mut View)) -> bool {
     let Some(old) = state.project().view(id).cloned() else { return false };
     let mut new = old.clone();

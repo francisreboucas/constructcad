@@ -39,6 +39,7 @@ mod recovery;
 mod ribbon;
 mod schedule_ui;
 mod sheet;
+mod sheet_props;
 mod sketch_mode;
 mod stair_ui;
 mod state;

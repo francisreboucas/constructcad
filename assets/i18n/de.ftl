@@ -2431,3 +2431,14 @@ graph-discard-body = Der Graph enthält ungespeicherte Änderungen.
 graph-open-failed = Der Graph konnte nicht geöffnet werden: { $error }
 graph-save-failed = Der Graph konnte nicht gespeichert werden: { $error }
 graph-repaired = Die Graph-Datei wurde repariert ({ $count } Probleme)
+
+# Title blocks (app)
+prop-title-block = Schriftfeld
+prop-title-block-none = Keines
+prop-paper-custom = Benutzerdefiniert
+prop-portrait = Hochformat
+prop-paper-dimensions = Breite × Höhe
+prop-issue-date = Ausgabedatum
+prop-date-hint = JJJJ-MM-TT
+action-today = Heute
+msg-invalid-date = Datum als JJJJ-MM-TT eingeben oder leer lassen

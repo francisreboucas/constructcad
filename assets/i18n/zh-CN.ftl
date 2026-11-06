@@ -2431,3 +2431,14 @@ graph-discard-body = 图中有未保存的更改。
 graph-open-failed = 无法打开图：{ $error }
 graph-save-failed = 无法保存图：{ $error }
 graph-repaired = 图文件已修复（{ $count } 个问题）
+
+# Title blocks (app)
+prop-title-block = 图签
+prop-title-block-none = 无
+prop-paper-custom = 自定义
+prop-portrait = 纵向
+prop-paper-dimensions = 宽 × 高
+prop-issue-date = 发布日期
+prop-date-hint = YYYY-MM-DD
+action-today = 今天
+msg-invalid-date = 请按 YYYY-MM-DD 输入日期，或留空

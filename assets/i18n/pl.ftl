@@ -2431,3 +2431,14 @@ graph-discard-body = Graf ma niezapisane zmiany.
 graph-open-failed = Nie można otworzyć grafu: { $error }
 graph-save-failed = Nie można zapisać grafu: { $error }
 graph-repaired = Plik grafu został naprawiony (problemy: { $count })
+
+# Title blocks (app)
+prop-title-block = Tabliczka
+prop-title-block-none = Brak
+prop-paper-custom = Niestandardowy
+prop-portrait = Pionowo
+prop-paper-dimensions = Szerokość × wysokość
+prop-issue-date = Data wydania
+prop-date-hint = RRRR-MM-DD
+action-today = Dziś
+msg-invalid-date = Wpisz datę jako RRRR-MM-DD lub zostaw puste

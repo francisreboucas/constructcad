@@ -1070,6 +1070,39 @@ fn a_view_picked_on_a_sheet_shows_its_properties() {
     assert!(harness.query_by_label(&t!("section-graphics")).is_some(), "and the view's own graphics");
 }
 
+/// The sheet's rows run `sheet_set`: Portrait turns the paper, Today sets
+/// the issue date, each one undo step.
+#[test]
+fn sheet_rows_change_the_sheet() {
+    let mut state = sample_state();
+    let sheet = state
+        .project()
+        .views
+        .values()
+        .find(|v| matches!(v.kind, cc_core::ViewKind::Sheet { .. }))
+        .map(|v| v.id)
+        .expect("the sample has a sheet");
+    state.active_view = Some(sheet);
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1400.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    assert!(harness.query_by_label(&t!("action-today")).is_some());
+    let depth = harness.state().session.doc.undo_depth();
+    harness.get_by_label(&t!("prop-portrait")).click();
+    harness.run();
+    harness.get_by_label(&t!("action-today")).click();
+    harness.run();
+    let state = harness.state();
+    assert_eq!(state.session.doc.undo_depth(), depth + 2);
+    let Some(cc_core::ViewKind::Sheet { portrait, issue_date, .. }) = state.project().view(sheet).map(|v| &v.kind)
+    else {
+        panic!("not a sheet")
+    };
+    assert!(*portrait);
+    assert_eq!(*issue_date, crate::sheet_props::today_iso());
+}
+
 /// A view dragged from the project browser and dropped on a sheet is
 /// placed there, where it was dropped, and picked.
 #[test]

@@ -160,3 +160,25 @@ pub fn live_text(
     }
     r
 }
+
+/// A one-line field that hands back its text, trimmed, when Enter is
+/// pressed or it loses the focus, and only if it changed. While focused it
+/// keeps what is typed; otherwise it shows `current`. `hint` shows when empty.
+pub fn commit_text(
+    ui: &mut Ui,
+    salt: impl std::hash::Hash + std::fmt::Debug,
+    current: &str,
+    width: f32,
+    hint: &str,
+) -> Option<String> {
+    let id = egui::Id::new(("commit-text", salt));
+    let mut text = ui.data(|d| d.get_temp::<String>(id)).unwrap_or_else(|| current.to_string());
+    let r = ui.add(egui::TextEdit::singleline(&mut text).desired_width(width).hint_text(hint));
+    if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(id, text));
+        return None;
+    }
+    ui.data_mut(|d| d.remove::<String>(id));
+    let text = text.trim().to_string();
+    (r.lost_focus() && text != current).then_some(text)
+}
