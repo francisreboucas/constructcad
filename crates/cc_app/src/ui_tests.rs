@@ -1641,6 +1641,49 @@ fn the_terrain_tool_sketches_a_boundary_and_points() {
     assert_eq!((g.min_z, g.max_z), (0.0, 2.0));
 }
 
+/// The building pad tool: unavailable without a terrain on the plan's level;
+/// the sketch takes the outline at the options bar's elevation, and
+/// *Finish* grades the level's terrain with a new pad type.
+#[test]
+fn the_pad_tool_grades_the_terrain_of_the_level() {
+    use crate::commands::UiCommand;
+    use cc_core::sketch::SketchCurve;
+    use glam::DVec2;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    let level = state.active_level().unwrap();
+    assert!(UiCommand::Place(cc_core::Category::Pad).unavailable(&state).is_some(), "no terrain yet");
+    let points = serde_json::json!([[100, 0, 0], [130, 0, 3], [130, 30, 3], [100, 30, 0], [115, 15, 1.5]]);
+    let boundary = serde_json::json!([[100, 0], [130, 0], [130, 30], [100, 30]]);
+    let t = state
+        .session
+        .execute("topography_create", serde_json::json!({"points": points, "boundary": boundary, "level": level.0}))
+        .unwrap();
+    let terrain = cc_core::ElementId(t["id"].as_u64().unwrap());
+    assert_eq!(UiCommand::Place(cc_core::Category::Pad).unavailable(&state), None);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Pad);
+    assert!(state.project().default_type(cc_core::Category::Pad).is_some());
+    state.modify.pad_elevation = 1.5;
+    let p = |x: f64, y: f64| DVec2::new(x, y);
+    state.sketch.as_mut().unwrap().add(vec![
+        SketchCurve::Line { a: p(110.0, 10.0), b: p(120.0, 10.0) },
+        SketchCurve::Line { a: p(120.0, 10.0), b: p(120.0, 20.0) },
+        SketchCurve::Line { a: p(120.0, 20.0), b: p(110.0, 20.0) },
+        SketchCurve::Line { a: p(110.0, 20.0), b: p(110.0, 10.0) },
+    ]);
+    crate::commands::run(&mut state, &egui::Context::default(), UiCommand::SketchFinish);
+    assert!(state.sketch.is_none(), "{}", state.message);
+    let id = *state.selection.iter().next().unwrap();
+    let cc_core::ElementKind::Pad(pad) = &state.project().element(id).unwrap().kind else { panic!("a pad") };
+    assert_eq!((pad.host, pad.elevation), (terrain, 1.5));
+    let g = state.session.geometry().pads.get(&id).cloned().unwrap();
+    assert!(g.cut > 0.0 && g.fill > 0.0, "{g:?}");
+    // A click on the graded earth inside it picks the pad.
+    assert_eq!(cc_geom::pad::pad_at(state.project(), terrain, p(115.0, 15.0)), Some(id));
+    assert_eq!(cc_geom::pad::pad_at(state.project(), terrain, p(105.0, 5.0)), None);
+}
+
 /// Attach Top and Detach Top: available with walls selected; the tool
 /// attaches the selected walls' tops to the roof clicked, and Detach Top
 /// gives them back their own tops.

@@ -123,6 +123,8 @@ fn summable(field: ScheduleField) -> bool {
             | ScheduleField::DrainUnits
             | ScheduleField::Area
             | ScheduleField::Volume
+            | ScheduleField::CutVolume
+            | ScheduleField::FillVolume
             | ScheduleField::Cost
     )
 }
@@ -269,6 +271,7 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             ElementKind::Roof(r) => Value::Area(r.area()),
             ElementKind::Floor(f) => Value::Area(f.area()),
             ElementKind::Shaft(s) => Value::Area(polygon::area(&s.outline)),
+            ElementKind::Pad(p) => Value::Area(polygon::area(&p.outline)),
             ElementKind::Topography(_) => geom.topographies.get(&e.id).map_or(Value::Missing, |g| Value::Area(g.area)),
             _ => e.sketch().map_or(Value::Missing, |s| Value::Area(polygon::area(s))),
         },
@@ -379,6 +382,21 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
                 Some(c) if field == F::GlazedArea => Value::Area(c.layout.glazed_area()),
                 Some(c) => Value::Length(c.layout.mullion_length()),
                 None => Value::Missing,
+            }
+        }
+        F::Elevation => match &e.kind {
+            ElementKind::Pad(p) => Value::Length(p.elevation),
+            _ => Value::Missing,
+        },
+        F::CutVolume | F::FillVolume => {
+            let pick = |g: &cc_geom::pad::PadGeom| if field == F::CutVolume { g.cut } else { g.fill };
+            match &e.kind {
+                ElementKind::Pad(_) => geom.pads.get(&e.id).map_or(Value::Missing, |g| Value::Volume(pick(g))),
+                ElementKind::Topography(_) => {
+                    let mut pads = project.pads_of(e.id).filter_map(|(p, _)| geom.pads.get(&p.id)).peekable();
+                    if pads.peek().is_some() { Value::Volume(pads.map(pick).sum()) } else { Value::Missing }
+                }
+                _ => Value::Missing,
             }
         }
         F::Number => match &e.kind {
@@ -502,7 +520,7 @@ pub fn schedule_where(
                     ScheduleField::Length | ScheduleField::CutLength => format::meters(sum),
                     ScheduleField::BarCount => format::number(sum, 0),
                     ScheduleField::Weight => format!("{} kg", format::number(sum, 2)),
-                    ScheduleField::Volume => format::volume(sum),
+                    ScheduleField::Volume | ScheduleField::CutVolume | ScheduleField::FillVolume => format::volume(sum),
                     ScheduleField::Area => format::area(sum),
                     ScheduleField::Cost => format::money(sum),
                     _ => format::number(sum, 2),

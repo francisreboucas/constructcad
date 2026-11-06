@@ -79,6 +79,12 @@ pub enum ScheduleField {
     GlazedArea,
     /// Total length of a curtain wall's mullions.
     MullionLength,
+    /// Elevation of a building pad above its level.
+    Elevation,
+    /// Volume of earth cut by a pad (a terrain: by its pads).
+    CutVolume,
+    /// Volume of earth filled by a pad (a terrain: by its pads).
+    FillVolume,
 }
 
 impl ScheduleField {
@@ -135,6 +141,9 @@ impl ScheduleField {
             ScheduleField::PanelCount => "col-panel-count",
             ScheduleField::GlazedArea => "col-glazed-area",
             ScheduleField::MullionLength => "col-mullion-length",
+            ScheduleField::Elevation => "col-elevation",
+            ScheduleField::CutVolume => "col-cut-volume",
+            ScheduleField::FillVolume => "col-fill-volume",
         }
     }
 
@@ -180,7 +189,8 @@ impl ScheduleField {
             Category::Railing => &[F::Length, F::Height],
             Category::Sweep => &[F::Length, F::Volume],
             Category::Shaft => &[F::Area, F::Height],
-            Category::Topography => &[F::Area, F::Volume, F::Material],
+            Category::Topography => &[F::Area, F::Volume, F::Material, F::CutVolume, F::FillVolume],
+            Category::Pad => &[F::Elevation, F::Area, F::CutVolume, F::FillVolume],
             Category::Pipe => &[F::Diameter, F::Length, F::System, F::Slope, F::Material],
             Category::Conduit => &[F::Diameter, F::Length, F::System, F::Material],
             Category::Component => &[
@@ -250,6 +260,7 @@ impl ScheduleField {
             Category::Mass => vec![F::Mark, F::Type, F::Level, F::Height, F::FloorCount, F::FloorArea, F::Volume],
             Category::Shaft => vec![F::Mark, F::Type, F::Level, F::Area, F::Height],
             Category::Topography => vec![F::Mark, F::Type, F::Level, F::Area, F::Volume],
+            Category::Pad => vec![F::Mark, F::Type, F::Level, F::Elevation, F::Area, F::CutVolume, F::FillVolume],
             Category::Grid | Category::Dimension | Category::Text | Category::CadImport => Vec::new(),
         }
     }

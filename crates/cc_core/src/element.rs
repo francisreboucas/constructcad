@@ -57,6 +57,8 @@ pub enum ElementKind {
     Shaft(crate::shaft::Shaft),
     /// A terrain surface from measured points inside a boundary.
     Topography(crate::topography::Topography),
+    /// A building pad graded into its terrain.
+    Pad(crate::pad::Pad),
 }
 
 impl Element {
@@ -87,6 +89,7 @@ impl Element {
             ElementKind::Sweep(_) => Category::Sweep,
             ElementKind::Shaft(_) => Category::Shaft,
             ElementKind::Topography(_) => Category::Topography,
+            ElementKind::Pad(_) => Category::Pad,
         }
     }
 
@@ -156,6 +159,7 @@ impl Element {
             ElementKind::Mass(m) => Some(&mut m.sketch),
             ElementKind::Shaft(s) => Some(&mut s.sketch),
             ElementKind::Topography(t) => Some(&mut t.sketch),
+            ElementKind::Pad(p) => Some(&mut p.sketch),
             _ => None,
         }
     }
@@ -169,6 +173,7 @@ impl Element {
             ElementKind::Mass(m) => m.sketch.as_ref(),
             ElementKind::Shaft(s) => s.sketch.as_ref(),
             ElementKind::Topography(t) => t.sketch.as_ref(),
+            ElementKind::Pad(p) => p.sketch.as_ref(),
             _ => None,
         }
     }
@@ -183,6 +188,7 @@ impl Element {
             ElementKind::Mass(m) => Some((&m.outline, &[])),
             ElementKind::Shaft(s) => Some((&s.outline, &[])),
             ElementKind::Topography(t) => Some((&t.boundary, &[])),
+            ElementKind::Pad(p) => Some((&p.outline, &[])),
             _ => None,
         }
     }
@@ -263,6 +269,7 @@ impl Element {
                 t.boundary.iter_mut().for_each(|p| *p += delta);
                 t.points.iter_mut().for_each(|p| *p += delta.extend(0.0));
             }
+            ElementKind::Pad(p) => p.outline.iter_mut().for_each(|q| *q += delta),
             ElementKind::Component(c) => c.position += delta,
             ElementKind::Pipe(s) | ElementKind::Conduit(s) => {
                 s.start += delta;

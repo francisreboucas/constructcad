@@ -199,6 +199,8 @@ registry![
         topography::TopographyCreate,
         topography::TopographyPointsSet,
         topography::TopographyTypeCreate,
+        pad::PadCreate,
+        pad::PadTypeCreate,
         mass::MassFaceMove,
         mass::MassWallsCreate,
         mass::MassSlabsCreate,

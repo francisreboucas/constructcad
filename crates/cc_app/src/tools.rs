@@ -278,7 +278,8 @@ impl Tool {
             | Category::Roof
             | Category::Mass
             | Category::Shaft
-            | Category::Topography => Tool::Sketch { category, type_id },
+            | Category::Topography
+            | Category::Pad => Tool::Sketch { category, type_id },
             Category::Room => Tool::Room { type_id },
             Category::Grid => Tool::Grid { type_id },
             Category::Dimension => Tool::Dimension { type_id, mode: DimensionMode::Aligned },

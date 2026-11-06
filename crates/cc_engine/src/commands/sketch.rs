@@ -289,6 +289,10 @@ impl Command for SketchSet {
                 sh.outline = outline(&sketch)?;
                 sh.sketch = Some(sketch);
             }
+            ElementKind::Pad(pad) => {
+                pad.outline = outline(&sketch)?;
+                pad.sketch = Some(sketch);
+            }
             ElementKind::Topography(t) => {
                 t.boundary = outline(&sketch)?;
                 t.sketch = Some(sketch);
@@ -298,7 +302,7 @@ impl Command for SketchSet {
             }
             _ => {
                 return Err(EngineError::invalid(
-                    "only floors, ceilings, roofs, masses, shafts and terrain have a sketched outline",
+                    "only floors, ceilings, roofs, masses, shafts, terrain and pads have a sketched outline",
                 ));
             }
         }

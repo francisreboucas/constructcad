@@ -1040,7 +1040,45 @@ impl<'a> Exporter<'a> {
                 self.status_written.insert(e.id);
                 self.property_set_status(&format!("pset-{}-{name}", e.id), name, vec![id], props, status);
             }
+            if let ElementKind::Topography(_) = &e.kind {
+                self.pads_set(e.id, id);
+            }
         }
+    }
+
+    /// A terrain's building pads, which IFC4 has no class for, in
+    /// [`PADS_PSET`] for importers to restore: per pad `n` (from 1),
+    /// `Pad<n>Outline`, `Pad<n>Elevation`, its own `Pad<n>CutSlope` and
+    /// `Pad<n>FillSlope` when it has them, and its type's name and ratios
+    /// (`Pad<n>Type`, `Pad<n>TypeCutSlope`, `Pad<n>TypeFillSlope`).
+    fn pads_set(&mut self, terrain: cc_core::ElementId, product: Id) {
+        let project = self.project;
+        let text = |s: String| Value::Typed("IFCTEXT", Box::new(Value::Str(s)));
+        let label = |s: &str| Value::Typed("IFCLABEL", Box::new(s.into()));
+        let length = |v: f64| Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(v)));
+        let real = |v: f64| Value::Typed("IFCREAL", Box::new(Value::Real(v)));
+        let mut props: Vec<(String, Value)> = Vec::new();
+        for (k, (e, p)) in project.pads_of(terrain).enumerate() {
+            let n = k + 1;
+            let outline = crate::point_list::encode(p.outline.iter().map(|q| q.to_array().to_vec()));
+            props.push((format!("Pad{n}Outline"), text(outline)));
+            props.push((format!("Pad{n}Elevation"), length(p.elevation)));
+            if let Some(c) = p.cut_slope {
+                props.push((format!("Pad{n}CutSlope"), real(c)));
+            }
+            if let Some(f) = p.fill_slope {
+                props.push((format!("Pad{n}FillSlope"), real(f)));
+            }
+            if let Some(ty) = project.element_type(e.type_id)
+                && let TypeData::Pad { cut_slope, fill_slope } = ty.data
+            {
+                props.push((format!("Pad{n}Type"), label(&ty.name)));
+                props.push((format!("Pad{n}TypeCutSlope"), real(cut_slope)));
+                props.push((format!("Pad{n}TypeFillSlope"), real(fill_slope)));
+            }
+        }
+        let props: Vec<(&str, Value)> = props.iter().map(|(k, v)| (k.as_str(), v.clone())).collect();
+        self.property_set(&format!("pads-{}", terrain.0), PADS_PSET, vec![product], props);
     }
 
     /// Reinforcement: one `IfcReinforcingBar` per set, each bar a disk swept
@@ -1418,14 +1456,16 @@ impl<'a> Exporter<'a> {
         let mut base =
             args![gid, n.clone(), ty.name.as_str(), description, n.clone(), n.clone(), n.clone(), n.clone(), n.clone()];
         let (entity, extra): (&str, Vec<Value>) = match ty.data {
-            // Rooms, grids, dimensions, texts, imported drawings and masses have no IFC type object.
+            // Rooms, grids, dimensions, texts, imported drawings, masses, shafts
+            // and pads have no IFC type object.
             TypeData::Room {}
             | TypeData::Grid { .. }
             | TypeData::Dimension { .. }
             | TypeData::Text { .. }
             | TypeData::CadImport {}
             | TypeData::Mass { .. }
-            | TypeData::Shaft {} => {
+            | TypeData::Shaft {}
+            | TypeData::Pad { .. } => {
                 return None;
             }
             TypeData::Component { ref def, .. } => {
@@ -2386,6 +2426,8 @@ pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
 /// to rebuild it as terrain (points as `x y z` and the boundary as `x y`,
 /// separated by `;`).
 pub const TOPOGRAPHY_PSET: &str = "ConstructCAD_Topography";
+/// The building pads of a terrain (see `Exporter::pads_set`).
+pub const PADS_PSET: &str = "ConstructCAD_Pads";
 
 /// The framing's member sizes in [`ROOFING_PSET`]: member, width and height properties.
 pub const ROOFING_SIZES: [(&str, &str, &str); 4] = [

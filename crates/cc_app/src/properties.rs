@@ -499,6 +499,7 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
     match &el.kind {
         ElementKind::Mass(m) => mass_props(ui, state, &el, m),
         ElementKind::Topography(t) => topography_props(ui, state, &el, t),
+        ElementKind::Pad(p) => pad_props(ui, state, &el, p),
         ElementKind::Component(c) => component_props(ui, state, &el, c),
         ElementKind::Wall(w) => {
             section(ui, "constraints", t!("section-constraints"), |ui| wall_constraints(ui, state, &el, w));
@@ -1467,6 +1468,83 @@ fn topography_props(ui: &mut Ui, state: &mut AppState, el: &Element, t: &cc_core
             crate::sketch_mode::edit_boundary(state);
         }
     });
+}
+
+/// A building pad: its elevation, its slopes (its own or its type's), its
+/// area and earthworks, and *Edit Boundary*.
+fn pad_props(ui: &mut Ui, state: &mut AppState, el: &Element, p: &cc_core::pad::Pad) {
+    let id = el.id;
+    section(ui, "constraints", t!("section-constraints"), |ui| {
+        // The terrain's level: pads follow it.
+        readonly_row(ui, &t!("prop-level"), state.project().level_name(el.level).to_string());
+        length_row(ui, state, &t!("col-elevation"), id, "elevation", p.elevation, |e, v| {
+            if let ElementKind::Pad(p) = &mut e.kind {
+                p.elevation = v;
+            }
+        });
+    });
+    let (type_cut, type_fill) = match state.project().element_type(el.type_id).map(|t| &t.data) {
+        Some(cc_core::TypeData::Pad { cut_slope, fill_slope }) => (*cut_slope, *fill_slope),
+        _ => (cc_core::pad::DEFAULT_CUT_SLOPE, cc_core::pad::DEFAULT_FILL_SLOPE),
+    };
+    section(ui, "pad-slopes", t!("section-slopes"), |ui| {
+        slope_row(ui, state, id, &t!("prop-cut-slope"), "cut", (p.cut_slope, type_cut), |p, v| p.cut_slope = v);
+        slope_row(ui, state, id, &t!("prop-fill-slope"), "fill", (p.fill_slope, type_fill), |p, v| p.fill_slope = v);
+    });
+    let geom = state.session.geom().pads.get(&id).cloned();
+    section(ui, "dimensions", t!("section-dimensions"), |ui| {
+        let Some(g) = geom else { return };
+        readonly_row(ui, &t!("col-area"), format::area(g.area));
+        readonly_row(ui, &t!("col-cut-volume"), format::volume(g.cut));
+        readonly_row(ui, &t!("col-fill-volume"), format::volume(g.fill));
+        readonly_row(ui, &t!("prop-net-volume"), format::volume(g.fill - g.cut));
+        for w in &g.warnings {
+            readonly_row(ui, &t!("prop-warning"), crate::i18n::tr(&format!("pad-warning-{}", w.code())));
+        }
+        if row(ui, "", |ui| ui.button(t!("edit-boundary")).clicked()) {
+            crate::sketch_mode::edit_boundary(state);
+        }
+    });
+}
+
+/// A pad's slope ratio (run per unit of rise, shown as 1:n): the type's
+/// while *By type* is on, else its own.
+fn slope_row(
+    ui: &mut Ui,
+    state: &mut AppState,
+    id: ElementId,
+    label: &str,
+    field: &str,
+    (own, of_type): (Option<f64>, f64),
+    set: fn(&mut cc_core::pad::Pad, Option<f64>),
+) {
+    use cc_core::pad::{MAX_SLOPE, MIN_SLOPE};
+    let mut by_type = own.is_none();
+    let mut v = own.unwrap_or(of_type);
+    let (toggled, r) = row(ui, label, |ui| {
+        ui.horizontal(|ui| {
+            let toggled = ui.checkbox(&mut by_type, t!("prop-by-type")).changed();
+            let drag = egui::DragValue::new(&mut v).speed(0.05).range(MIN_SLOPE..=MAX_SLOPE).prefix("1:");
+            (toggled, ui.add_enabled(!by_type, drag))
+        })
+        .inner
+    });
+    if toggled {
+        modify(state, id, &format!("{field}-by-type"), |e| {
+            if let ElementKind::Pad(p) = &mut e.kind {
+                set(p, (!by_type).then_some(v));
+            }
+        });
+        state.session.doc.break_merge();
+    }
+    if r.changed() {
+        modify(state, id, field, |e| {
+            if let ElementKind::Pad(p) = &mut e.kind {
+                set(p, Some(v));
+            }
+        });
+    }
+    finish(state, &r);
 }
 
 /// A conceptual mass: its level, base offset and height, whether it is a

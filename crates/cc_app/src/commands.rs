@@ -197,7 +197,7 @@ pub enum UiCommand {
 }
 
 /// Model categories placed by a tool of their own (dimensions and text have their own commands).
-const PLACED: [Category; 21] = [
+const PLACED: [Category; 22] = [
     Category::Wall,
     Category::Door,
     Category::Window,
@@ -219,6 +219,7 @@ const PLACED: [Category; 21] = [
     Category::Mass,
     Category::Shaft,
     Category::Topography,
+    Category::Pad,
 ];
 
 impl UiCommand {
@@ -905,6 +906,7 @@ impl UiCommand {
             Place(Category::Mass) => "MS",
             Place(Category::Shaft) => "SF",
             Place(Category::Topography) => "TS",
+            Place(Category::Pad) => "PD",
             Place(Category::Railing) => "RA",
             Place(Category::Sweep) => "SW",
             Place(Category::Room) => "RM",
@@ -990,6 +992,7 @@ impl UiCommand {
             Place(Category::Mass) => "mass_create",
             Place(Category::Shaft) => "shaft_create",
             Place(Category::Topography) => "topography_create",
+            Place(Category::Pad) => "pad_create",
             Place(Category::Railing) => "railing_create",
             Place(Category::Sweep) => "sweep_create",
             Place(Category::Room) => "room_create",
@@ -1134,11 +1137,18 @@ impl UiCommand {
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
             ImportCad | ImportImage if crate::cad_ui::cad_view(state).is_none() => Some(t!("why-cad-view")),
-            // A project without a ramp, mass or sweep type gets one when the tool starts.
+            // Pads grade a terrain of the plan's level.
+            Place(Category::Pad) if !actions::terrain_on_level(state) => Some(t!("why-no-terrain")),
+            // A project without a ramp, mass, sweep, shaft, terrain or pad type gets one when the tool starts.
             Place(category)
                 if !matches!(
                     category,
-                    Category::Ramp | Category::Mass | Category::Sweep | Category::Shaft | Category::Topography
+                    Category::Ramp
+                        | Category::Mass
+                        | Category::Sweep
+                        | Category::Shaft
+                        | Category::Topography
+                        | Category::Pad
                 ) && Tool::for_category(project, category).is_none() =>
             {
                 Some(t!("msg-no-type"))
@@ -1368,6 +1378,7 @@ fn place_label(category: Category) -> String {
         Category::Mass => t!("tool-mass"),
         Category::Shaft => t!("tool-shaft"),
         Category::Topography => t!("tool-topography"),
+        Category::Pad => t!("tool-pad"),
     }
 }
 
@@ -1398,6 +1409,7 @@ fn place_description(category: Category) -> String {
         Category::Mass => t!("cmd-desc-mass"),
         Category::Shaft => t!("cmd-desc-shaft"),
         Category::Topography => t!("cmd-desc-topography"),
+        Category::Pad => t!("cmd-desc-pad"),
     }
 }
 

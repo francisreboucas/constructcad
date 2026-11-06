@@ -151,6 +151,8 @@ pub struct ModelGeometry {
     pub roof_framing: BTreeMap<ElementId, crate::roof_framing::RoofFramingGeom>,
     /// Terrain surfaces: triangles, elevations, area and volume.
     pub topographies: BTreeMap<ElementId, crate::topography::TopoGeom>,
+    /// Building pads graded into their terrains (see [`crate::pad`]).
+    pub pads: BTreeMap<ElementId, crate::pad::PadGeom>,
 }
 
 /// A foundation's body: a vertical prism.
@@ -434,7 +436,8 @@ impl ModelGeometry {
     fn build_topographies(&mut self, project: &Project) {
         for e in project.elements.values() {
             let ElementKind::Topography(t) = &e.kind else { continue };
-            let Some(g) = crate::topography::topo_geom(project, e, t) else { continue };
+            let Some((g, pads)) = crate::topography::topo_geom_with_pads(project, e, t) else { continue };
+            self.pads.extend(pads);
             let material = project.element_type(e.type_id).map_or("", |t| t.main_material());
             let mut s = Solid::of_material(e.id, e.category(), project, material);
             crate::topography::add_solid(&mut s, &g);

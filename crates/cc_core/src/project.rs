@@ -1021,6 +1021,7 @@ pub fn template_default(key: &str) -> &'static str {
         "tpl-mat-screed" => "Contrapiso",
         "tpl-mat-earth" => "Terra",
         "tpl-type-topography" => "Terreno",
+        "tpl-type-pad" => "Platô",
         "tpl-elev-north" => "Norte",
         "tpl-elev-south" => "Sul",
         "tpl-elev-east" => "Leste",

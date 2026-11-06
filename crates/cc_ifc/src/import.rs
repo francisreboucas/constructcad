@@ -1966,7 +1966,73 @@ impl<'a> Importer<'a> {
             || TypeData::Topography { material: material.clone(), contour_interval: interval, major_every: major },
         );
         self.add_element(id, e, level, type_id, Self::tag(e), ElementKind::Topography(topo));
+        if let Some(&(terrain, _)) = self.products.last() {
+            self.import_pads(id, terrain, level);
+        }
         true
+    }
+
+    /// The building pads of terrain `terrain`, from its
+    /// [`crate::export::PADS_PSET`] (new ids and uids: IFC4 has no pad object).
+    fn import_pads(&mut self, id: u32, terrain: ElementId, level: LevelId) {
+        use cc_core::pad::{DEFAULT_CUT_SLOPE, DEFAULT_FILL_SLOPE, MAX_OUTLINE, Pad, clamp_slope};
+        let set = |n: &str| n == crate::export::PADS_PSET;
+        let numbers = self.numeric_properties(id, crate::export::PADS_PSET);
+        let number = |name: &str| numbers.iter().find(|n| n.0 == name).map(|n| n.1).filter(|v| v.is_finite());
+        let s = self.scale;
+        // Bounded: a pad per outline, counted from 1.
+        for n in 1..=10_000 {
+            let Some(outline) = self.pset_texts(id, &set, &format!("Pad{n}Outline")).first().map(|t| t.to_string())
+            else {
+                break;
+            };
+            let outline: Vec<DVec2> = crate::point_list::decode(&outline, 2, MAX_OUTLINE)
+                .into_iter()
+                .map(|p| DVec2::new(p[0], p[1]) * s)
+                .collect();
+            let mut pad = Pad {
+                host: terrain,
+                outline,
+                elevation: number(&format!("Pad{n}Elevation")).map_or(0.0, |z| z * s),
+                cut_slope: number(&format!("Pad{n}CutSlope")),
+                fill_slope: number(&format!("Pad{n}FillSlope")),
+                sketch: None,
+            };
+            pad.repair();
+            if !pad.is_valid() {
+                continue;
+            }
+            let name = self.pset_texts(id, &set, &format!("Pad{n}Type")).first().map(|t| t.to_string());
+            let ratio = |key: &str, d: f64| number(key).map_or(d, |r| clamp_slope(r, d));
+            let cut = ratio(&format!("Pad{n}TypeCutSlope"), DEFAULT_CUT_SLOPE);
+            let fill = ratio(&format!("Pad{n}TypeFillSlope"), DEFAULT_FILL_SLOPE);
+            let type_id = self.find_or_add_type(
+                Category::Pad,
+                name.filter(|n| !n.trim().is_empty()),
+                cc_core::template_default("tpl-type-pad").to_string(),
+                None,
+                |d| {
+                    matches!(d, TypeData::Pad { cut_slope, fill_slope }
+                        if (cut_slope - cut).abs() < 1e-9 && (fill_slope - fill).abs() < 1e-9)
+                },
+                || TypeData::Pad { cut_slope: cut, fill_slope: fill },
+            );
+
+            let pid = ElementId(self.p.alloc_id());
+            let element = Element {
+                id: pid,
+                level,
+                type_id,
+                mark: String::new(),
+                comments: String::new(),
+                kind: ElementKind::Pad(pad),
+                uid: Default::default(),
+                phase_created: Default::default(),
+                phase_demolished: None,
+            };
+            *self.report.imported.entry(Category::Pad).or_default() += 1;
+            self.p.elements.insert(pid, element);
+        }
     }
 
     fn import_space(&mut self, id: u32, e: &Entity) -> bool {

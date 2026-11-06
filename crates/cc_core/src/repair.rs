@@ -94,6 +94,7 @@ fn element_is_valid(e: &Element) -> bool {
         ElementKind::Sweep(s) => s.is_valid(),
         ElementKind::Shaft(s) => s.is_valid() && top_ok(s.top),
         ElementKind::Topography(t) => t.is_valid(),
+        ElementKind::Pad(p) => p.is_valid(),
     }
 }
 
@@ -167,6 +168,16 @@ impl Project {
                 TypeData::Dimension { text_size } => repairs += usize::from(fix_positive(text_size, 2.5)),
                 TypeData::Text { size, .. } => repairs += usize::from(fix_positive(size, 2.5)),
                 TypeData::Room {} | TypeData::CadImport {} | TypeData::Mass { .. } | TypeData::Shaft {} => {}
+                TypeData::Pad { cut_slope, fill_slope } => {
+                    for (r, d) in
+                        [(cut_slope, crate::pad::DEFAULT_CUT_SLOPE), (fill_slope, crate::pad::DEFAULT_FILL_SLOPE)]
+                    {
+                        if !crate::pad::slope_ok(*r) {
+                            *r = crate::pad::clamp_slope(*r, d);
+                            repairs += 1;
+                        }
+                    }
+                }
                 TypeData::Topography { contour_interval, major_every, .. } => {
                     if !(contour_interval.is_finite() && *contour_interval >= crate::topography::MIN_CONTOUR_INTERVAL) {
                         *contour_interval = crate::types::default_contour_interval();
@@ -304,6 +315,9 @@ impl Project {
                         ElementKind::Dimension(d) => self.view(d.view).is_some(),
                         ElementKind::Text(t) => self.view(t.view).is_some(),
                         ElementKind::CadImport(c) => self.view(c.view).is_some(),
+                        ElementKind::Pad(p) => {
+                            self.element(p.host).is_some_and(|t| matches!(t.kind, ElementKind::Topography(_)))
+                        }
                         _ => true,
                     };
                     !(type_ok && level_ok && host_ok && element_is_valid(e))
@@ -365,6 +379,7 @@ impl Project {
             }
             match &mut e.kind {
                 ElementKind::Topography(t) => repairs += t.repair(),
+                ElementKind::Pad(p) => repairs += p.repair(),
                 ElementKind::Stair(s) => repairs += s.layout.repair(),
                 ElementKind::Ramp(r) => repairs += r.layout.repair(),
                 ElementKind::Railing(r) => {
