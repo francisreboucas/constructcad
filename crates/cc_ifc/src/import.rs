@@ -13,6 +13,7 @@ use crate::guid;
 use crate::parse::{Entity, Param, ParseError, StepFile, parse};
 use cc_core::component::IfcClass;
 use cc_core::component::convex_hull;
+use cc_core::curtain::{CurtainEdits, CurtainPanel, CurtainSystem};
 use cc_core::properties::{Atom, IfcValue, Property, PropertySet, PropertyValue};
 use cc_core::{
     Beam, Category, Ceiling, Column, ColumnSection, Component, ComponentDef, ComponentItem, ComponentKind,
@@ -322,6 +323,8 @@ struct Importer<'a> {
     /// Roofs imported with their framing restored (from [`crate::export::ROOFING_PSET`]):
     /// the members aggregated in them are derived again, not imported.
     framed_roofs: std::collections::HashSet<u32>,
+    /// Curtain walls imported as such: their plates and members come in with them.
+    curtain_walls: std::collections::HashSet<u32>,
     /// Imported elements and their IFC instances (their phases are read at the end).
     products: Vec<(ElementId, u32)>,
 }
@@ -427,6 +430,7 @@ impl<'a> Importer<'a> {
             walls: HashMap::new(),
             has_parts: HashMap::new(),
             framed_roofs: Default::default(),
+            curtain_walls: Default::default(),
             products: Vec::new(),
         };
         im.scale = im.unit("LENGTHUNIT");
@@ -448,12 +452,19 @@ impl<'a> Importer<'a> {
             if matches!(e.name.as_str(), "IFCWALL" | "IFCWALLSTANDARDCASE" | "IFCWALLELEMENTEDCASE") {
                 let ok = self.import_wall(*id, e);
                 self.or_generic(*id, e, ok);
+            } else if e.name == "IFCCURTAINWALL" {
+                let ok = self.import_curtain_wall(*id, e);
+                self.or_generic(*id, e, ok);
             }
         }
         for (id, e) in f.entities.iter() {
             let (id, name) = (*id, e.name.as_str());
             let ok = match name {
-                "IFCWALL" | "IFCWALLSTANDARDCASE" | "IFCWALLELEMENTEDCASE" => continue,
+                "IFCWALL" | "IFCWALLSTANDARDCASE" | "IFCWALLELEMENTEDCASE" | "IFCCURTAINWALL" => continue,
+                // The panels and mullions of a curtain wall rebuilt from its grid.
+                "IFCPLATE" | "IFCMEMBER" if self.parent.get(&id).is_some_and(|w| self.curtain_walls.contains(w)) => {
+                    continue;
+                }
                 "IFCDOOR" | "IFCDOORSTANDARDCASE" => self.import_filler(id, e, true),
                 "IFCWINDOW" | "IFCWINDOWSTANDARDCASE" => self.import_filler(id, e, false),
                 "IFCSLAB" | "IFCSLABSTANDARDCASE" | "IFCSLABELEMENTEDCASE" => self.import_slab(id, e),
@@ -1214,7 +1225,7 @@ impl<'a> Importer<'a> {
             name,
             fallback,
             uid,
-            |d| matches!(d, TypeData::Wall { layers, .. } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
+            |d| matches!(d, TypeData::Wall { layers, curtain: None, .. } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
             || TypeData::Wall { layers, function, curtain: None },
         );
         let wall =
@@ -1224,6 +1235,209 @@ impl<'a> Importer<'a> {
             self.walls.insert(id, element);
         }
         true
+    }
+
+    /// A curtain wall: rebuilt from [`crate::export::CURTAIN_PSET`] when the
+    /// file was written by this program, else from its aggregated plates and
+    /// members when they make a straight grid of rectangular panels (see
+    /// [`Self::curtain_from_parts`]). Its plates and members then come in with
+    /// it; otherwise they are imported one by one, as before.
+    fn import_curtain_wall(&mut self, id: u32, e: &Entity) -> bool {
+        let (world, body) = self.product(e);
+        let set = |n: &str| n == crate::export::CURTAIN_PSET;
+        let text = |name: &str| self.pset_texts(id, &set, name).first().map(|s| s.to_string());
+        let system = text("System").and_then(|t| cc_core::curtain::from_text::<CurtainSystem>(&t));
+        let rebuilt = match (system, body.axis_points.first(), body.axis_points.last()) {
+            (Some(system), Some(&start), Some(&end)) if start.distance(end) > 0.01 => {
+                let edits: CurtainEdits =
+                    text("Edits").and_then(|t| cc_core::curtain::from_text(&t)).unwrap_or_default();
+                let numbers = self.numeric_properties(id, crate::export::CURTAIN_PSET);
+                let number = |name: &str| numbers.iter().find(|n| n.0 == name).map(|n| n.1);
+                let height = number("Height").map(|h| h * self.scale).filter(|h| h.is_finite() && *h > 0.01);
+                let bulge = number("Bulge").filter(|b| b.is_finite()).unwrap_or(0.0);
+                let z0 = world.translation.z;
+                height.map(|h| (system, edits, start, end, bulge, (z0, z0 + h)))
+            }
+            _ => None,
+        };
+        let Some((mut system, mut edits, start, end, bulge, z)) =
+            rebuilt.or_else(|| self.curtain_from_parts(id, &world, &body))
+        else {
+            return false;
+        };
+        // Component panels name types of the project that wrote the file: they become the type's glass.
+        let glass = || CurtainPanel::Glass { thickness: 0.024, material: String::new() };
+        if matches!(system.panel, CurtainPanel::Component { .. }) {
+            system.panel = glass();
+        }
+        let fallback = system.panel.clone();
+        for swap in &mut edits.panels {
+            if matches!(swap.panel, CurtainPanel::Component { .. }) {
+                swap.panel = fallback.clone();
+            }
+        }
+        system.repair(&|_| false);
+        edits.repair(&|_| false);
+        if !(start.is_finite() && end.is_finite() && z.0.is_finite() && z.1 > z.0) {
+            return false;
+        }
+        let (level, elevation) = self.level_for(id, z.0);
+        let external = self.property(id, "Pset_CurtainWallCommon", "IsExternal").and_then(Param::as_bool);
+        let function = if external == Some(false) { WallFunction::Interior } else { WallFunction::Exterior };
+        let name = self.type_name(id, e);
+        let uid = self.type_uid(id);
+        let wanted = system.clone();
+        let type_id = self.find_or_add_type(
+            Category::Wall,
+            name,
+            "Curtain Wall".to_string(),
+            uid,
+            |d| matches!(d, TypeData::Wall { curtain: Some(c), .. } if *c == wanted),
+            || TypeData::Wall { layers: Vec::new(), function, curtain: Some(system) },
+        );
+        let wall = Wall {
+            start,
+            end,
+            bulge,
+            base_offset: z.0 - elevation,
+            height: z.1 - z.0,
+            curtain: edits,
+            ..Default::default()
+        };
+        self.add_element(id, e, level, type_id, Self::tag(e), ElementKind::Wall(wall));
+        self.curtain_walls.insert(id);
+        true
+    }
+
+    /// A curtain wall of another program from its aggregated plates and
+    /// members: straight (every part within a meter across one line), every
+    /// plate a box filling one cell of the grid its edges make, mullions
+    /// sized by the members. The wall keeps those lines as its own; the type
+    /// spaces none.
+    #[allow(clippy::type_complexity)]
+    fn curtain_from_parts(
+        &mut self,
+        id: u32,
+        world: &DAffine3,
+        body: &Body,
+    ) -> Option<(CurtainSystem, CurtainEdits, DVec2, DVec2, f64, (f64, f64))> {
+        let f = self.f;
+        let parts: Vec<(u32, &'a Entity)> = f
+            .entities
+            .iter()
+            .filter(|(pid, p)| self.parent.get(pid) == Some(&id) && matches!(p.name.as_str(), "IFCPLATE" | "IFCMEMBER"))
+            .map(|(pid, p)| (*pid, p))
+            .take(4 * cc_core::curtain::MAX_LINES)
+            .collect();
+        if !parts.iter().any(|(_, p)| p.name == "IFCPLATE") {
+            return None;
+        }
+        // The wall's line: its axis, else its placement's X axis.
+        let (origin, dir) = match body.axis {
+            Some((a, b)) => (a, (b - a).try_normalize()?),
+            None => (world.translation.truncate(), world.matrix3.x_axis.truncate().try_normalize()?),
+        };
+        // Each part's extent along the line, across it and up.
+        type Extent = ((f64, f64), (f64, f64), (f64, f64));
+        let extent = |b: &Body| -> Option<Extent> {
+            let mut it = b.points().map(|p| {
+                let r = p.truncate() - origin;
+                (r.dot(dir), r.dot(dir.perp()), p.z)
+            });
+            let first = it.next()?;
+            let grow = |(lo, hi): (f64, f64), v: f64| (lo.min(v), hi.max(v));
+            let (u, v, z) = it.fold(((first.0, first.0), (first.1, first.1), (first.2, first.2)), |(u, v, z), p| {
+                (grow(u, p.0), grow(v, p.1), grow(z, p.2))
+            });
+            [u.0, u.1, v.0, v.1, z.0, z.1].iter().all(|x| x.is_finite()).then_some((u, v, z))
+        };
+        let mut plates = Vec::new();
+        let mut members = Vec::new();
+        for (pid, p) in &parts {
+            let (_, b) = self.product(p);
+            let ext = extent(&b)?;
+            if p.name == "IFCPLATE" { plates.push((*pid, *p, ext)) } else { members.push((*pid, *p, ext)) }
+        }
+        let all = plates.iter().chain(&members).map(|x| x.2);
+        let (mut u0, mut u1, mut v0, mut v1, mut z0, mut z1) =
+            (f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY, f64::INFINITY, f64::NEG_INFINITY);
+        for (u, v, z) in all {
+            (u0, u1, v0, v1, z0, z1) = (u0.min(u.0), u1.max(u.1), v0.min(v.0), v1.max(v.1), z0.min(z.0), z1.max(z.1));
+        }
+        if v1 - v0 > 1.0 || u1 - u0 < 0.05 || z1 - z0 < 0.05 {
+            return None;
+        }
+        // Mullions: the narrowest face width and the depth of the members.
+        let median = |mut xs: Vec<f64>| -> Option<f64> {
+            xs.sort_by(f64::total_cmp);
+            xs.get(xs.len() / 2).copied().filter(|x| x.is_finite() && *x > 1e-3)
+        };
+        let width = median(members.iter().map(|(_, _, (u, _, z))| (u.1 - u.0).min(z.1 - z.0)).collect());
+        let depth = median(members.iter().map(|(_, _, (_, v, _))| v.1 - v.0).collect());
+        let mullion = match (width, depth, members.first()) {
+            (Some(width), Some(depth), Some((mid, m, _))) => {
+                Some(cc_core::curtain::Mullion { width, depth, material: self.main_material(*mid, m) })
+            }
+            _ => None,
+        };
+        let w = mullion.as_ref().map_or(0.0, |m| m.width);
+        // Grid lines where plate edges meet, within a mullion's width.
+        let tol = w + 0.02;
+        let lines = |edges: Vec<f64>, lo: f64, hi: f64| -> Vec<f64> {
+            let mut edges: Vec<f64> = edges.into_iter().filter(|x| *x > lo + tol && *x < hi - tol).collect();
+            edges.sort_by(f64::total_cmp);
+            let mut out: Vec<Vec<f64>> = Vec::new();
+            for x in edges {
+                match out.last_mut() {
+                    Some(group) if group.last().is_some_and(|l| x - l <= tol) => group.push(x),
+                    _ => out.push(vec![x]),
+                }
+            }
+            out.iter().map(|g| g.iter().sum::<f64>() / g.len() as f64).collect()
+        };
+        let us = lines(plates.iter().flat_map(|(_, _, (u, _, _))| [u.0, u.1]).collect(), u0, u1);
+        let zs = lines(plates.iter().flat_map(|(_, _, (_, _, z))| [z.0, z.1]).collect(), z0, z1);
+        let cells = (us.len() + 1) * (zs.len() + 1);
+        if plates.len() != cells || cells > 4 * cc_core::curtain::MAX_LINES {
+            return None;
+        }
+        // Every plate fills its own cell.
+        let cell_of = |lines: &[f64], x: f64| lines.iter().filter(|l| **l < x).count();
+        let mut seen = std::collections::HashSet::new();
+        for (_, _, (u, _, z)) in &plates {
+            let key = (cell_of(&us, (u.0 + u.1) * 0.5), cell_of(&zs, (z.0 + z.1) * 0.5));
+            if !seen.insert(key) {
+                return None;
+            }
+        }
+        // The panel: glass when its material says so, else solid; as thick as the plates.
+        let (pid, plate, (_, pv, _)) = plates.first()?;
+        let material = self.main_material(*pid, plate);
+        let lower = material.to_lowercase();
+        let thickness = (pv.1 - pv.0).max(0.001);
+        let panel = if ["glass", "glaz", "vidro", "verre", "glas", "vetro", "vidrio"].iter().any(|g| lower.contains(g))
+        {
+            CurtainPanel::Glass { thickness, material }
+        } else {
+            CurtainPanel::Solid { thickness, material }
+        };
+        let none = cc_core::curtain::CurtainGrid { layout: cc_core::curtain::GridLayout::None, ..Default::default() };
+        let system = CurtainSystem {
+            vertical: none,
+            horizontal: none,
+            panel,
+            vertical_mullion: mullion.clone(),
+            horizontal_mullion: mullion.clone(),
+            border_mullion: mullion,
+        };
+        let edits = CurtainEdits {
+            vertical: Some(us.iter().map(|u| u - u0).collect()),
+            horizontal: Some(zs.iter().map(|z| z - z0).collect()),
+            ..Default::default()
+        };
+        let across = dir.perp() * ((v0 + v1) * 0.5);
+        let (start, end) = (origin + dir * u0 + across, origin + dir * u1 + across);
+        Some((system, edits, start, end, 0.0, (z0, z1)))
     }
 
     fn import_filler(&mut self, id: u32, e: &Entity, door: bool) -> bool {
