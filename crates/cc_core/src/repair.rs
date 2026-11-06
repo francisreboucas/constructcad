@@ -545,9 +545,22 @@ impl Project {
         }
         let view_ids: Vec<_> = self.views.keys().copied().collect();
         let type_ids: Vec<_> = self.types.keys().copied().collect();
+        let title_blocks = self.title_blocks();
         for view in self.views.values_mut() {
             match &mut view.kind {
-                ViewKind::Sheet { viewports, size, .. } => {
+                ViewKind::Sheet { viewports, size, title_block, issue_date, fields, .. } => {
+                    if title_block.is_some_and(|t| !title_blocks.contains(&t)) {
+                        *title_block = title_blocks.first().copied();
+                        repairs += 1;
+                    }
+                    if !issue_date.is_empty() && !crate::title_block::is_iso_date(issue_date) {
+                        issue_date.clear();
+                        repairs += 1;
+                    }
+                    let kept = fields.len();
+                    fields
+                        .retain(|k, v| !k.trim().is_empty() && v.chars().count() <= crate::title_block::MAX_SHEET_TEXT);
+                    repairs += kept - fields.len();
                     let before = viewports.len();
                     viewports.retain(|vp| view_ids.contains(&vp.view) && vp.center.is_finite());
                     repairs += before - viewports.len();
@@ -755,6 +768,30 @@ mod tests {
         p.types.insert(id, ty(data(Some(other))));
         assert_eq!(p.repair(), 1);
         assert!(matches!(p.element_type(id).map(|t| &t.data), Some(TypeData::Sweep { sketch: None, .. })));
+    }
+
+    #[test]
+    fn sheets_drop_title_blocks_that_are_gone_or_not_title_blocks() {
+        use crate::{Category, ViewKind};
+        let mut p = Project::from_template();
+        let wall_type = p.types.values().find(|t| t.category() == Category::Wall).map(|t| t.id).unwrap();
+        let mut n = 0;
+        for v in p.views.values_mut() {
+            if let ViewKind::Sheet { title_block, issue_date, fields, .. } = &mut v.kind {
+                *title_block = Some(wall_type);
+                *issue_date = "06/11/2026".into();
+                fields.insert(" ".into(), "x".into());
+                n += 3;
+            }
+        }
+        let fixes = p.repair();
+        assert!(fixes >= n);
+        for v in p.views.values() {
+            if let ViewKind::Sheet { title_block, issue_date, fields, .. } = &v.kind {
+                assert!(title_block.is_none_or(|t| p.title_blocks().contains(&t)));
+                assert!(issue_date.is_empty() && fields.is_empty());
+            }
+        }
     }
 
     #[test]

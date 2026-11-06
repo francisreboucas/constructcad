@@ -120,6 +120,25 @@ impl Project {
         }
     }
 
+    /// The sheets by number (natural order), then id.
+    pub fn sheets_in_order(&self) -> Vec<ViewId> {
+        let mut sheets: Vec<(&str, ViewId)> = self
+            .views
+            .values()
+            .filter_map(|v| match &v.kind {
+                ViewKind::Sheet { number, .. } => Some((number.as_str(), v.id)),
+                _ => None,
+            })
+            .collect();
+        sheets.sort_by(|a, b| natural_cmp(a.0, b.0).then(a.1.cmp(&b.1)));
+        sheets.into_iter().map(|(_, id)| id).collect()
+    }
+
+    /// The title block types, by id.
+    pub fn title_blocks(&self) -> Vec<ElementTypeId> {
+        self.types.values().filter(|t| t.category() == Category::TitleBlock).map(|t| t.id).collect()
+    }
+
     /// A new project from the default architectural template (Brazilian Portuguese names).
     pub fn from_template() -> Self {
         Self::from_template_localized(&|_| None)
@@ -1184,5 +1203,69 @@ pub fn join_priority(element: &crate::Element) -> u8 {
         Wall(_) => 2,
         Column(_) => 1,
         _ => 0,
+    }
+}
+
+/// Compare texts with their digit runs as numbers (A2 before A10).
+pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    let (mut x, mut y) = (a.chars().peekable(), b.chars().peekable());
+    loop {
+        match (x.peek().copied(), y.peek().copied()) {
+            (None, None) => return Ordering::Equal,
+            (None, Some(_)) => return Ordering::Less,
+            (Some(_), None) => return Ordering::Greater,
+            (Some(c), Some(d)) if c.is_ascii_digit() && d.is_ascii_digit() => {
+                let take = |it: &mut std::iter::Peekable<std::str::Chars>| {
+                    let mut s = String::new();
+                    while let Some(c) = it.peek().copied().filter(char::is_ascii_digit) {
+                        s.push(c);
+                        it.next();
+                    }
+                    s
+                };
+                let (m, n) = (take(&mut x), take(&mut y));
+                let (m, n) = (m.trim_start_matches('0'), n.trim_start_matches('0'));
+                let o = m.len().cmp(&n.len()).then_with(|| m.cmp(n));
+                if o != Ordering::Equal {
+                    return o;
+                }
+            }
+            (Some(c), Some(d)) => {
+                let o = c.cmp(&d);
+                if o != Ordering::Equal {
+                    return o;
+                }
+                x.next();
+                y.next();
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+mod sheet_order_tests {
+    use super::*;
+
+    #[test]
+    fn sheets_sort_by_number_naturally() {
+        assert_eq!(natural_cmp("A2", "A10"), std::cmp::Ordering::Less);
+        assert_eq!(natural_cmp("A10", "A10"), std::cmp::Ordering::Equal);
+        assert_eq!(natural_cmp("B1", "A99"), std::cmp::Ordering::Greater);
+        let mut p = Project::from_template();
+        p.views.retain(|_, v| !matches!(v.kind, ViewKind::Sheet { .. }));
+        for (id, n) in [(9001, "A10"), (9002, "A2"), (9003, "A1")] {
+            let kind = ViewKind::Sheet {
+                number: n.into(),
+                size: SheetSize::A3,
+                portrait: false,
+                viewports: Vec::new(),
+                title_block: None,
+                fields: Default::default(),
+                issue_date: String::new(),
+            };
+            p.views.insert(ViewId(id), View::new(ViewId(id), n, 100, kind));
+        }
+        assert_eq!(p.sheets_in_order(), vec![ViewId(9003), ViewId(9002), ViewId(9001)]);
     }
 }

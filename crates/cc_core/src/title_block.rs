@@ -245,9 +245,37 @@ pub fn repair_def(def: &mut ComponentDef) -> usize {
     fixes
 }
 
+/// Whether `s` is a real `YYYY-MM-DD` date.
+pub fn is_iso_date(s: &str) -> bool {
+    parse_iso_date(s).is_some()
+}
+
+/// Year, month and day of a `YYYY-MM-DD` date.
+pub fn parse_iso_date(s: &str) -> Option<(i32, u32, u32)> {
+    let mut it = s.trim().splitn(3, '-');
+    let y: i32 = it.next()?.parse().ok()?;
+    let m: u32 = it.next()?.parse().ok()?;
+    let d: u32 = it.next()?.parse().ok()?;
+    let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
+    let days = match m {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if leap => 29,
+        2 => 28,
+        _ => return None,
+    };
+    ((1..=9999).contains(&y) && (1..=days).contains(&d)).then_some((y, m, d))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn iso_dates() {
+        assert_eq!(parse_iso_date("2026-11-06"), Some((2026, 11, 6)));
+        assert!(is_iso_date("2024-02-29") && !is_iso_date("2026-02-29") && !is_iso_date("06/11/2026"));
+    }
     use crate::component::{ComponentDef, ComponentKind, ComponentParam, ParamKind};
     use crate::profile::ProfilePoint;
 
