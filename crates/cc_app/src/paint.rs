@@ -65,11 +65,28 @@ fn is_convex(pts: &[Pos2]) -> bool {
     true
 }
 
+/// Longest miter (in half feather widths) a feathered corner may take.
+const MITER_LIMIT: f32 = 8.0;
+
+/// Whether egui's feathering would push a corner of `pts` far out. It moves
+/// each corner along its miter, `1 / sin(angle / 2)` long, with no limit, so a
+/// sliver face (a terrain triangle seen edge on) or repeated points painted a
+/// long band fading from the face's color (issue #160).
+fn has_sharp_corner(pts: &[Pos2]) -> bool {
+    let n = pts.len();
+    (0..n).any(|i| {
+        let (a, b, c) = (pts[(i + n - 1) % n], pts[i], pts[(i + 1) % n]);
+        let (n0, n1) = ((b - a).normalized().rot90(), (c - b).normalized().rot90());
+        let miter = (n0 + n1) / 2.0;
+        n0 == egui::Vec2::ZERO || n1 == egui::Vec2::ZERO || miter.length_sq() * MITER_LIMIT * MITER_LIMIT < 1.0
+    })
+}
+
 pub fn fill_polygon(painter: &Painter, pts: Vec<Pos2>, color: Color32) {
     if pts.len() < 3 {
         return;
     }
-    if is_convex(&pts) {
+    if is_convex(&pts) && !has_sharp_corner(&pts) {
         painter.add(Shape::convex_polygon(pts, color, Stroke::NONE));
         return;
     }
@@ -450,6 +467,29 @@ mod tests {
         assert!(dashed(Pos2::new(-50.0, 500.0), Pos2::new(50.0, 500.0), stroke, &[6.0], &[4.0], clip).is_none());
         let (a, b, start) = clip_segment(Pos2::new(-10.0, 0.0), Pos2::new(110.0, 0.0), clip).unwrap();
         assert_eq!((a, b, start), (Pos2::new(0.0, 0.0), Pos2::new(100.0, 0.0), 10.0));
+    }
+
+    /// Issue #160: egui feathered a sliver face along its miters, out of all
+    /// proportion, and a shaded section of a graded terrain showed long bands.
+    #[test]
+    fn sliver_fills_stay_on_their_points() {
+        let ctx = egui::Context::default();
+        let slivers = [
+            vec![Pos2::new(100.0, 100.0), Pos2::new(600.0, 110.0), Pos2::new(100.0, 100.4)],
+            vec![Pos2::new(10.0, 10.0), Pos2::new(10.0, 10.0), Pos2::new(50.0, 10.0), Pos2::new(50.0, 40.0)],
+        ];
+        for pts in slivers {
+            ctx.begin_pass(egui::RawInput::default());
+            fill_polygon(&ctx.layer_painter(egui::LayerId::background()), pts.clone(), Color32::GRAY);
+            let mut output = ctx.end_pass();
+            output.textures_delta.clear();
+            let bounds = egui::Rect::from_points(&pts).expand(4.0);
+            for p in ctx.tessellate(output.shapes, output.pixels_per_point) {
+                if let egui::epaint::Primitive::Mesh(m) = p.primitive {
+                    assert!(m.vertices.iter().all(|v| bounds.contains(v.pos)), "{:?}", m.vertices);
+                }
+            }
+        }
     }
 
     /// Issue #156: a large imported drawing seen whole made more vertices
