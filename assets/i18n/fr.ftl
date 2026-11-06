@@ -2381,3 +2381,5 @@ plug-review = Les plugins sont faits par leurs auteurs, pas par ConstructCAD. Il
 plug-menu-none = Aucune commande de plugin. Installez des plugins dans la fenêtre Plugins.
 pref-plugin-folder = Dossier des plugins
 pref-plugin-folder-hint = Les plugins sont installés dans le dossier des plugins et chargés depuis celui-ci ; s’il n’est pas défini, { $path }.
+comp-kind-title-block = Cartouche
+category-title-block = Cartouches

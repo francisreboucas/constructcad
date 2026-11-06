@@ -2381,3 +2381,5 @@ plug-review = Wtyczki tworzą ich autorzy, nie ConstructCAD. Działają z ograni
 plug-menu-none = Brak poleceń wtyczek. Zainstaluj wtyczki w oknie Wtyczki.
 pref-plugin-folder = Folder wtyczek
 pref-plugin-folder-hint = Wtyczki są instalowane w folderze wtyczek i z niego wczytywane; gdy nie jest ustawiony, { $path }.
+comp-kind-title-block = Tabliczka rysunkowa
+category-title-block = Tabliczki rysunkowe

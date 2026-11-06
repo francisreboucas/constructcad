@@ -1,0 +1,349 @@
+//! Title blocks: components of kind [`ComponentKind::TitleBlock`] whose 2D
+//! pieces ([`ComponentDef::sheet`]) draw a whole sheet (border, title
+//! block, logo) in paper millimeters, origin at the paper's bottom-left
+//! corner. Expressions read the parameters and [`SHEET_WIDTH`] and
+//! [`SHEET_HEIGHT`]; texts keep `{fields}` for the sheet to fill in.
+
+use crate::component::{ComponentDef, ComponentKind, PartError};
+use crate::expr;
+use crate::profile::{ProfileError, ProfilePoint};
+use crate::raster::RasterImage;
+use glam::DVec2;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+/// Name of the paper width (millimeters) in expressions.
+pub const SHEET_WIDTH: &str = "SheetWidth";
+/// Name of the paper height (millimeters) in expressions.
+pub const SHEET_HEIGHT: &str = "SheetHeight";
+pub const MAX_SHEET_PIECES: usize = 2000;
+pub const MAX_STROKE_POINTS: usize = 2000;
+pub const MAX_SHEET_TEXT: usize = 4000;
+/// Pen width of a stroke without one, millimeters.
+pub const DEFAULT_WEIGHT: f64 = 0.25;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct SheetItem {
+    pub name: String,
+    pub shape: SheetShape,
+}
+
+/// Where a text's position sits: on the baseline at its start, middle or
+/// end, or at its center.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default, Serialize, Deserialize)]
+pub enum TextAnchor {
+    #[default]
+    Left,
+    Center,
+    Right,
+    Middle,
+}
+
+/// A 2D piece; every `String` is an expression in millimeters (degrees for rotations).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum SheetShape {
+    /// Lines and arcs: `points` run straight, or along an arc (`radius`) to the next.
+    Stroke {
+        points: Vec<ProfilePoint>,
+        #[serde(default)]
+        closed: bool,
+        /// Pen width; empty for [`DEFAULT_WEIGHT`].
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        weight: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        color: Option<[u8; 3]>,
+        /// Fill of a closed stroke.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        fill: Option<[u8; 3]>,
+    },
+    /// Fixed words and `{fields}`; line breaks start new lines.
+    Text {
+        x: String,
+        y: String,
+        text: String,
+        /// Text height.
+        size: String,
+        #[serde(default)]
+        anchor: TextAnchor,
+        /// Degrees counter-clockwise; empty for 0.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        rotation: String,
+    },
+    /// A picture filling the rectangle from (`x`, `y`) (its bottom-left corner).
+    Image { x: String, y: String, width: String, height: String, image: Arc<RasterImage> },
+}
+
+impl SheetShape {
+    /// Every expression of the piece, for renaming parameters.
+    pub fn expressions_mut(&mut self) -> Vec<&mut String> {
+        match self {
+            SheetShape::Stroke { points, weight, .. } => {
+                let mut out: Vec<&mut String> = points.iter_mut().flat_map(ProfilePoint::expressions_mut).collect();
+                out.push(weight);
+                out
+            }
+            SheetShape::Text { x, y, size, rotation, .. } => vec![x, y, size, rotation],
+            SheetShape::Image { x, y, width, height, .. } => vec![x, y, width, height],
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetStroke {
+    pub item: usize,
+    pub points: Vec<DVec2>,
+    pub closed: bool,
+    pub weight: f64,
+    pub color: [u8; 3],
+    pub fill: Option<[u8; 3]>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetText {
+    pub item: usize,
+    pub position: DVec2,
+    /// As written: `{fields}` are filled in by the sheet.
+    pub text: String,
+    pub size: f64,
+    pub anchor: TextAnchor,
+    pub rotation_deg: f64,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SheetImage {
+    pub item: usize,
+    /// Bottom-left corner.
+    pub corner: DVec2,
+    pub size: DVec2,
+    pub image: Arc<RasterImage>,
+}
+
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct SheetPieces {
+    pub strokes: Vec<SheetStroke>,
+    pub texts: Vec<SheetText>,
+    pub images: Vec<SheetImage>,
+    pub errors: Vec<(usize, PartError)>,
+}
+
+fn profile_error(e: ProfileError) -> PartError {
+    match e {
+        ProfileError::Expr { field, error } => PartError::Expr { field, error },
+        ProfileError::Degenerate => PartError::Degenerate,
+    }
+}
+
+impl ComponentDef {
+    /// The 2D pieces on a `paper` sheet (millimeters); pieces that fail are
+    /// reported with their index and left out.
+    pub fn resolve_sheet(&self, paper: DVec2) -> SheetPieces {
+        let scope = self.scope(&Default::default(), &[(SHEET_WIDTH, paper.x), (SHEET_HEIGHT, paper.y)]);
+        let lookup = |name: &str| scope.get(name);
+        let mut out = SheetPieces::default();
+        for (i, item) in self.sheet.iter().enumerate().take(MAX_SHEET_PIECES) {
+            if let Err(e) = resolve_piece(i, &item.shape, &lookup, &mut out) {
+                out.errors.push((i, e));
+            }
+        }
+        out
+    }
+}
+
+fn resolve_piece(
+    i: usize,
+    shape: &SheetShape,
+    lookup: &dyn Fn(&str) -> Option<f64>,
+    out: &mut SheetPieces,
+) -> Result<(), PartError> {
+    let ev =
+        |field: &'static str, text: &str| expr::eval(text, lookup).map_err(|error| PartError::Expr { field, error });
+    let ev_or = |field: &'static str, text: &str, default: f64| {
+        if text.trim().is_empty() { Ok(default) } else { ev(field, text) }
+    };
+    match shape {
+        SheetShape::Stroke { points, closed, weight, color, fill } => {
+            if points.len() < 2 || points.len() > MAX_STROKE_POINTS {
+                return Err(PartError::Degenerate);
+            }
+            let corners = crate::profile::vertices(points, lookup).map_err(profile_error)?;
+            let n = corners.len();
+            let segments = if *closed { n } else { n - 1 };
+            let mut pts = Vec::with_capacity(n);
+            for k in 0..segments {
+                let Some(&(a, segment)) = corners.get(k) else { return Err(PartError::Degenerate) };
+                let Some(&(b, _)) = corners.get((k + 1) % n) else { return Err(PartError::Degenerate) };
+                pts.push(a);
+                crate::profile::segment_points(a, b, segment, &mut pts).map_err(profile_error)?;
+            }
+            if !*closed {
+                let Some(&(last, _)) = corners.last() else { return Err(PartError::Degenerate) };
+                pts.push(last);
+            }
+            let weight = ev_or("weight", weight, DEFAULT_WEIGHT)?;
+            if !(weight.is_finite() && weight > 0.0) || pts.iter().any(|p| !p.is_finite()) {
+                return Err(PartError::Degenerate);
+            }
+            out.strokes.push(SheetStroke {
+                item: i,
+                points: pts,
+                closed: *closed,
+                weight: weight.min(10.0),
+                color: color.unwrap_or([0, 0, 0]),
+                fill: if *closed { *fill } else { None },
+            });
+        }
+        SheetShape::Text { x, y, text, size, anchor, rotation } => {
+            let position = DVec2::new(ev("x", x)?, ev("y", y)?);
+            let size = ev("size", size)?;
+            let rotation_deg = ev_or("rotation", rotation, 0.0)?;
+            if !(position.is_finite() && size.is_finite() && size > 0.0 && rotation_deg.is_finite()) {
+                return Err(PartError::Degenerate);
+            }
+            out.texts.push(SheetText {
+                item: i,
+                position,
+                text: text.chars().take(MAX_SHEET_TEXT).collect(),
+                size,
+                anchor: *anchor,
+                rotation_deg,
+            });
+        }
+        SheetShape::Image { x, y, width, height, image } => {
+            let corner = DVec2::new(ev("x", x)?, ev("y", y)?);
+            let size = DVec2::new(ev("width", width)?, ev("height", height)?);
+            if !(corner.is_finite() && size.is_finite() && size.min_element() > 0.0) {
+                return Err(PartError::Degenerate);
+            }
+            out.images.push(SheetImage { item: i, corner, size, image: image.clone() });
+        }
+    }
+    Ok(())
+}
+
+/// Keep a definition's pieces to its kind and within the limits: title
+/// blocks keep only sheet pieces, other kinds none. Returns the fixes.
+pub fn repair_def(def: &mut ComponentDef) -> usize {
+    let mut fixes = 0;
+    if def.kind == ComponentKind::TitleBlock {
+        fixes += def.items.len();
+        def.items.clear();
+        if def.sheet.len() > MAX_SHEET_PIECES {
+            fixes += def.sheet.len() - MAX_SHEET_PIECES;
+            def.sheet.truncate(MAX_SHEET_PIECES);
+        }
+        let before = def.sheet.len();
+        def.sheet.retain(|item| match &item.shape {
+            SheetShape::Stroke { points, .. } => (2..=MAX_STROKE_POINTS).contains(&points.len()),
+            SheetShape::Text { text, .. } => text.chars().count() <= MAX_SHEET_TEXT,
+            SheetShape::Image { image, .. } => image.is_valid(),
+        });
+        fixes += before - def.sheet.len();
+    } else {
+        fixes += def.sheet.len();
+        def.sheet.clear();
+    }
+    fixes
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::component::{ComponentDef, ComponentKind, ComponentParam, ParamKind};
+    use crate::profile::ProfilePoint;
+
+    fn line(a: (&str, &str), b: (&str, &str)) -> SheetItem {
+        SheetItem {
+            name: "L".into(),
+            shape: SheetShape::Stroke {
+                points: vec![ProfilePoint::new(a.0, a.1), ProfilePoint::new(b.0, b.1)],
+                closed: false,
+                weight: String::new(),
+                color: None,
+                fill: None,
+            },
+        }
+    }
+
+    fn block(sheet: Vec<SheetItem>) -> ComponentDef {
+        ComponentDef { kind: ComponentKind::TitleBlock, sheet, ..Default::default() }
+    }
+
+    #[test]
+    fn pieces_follow_the_paper() {
+        let def = block(vec![line(("SheetWidth - 10", "10"), ("SheetWidth - 10", "SheetHeight - 10"))]);
+        for paper in [DVec2::new(420.0, 297.0), DVec2::new(594.0, 841.0)] {
+            let r = def.resolve_sheet(paper);
+            assert!(r.errors.is_empty(), "{:?}", r.errors);
+            let s = &r.strokes[0];
+            assert_eq!(s.points, vec![DVec2::new(paper.x - 10.0, 10.0), DVec2::new(paper.x - 10.0, paper.y - 10.0)]);
+            assert_eq!((s.weight, s.color, s.closed), (0.25, [0, 0, 0], false));
+        }
+    }
+
+    #[test]
+    fn params_texts_arcs_and_errors() {
+        let mut def = block(vec![
+            SheetItem {
+                name: "T".into(),
+                shape: SheetShape::Text {
+                    x: "Margin".into(),
+                    y: "20".into(),
+                    text: "Folha {sheet_number}".into(),
+                    size: "3.5".into(),
+                    anchor: TextAnchor::Right,
+                    rotation: String::new(),
+                },
+            },
+            // A half circle of radius 10 from (0, 0) to (20, 0).
+            SheetItem {
+                name: "A".into(),
+                shape: SheetShape::Stroke {
+                    points: vec![ProfilePoint::arc("0", "0", "10"), ProfilePoint::new("20", "0")],
+                    closed: false,
+                    weight: "0.5".into(),
+                    color: Some([200, 0, 0]),
+                    fill: None,
+                },
+            },
+            line(("Nope", "0"), ("1", "1")),
+        ]);
+        def.params.push(ComponentParam::number("Margin", 15.0, ParamKind::Number));
+        let r = def.resolve_sheet(DVec2::new(420.0, 297.0));
+        assert_eq!(r.texts[0].position, DVec2::new(15.0, 20.0));
+        assert_eq!((r.texts[0].text.as_str(), r.texts[0].size), ("Folha {sheet_number}", 3.5));
+        let arc = &r.strokes[0];
+        assert!(arc.points.len() > 4, "flattened: {}", arc.points.len());
+        assert!(arc.points.iter().all(|p| (p.distance(DVec2::new(10.0, 0.0)) - 10.0).abs() < 1e-6));
+        assert_eq!((arc.weight, arc.color), (0.5, [200, 0, 0]));
+        assert_eq!(r.errors.len(), 1);
+        assert_eq!(r.errors[0].0, 2, "the bad piece is reported by index");
+    }
+
+    #[test]
+    fn repair_keeps_title_blocks_2d_and_bounded() {
+        let mut def = block((0..MAX_SHEET_PIECES + 5).map(|_| line(("0", "0"), ("1", "1"))).collect());
+        def.items.push(crate::component::ComponentItem {
+            name: "Box".into(),
+            shape: crate::component::ComponentShape::Box {
+                x: "0".into(),
+                y: "0".into(),
+                z: "0".into(),
+                width: "1".into(),
+                depth: "1".into(),
+                height: "1".into(),
+            },
+            material: String::new(),
+            in_plan: true,
+            void: false,
+            plan_only: false,
+            detail: Default::default(),
+        });
+        assert_eq!(repair_def(&mut def), 6);
+        assert_eq!((def.sheet.len(), def.items.len()), (MAX_SHEET_PIECES, 0));
+        // Other kinds lose sheet pieces.
+        let mut other = ComponentDef { sheet: vec![line(("0", "0"), ("1", "1"))], ..Default::default() };
+        assert_eq!(repair_def(&mut other), 1);
+        assert!(other.sheet.is_empty());
+        assert_eq!(block(Vec::new()).category(), crate::Category::TitleBlock);
+    }
+}

@@ -2382,3 +2382,5 @@ plug-review = Плагіни створюють їхні автори, а не C
 plug-menu-none = Немає команд плагінів. Встановіть плагіни у вікні Плагіни.
 pref-plugin-folder = Тека плагінів
 pref-plugin-folder-hint = Плагіни встановлюються в теку плагінів і завантажуються з неї; якщо її не задано, { $path }.
+comp-kind-title-block = Штамп
+category-title-block = Штампи

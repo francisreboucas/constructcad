@@ -2381,3 +2381,5 @@ plug-review = 插件由其作者制作，而非 ConstructCAD。插件在限制�
 plug-menu-none = 没有插件命令。请在“插件”窗口中安装插件。
 pref-plugin-folder = 插件文件夹
 pref-plugin-folder-hint = 插件安装在插件文件夹中并从中加载；未设置时为 { $path }。
+comp-kind-title-block = 图签
+category-title-block = 图签

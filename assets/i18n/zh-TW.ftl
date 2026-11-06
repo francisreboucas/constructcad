@@ -2381,3 +2381,5 @@ plug-review = 外掛由其作者製作，而非 ConstructCAD。外掛在限制�
 plug-menu-none = 沒有外掛命令。請在「外掛」視窗中安裝外掛。
 pref-plugin-folder = 外掛資料夾
 pref-plugin-folder-hint = 外掛安裝在外掛資料夾中並從中載入；未設定時為 { $path }。
+comp-kind-title-block = 圖框標題欄
+category-title-block = 圖框標題欄

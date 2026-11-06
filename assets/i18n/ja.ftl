@@ -2381,3 +2381,5 @@ plug-review = プラグインは ConstructCAD ではなく各作者が作成し�
 plug-menu-none = プラグインコマンドはありません。プラグインウィンドウからプラグインをインストールしてください。
 pref-plugin-folder = プラグインフォルダ
 pref-plugin-folder-hint = プラグインはプラグインフォルダにインストールされ、そこから読み込まれます。未設定の場合は { $path } です。
+comp-kind-title-block = 表題欄
+category-title-block = 表題欄

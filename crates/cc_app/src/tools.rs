@@ -295,7 +295,7 @@ impl Tool {
             Category::Conduit => Tool::Conduit { type_id },
             Category::Text => Tool::Text { type_id },
             // Imported, not drawn.
-            Category::CadImport => return None,
+            Category::CadImport | Category::TitleBlock => return None,
         })
     }
 }

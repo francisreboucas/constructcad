@@ -2383,3 +2383,5 @@ plug-review = ປລັກອິນສ້າງໂດຍຜູ້ຂຽນຂອ
 plug-menu-none = ບໍ່ມີຄຳສັ່ງຂອງປລັກອິນ. ຕິດຕັ້ງປລັກອິນໃນໜ້າຕ່າງ ປລັກອິນ.
 pref-plugin-folder = ໂຟນເດີປລັກອິນ
 pref-plugin-folder-hint = ປລັກອິນຖືກຕິດຕັ້ງ ແລະ ໂຫຼດຈາກໂຟນເດີປລັກອິນ; ເມື່ອບໍ່ໄດ້ກຳນົດ, { $path }.
+comp-kind-title-block = ປ້າຍຊື່ແຜ່ນ
+category-title-block = ປ້າຍຊື່ແຜ່ນ

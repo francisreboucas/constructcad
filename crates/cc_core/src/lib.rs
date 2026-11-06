@@ -41,6 +41,7 @@ pub mod sketch;
 pub mod sketch_edit;
 pub mod stair;
 pub mod sweep;
+pub mod title_block;
 pub mod topography;
 pub mod transform;
 mod types;

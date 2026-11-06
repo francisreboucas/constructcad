@@ -38,6 +38,8 @@ pub enum Category {
     Topography,
     /// Building pads graded into terrain.
     Pad,
+    /// Title blocks: sheet layouts (components drawn on sheets).
+    TitleBlock,
 }
 
 impl Category {
@@ -134,6 +136,7 @@ impl Category {
             Category::Grid => "category-grid",
             Category::Dimension => "category-dimension",
             Category::Text => "category-text",
+            Category::TitleBlock => "category-title-block",
             Category::Column => "category-column",
             Category::Beam => "category-beam",
             Category::Stair => "category-stair",

@@ -2381,3 +2381,5 @@ plug-review = Los plugins los hacen sus autores, no ConstructCAD. Se ejecutan co
 plug-menu-none = No hay comandos de plugins. Instale plugins en la ventana Plugins.
 pref-plugin-folder = Carpeta de plugins
 pref-plugin-folder-hint = Los plugins se instalan y se cargan desde la carpeta de plugins; si no está definida, { $path }.
+comp-kind-title-block = Rótulo
+category-title-block = Rótulos

@@ -2381,3 +2381,5 @@ plug-review = Os plugins são feitos pelos seus autores, não pelo ConstructCAD.
 plug-menu-none = Nenhum comando de plugin. Instale plugins na janela Plugins.
 pref-plugin-folder = Pasta de plugins
 pref-plugin-folder-hint = Os plugins são instalados e carregados da pasta de plugins; quando ela não está definida, { $path }.
+comp-kind-title-block = Carimbo
+category-title-block = Carimbos

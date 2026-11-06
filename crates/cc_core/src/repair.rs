@@ -260,6 +260,7 @@ impl Project {
                         }
                     }
                     repairs += repair_scripted(def);
+                    repairs += crate::title_block::repair_def(def);
                     let fix_nonnegative = |v: &mut f64| {
                         let bad = !(v.is_finite() && *v >= 0.0);
                         if bad {

@@ -39,7 +39,7 @@ pub fn category_icon(category: Category) -> Icon {
         Category::Ramp => Icon::Ramp,
         Category::Railing => Icon::Railing,
         Category::Component => Icon::Component,
-        Category::Text => Icon::Text,
+        Category::Text | Category::TitleBlock => Icon::Text,
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
         Category::Shaft => Icon::Shaft,

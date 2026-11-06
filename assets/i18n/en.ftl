@@ -2381,3 +2381,5 @@ plug-review = Plugins are made by their authors, not by ConstructCAD. They run w
 plug-menu-none = No plugin commands. Install plugins in the Plugins window.
 pref-plugin-folder = Plugins folder
 pref-plugin-folder-hint = Plugins are installed in and loaded from the plugins folder; when it is not set, { $path }.
+comp-kind-title-block = Title block
+category-title-block = Title Blocks

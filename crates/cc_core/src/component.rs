@@ -41,10 +41,12 @@ pub enum ComponentKind {
     Door,
     /// Windows: with a [`HostOpening`], their types are of the window category.
     Window,
+    /// A sheet layout (border, title block): 2D pieces in paper millimeters, see [`crate::title_block`].
+    TitleBlock,
 }
 
 impl ComponentKind {
-    pub const ALL: [ComponentKind; 8] = [
+    pub const ALL: [ComponentKind; 9] = [
         ComponentKind::Furniture,
         ComponentKind::Casework,
         ComponentKind::Plumbing,
@@ -53,6 +55,7 @@ impl ComponentKind {
         ComponentKind::Generic,
         ComponentKind::Door,
         ComponentKind::Window,
+        ComponentKind::TitleBlock,
     ];
 
     pub fn key(self) -> &'static str {
@@ -65,6 +68,7 @@ impl ComponentKind {
             ComponentKind::Generic => "comp-kind-generic",
             ComponentKind::Door => "comp-kind-door",
             ComponentKind::Window => "comp-kind-window",
+            ComponentKind::TitleBlock => "comp-kind-title-block",
         }
     }
 }
@@ -540,6 +544,9 @@ pub struct ComponentDef {
     /// Points elements move with grips, declared by script pieces.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub hotspots: Vec<crate::component_script::Hotspot>,
+    /// The 2D pieces of a title block (see [`crate::title_block`]).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub sheet: Vec<crate::title_block::SheetItem>,
 }
 
 /// An IFC entity class with its predefined and object types.
@@ -702,6 +709,7 @@ impl ComponentDef {
     /// (with an opening) have their own.
     pub fn category(&self) -> crate::Category {
         match (self.kind, &self.opening) {
+            (ComponentKind::TitleBlock, _) => crate::Category::TitleBlock,
             (ComponentKind::Door, Some(_)) => crate::Category::Door,
             (ComponentKind::Window, Some(_)) => crate::Category::Window,
             _ => crate::Category::Component,
@@ -823,6 +831,11 @@ impl ComponentDef {
         }
         for c in &mut self.connectors {
             for e in c.expressions_mut() {
+                *e = replace_name(e, old, new);
+            }
+        }
+        for item in &mut self.sheet {
+            for e in item.shape.expressions_mut() {
                 *e = replace_name(e, old, new);
             }
         }
