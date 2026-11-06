@@ -1277,6 +1277,20 @@ pub fn status_bar(ui: &mut Ui, state: &mut AppState) {
             ui.separator();
         }
         ui.label(theme::muted(&state.message));
+        let rev = (state.active_view, state.session.doc.revision());
+        let cache = egui::Id::new("title-block-error");
+        let error = match ui.data(|d| d.get_temp::<((Option<cc_core::ViewId>, u64), Option<String>)>(cache)) {
+            Some((r, e)) if r == rev => e,
+            _ => {
+                let e = crate::sheet_props::title_block_error(state);
+                ui.data_mut(|d| d.insert_temp(cache, (rev, e.clone())));
+                e
+            }
+        };
+        if let Some(e) = error {
+            ui.separator();
+            ui.label(RichText::new(e).color(PALETTE.warning));
+        }
         if state.updates.available.is_some() {
             ui.separator();
             crate::update::notice(ui, &mut state.updates);

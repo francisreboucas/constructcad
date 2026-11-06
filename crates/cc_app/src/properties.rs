@@ -2615,6 +2615,7 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
             section(ui, "legend-types", t!("prop-legend-types"), |ui| legend_types(ui, state, id, types));
         }
         ViewKind::Sheet { viewports, .. } => {
+            crate::sheet_props::fields_section(ui, state, id);
             section(ui, "sheet-views", t!("prop-sheet-views"), |ui| sheet_views(ui, state, id, viewports));
         }
         _ => {}

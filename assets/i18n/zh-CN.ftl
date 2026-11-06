@@ -2442,3 +2442,5 @@ prop-issue-date = 发布日期
 prop-date-hint = YYYY-MM-DD
 action-today = 今天
 msg-invalid-date = 请按 YYYY-MM-DD 输入日期，或留空
+section-sheet-fields = 图纸字段
+msg-title-block-error = 图签，元素 { $piece }：{ $error }

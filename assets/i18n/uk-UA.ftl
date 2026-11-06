@@ -2443,3 +2443,5 @@ prop-issue-date = Дата випуску
 prop-date-hint = РРРР-ММ-ДД
 action-today = Сьогодні
 msg-invalid-date = Введіть дату як РРРР-ММ-ДД або залиште порожнім
+section-sheet-fields = Поля аркуша
+msg-title-block-error = Штамп, елемент { $piece }: { $error }

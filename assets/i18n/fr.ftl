@@ -2442,3 +2442,5 @@ prop-issue-date = Date d'émission
 prop-date-hint = AAAA-MM-JJ
 action-today = Aujourd'hui
 msg-invalid-date = Saisissez la date au format AAAA-MM-JJ, ou laissez vide
+section-sheet-fields = Champs de la feuille
+msg-title-block-error = Cartouche, élément { $piece } : { $error }

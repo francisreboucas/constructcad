@@ -2444,3 +2444,5 @@ prop-issue-date = ວັນທີອອກ
 prop-date-hint = YYYY-MM-DD
 action-today = ມື້ນີ້
 msg-invalid-date = ພິມວັນທີເປັນ YYYY-MM-DD ຫຼື ປ່ອຍວ່າງ
+section-sheet-fields = ຊ່ອງຂໍ້ມູນແຜ່ນ
+msg-title-block-error = ປ້າຍຊື່, ຊິ້ນ { $piece }: { $error }

@@ -2442,3 +2442,5 @@ prop-issue-date = Data de emissão
 prop-date-hint = AAAA-MM-DD
 action-today = Hoje
 msg-invalid-date = Digite a data como AAAA-MM-DD, ou deixe vazio
+section-sheet-fields = Campos da folha
+msg-title-block-error = Carimbo, peça { $piece }: { $error }

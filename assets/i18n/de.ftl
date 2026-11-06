@@ -2442,3 +2442,5 @@ prop-issue-date = Ausgabedatum
 prop-date-hint = JJJJ-MM-TT
 action-today = Heute
 msg-invalid-date = Datum als JJJJ-MM-TT eingeben oder leer lassen
+section-sheet-fields = Blattfelder
+msg-title-block-error = Schriftfeld, Teil { $piece }: { $error }

@@ -2442,3 +2442,5 @@ prop-issue-date = Data wydania
 prop-date-hint = RRRR-MM-DD
 action-today = Dziś
 msg-invalid-date = Wpisz datę jako RRRR-MM-DD lub zostaw puste
+section-sheet-fields = Pola arkusza
+msg-title-block-error = Tabliczka, element { $piece }: { $error }

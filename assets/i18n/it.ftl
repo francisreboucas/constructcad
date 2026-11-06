@@ -2442,3 +2442,5 @@ prop-issue-date = Data di emissione
 prop-date-hint = AAAA-MM-GG
 action-today = Oggi
 msg-invalid-date = Scrivi la data come AAAA-MM-GG, o lasciala vuota
+section-sheet-fields = Campi della tavola
+msg-title-block-error = Cartiglio, pezzo { $piece }: { $error }

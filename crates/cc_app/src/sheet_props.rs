@@ -4,8 +4,8 @@
 
 use crate::state::AppState;
 use crate::t;
-use crate::table::row;
-use cc_core::{ElementTypeId, MAX_PAPER_MM, MIN_PAPER_MM, SheetSize, View, ViewId, ViewKind};
+use crate::table::{row, section};
+use cc_core::{ElementTypeId, MAX_PAPER_MM, MIN_PAPER_MM, SheetSize, TypeData, View, ViewId, ViewKind};
 use egui::{DragValue, Response, Ui};
 use std::hash::{Hash, Hasher};
 
@@ -164,9 +164,129 @@ pub fn rows(ui: &mut Ui, state: &mut AppState, id: ViewId) {
     }
 }
 
+/// The title block's per-sheet fields: its text parameters that sheets may set.
+fn per_sheet_params(state: &AppState, id: ViewId) -> Vec<cc_core::ComponentParam> {
+    let p = state.project();
+    let Some(ViewKind::Sheet { title_block: Some(tb), .. }) = p.view(id).map(|v| &v.kind) else { return Vec::new() };
+    match p.element_type(*tb).map(|t| &t.data) {
+        Some(TypeData::Component { def, .. }) => {
+            def.params.iter().filter(|q| q.kind.is_text() && q.instance).cloned().collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// One row per per-sheet field: empty shows (and uses) the type's text.
+pub fn fields_section(ui: &mut Ui, state: &mut AppState, id: ViewId) {
+    let params = per_sheet_params(state, id);
+    if params.is_empty() {
+        return;
+    }
+    let Some(ViewKind::Sheet { fields, .. }) = state.project().view(id).map(|v| v.kind.clone()) else { return };
+    section(ui, "sheet-fields", t!("section-sheet-fields"), |ui| {
+        for q in &params {
+            let mut text = fields.get(&q.name).cloned().unwrap_or_default();
+            let r = row(ui, q.display(), |ui| {
+                crate::table::live_text(ui, ("sheet-field", id.0, &q.name), &mut text, |ui, t| {
+                    ui.add(egui::TextEdit::singleline(t).hint_text(&q.text))
+                })
+            });
+            if r.changed() {
+                let name = q.name.clone();
+                crate::engine_edit::sheet(state, id, Some(key((id, "field", &q.name))), |v| {
+                    if let ViewKind::Sheet { fields, .. } = &mut v.kind {
+                        if text.is_empty() {
+                            fields.remove(&name);
+                        } else {
+                            fields.insert(name, text);
+                        }
+                    }
+                });
+            }
+            finish(state, &r);
+        }
+    });
+}
+
+/// The first piece of the active sheet's title block that does not draw,
+/// as a status bar message.
+pub fn title_block_error(state: &AppState) -> Option<String> {
+    let id = crate::actions::active_sheet(state)?;
+    let p = state.project();
+    let view = p.view(id)?;
+    let ViewKind::Sheet { title_block: Some(tb), .. } = &view.kind else { return None };
+    let TypeData::Component { def, .. } = &p.element_type(*tb)?.data else { return None };
+    let (index, error) = def.resolve_sheet(view.paper_mm()?).errors.into_iter().next()?;
+    let piece = def.sheet.get(index).map_or_else(|| (index + 1).to_string(), |s| s.name.clone());
+    Some(t!("msg-title-block-error", "piece" => piece, "error" => error))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use cc_engine::Ref;
+    use cc_engine::commands::component::ComponentParamAdd;
+    use cc_engine::commands::component_piece::ExprArg;
+    use cc_engine::commands::sheets::{ComponentSheetPieceAdd, SheetPieceArg, TitleBlockCreate};
+
+    fn state_with_block() -> (AppState, ViewId, cc_core::ElementTypeId) {
+        let mut state = AppState::new(cc_core::Document::new(crate::actions::new_project()));
+        let sheet = state.project().sheets_in_order()[0];
+        state.active_view = Some(sheet);
+        let out = state.session.run(TitleBlockCreate { name: "TB".into(), empty: true }).unwrap();
+        let tb = cc_core::ElementTypeId(out["id"].as_u64().unwrap());
+        (state, sheet, tb)
+    }
+
+    #[test]
+    fn per_sheet_fields_are_the_instance_text_parameters() {
+        let (mut state, sheet, tb) = state_with_block();
+        let add = |name: &str, instance| ComponentParamAdd {
+            type_ref: Ref::Id(tb.0),
+            name: name.into(),
+            value: None,
+            kind: Some("text".into()),
+            instance: Some(instance),
+            text: Some("Equipe".into()),
+        };
+        state.session.run(add("Drawn", true)).unwrap();
+        state.session.run(add("Firm", false)).unwrap();
+        crate::engine_edit::sheet(&mut state, sheet, None, |v| {
+            if let ViewKind::Sheet { title_block, .. } = &mut v.kind {
+                *title_block = Some(tb);
+            }
+        });
+        let names: Vec<String> = per_sheet_params(&state, sheet).into_iter().map(|q| q.name).collect();
+        assert_eq!(names, ["Drawn"]);
+    }
+
+    #[test]
+    fn a_piece_that_does_not_draw_shows_in_the_status_bar() {
+        let (mut state, sheet, tb) = state_with_block();
+        crate::engine_edit::sheet(&mut state, sheet, None, |v| {
+            if let ViewKind::Sheet { title_block, .. } = &mut v.kind {
+                *title_block = Some(tb);
+            }
+        });
+        assert_eq!(title_block_error(&state), None);
+        let piece = SheetPieceArg::Text {
+            x: ExprArg::Text("Nowhere".into()),
+            y: ExprArg::Number(10.0),
+            text: "x".into(),
+            size: None,
+            anchor: None,
+            rotation: None,
+        };
+        state
+            .session
+            .run(ComponentSheetPieceAdd { type_ref: Ref::Id(tb.0), piece, name: Some("Lost".into()) })
+            .unwrap();
+        let message = title_block_error(&state).expect("an error");
+        assert!(message.contains("Lost"), "{message}");
+        // Only for the active sheet.
+        state.active_view = None;
+        assert_eq!(title_block_error(&state), None);
+    }
 
     #[test]
     fn today_is_written_as_an_iso_date() {

@@ -2442,3 +2442,5 @@ prop-issue-date = 発行日
 prop-date-hint = YYYY-MM-DD
 action-today = 今日
 msg-invalid-date = 日付は YYYY-MM-DD で入力するか、空にしてください
+section-sheet-fields = シートの項目
+msg-title-block-error = 表題欄、要素 { $piece }: { $error }

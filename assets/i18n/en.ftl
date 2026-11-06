@@ -2442,3 +2442,5 @@ prop-issue-date = Issue Date
 prop-date-hint = YYYY-MM-DD
 action-today = Today
 msg-invalid-date = Type the date as YYYY-MM-DD, or leave it empty
+section-sheet-fields = Sheet Fields
+msg-title-block-error = Title block, piece { $piece }: { $error }
