@@ -610,12 +610,14 @@ schedule-total = Усього: { $count }
 schedule-hint = Клацніть рядок, щоб вибрати елемент. Відомість оновлюється автоматично.
 
 # Штамп креслення
-title-project = ПРОЄКТ
-title-sheet = АРКУШ
-title-client = ЗАМОВНИК
-title-number = НОМЕР
-title-project-number = Проєкт №
-title-author = Автор:
+tpl-tb-project = ПРОЄКТ
+tpl-tb-sheet = АРКУШ
+tpl-tb-client = ЗАМОВНИК
+tpl-tb-number = НОМЕР
+tpl-tb-project-number = Проєкт №
+tpl-tb-author = Автор:
+tpl-tb-standard = Стандартний штамп
+sheet-as-indicated = Як зазначено
 
 # Діалогові вікна
 dlg-project-info = Інформація про проєкт

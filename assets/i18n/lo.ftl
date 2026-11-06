@@ -602,12 +602,14 @@ schedule-total = ລວມທັງໝົດ: { $count }
 schedule-hint = ຄລິກແຖວໃດໜຶ່ງເພື່ອເລືອກອົງປະກອບ. ຕາຕະລາງຈະອັບເດດໂດຍອັດຕະໂນມັດ.
 
 # Title block
-title-project = ໂຄງການ
-title-sheet = ແຜ່ນງານ
-title-client = ເຈົ້າຂອງໂຄງການ
-title-number = ເລກທີ
-title-project-number = ເລກທີໂຄງການ
-title-author = ຜູ້ຂຽນແບບ:
+tpl-tb-project = ໂຄງການ
+tpl-tb-sheet = ແຜ່ນງານ
+tpl-tb-client = ເຈົ້າຂອງໂຄງການ
+tpl-tb-number = ເລກທີ
+tpl-tb-project-number = ເລກທີໂຄງການ
+tpl-tb-author = ຜູ້ຂຽນແບບ:
+tpl-tb-standard = ປ້າຍຊື່ມາດຕະຖານ
+sheet-as-indicated = ຕາມທີ່ລະບຸ
 
 # Dialogs
 dlg-project-info = ຂໍ້ມູນໂຄງການ

@@ -73,7 +73,7 @@ impl Session {
 
     /// Open a `.ccad` file; returns the session and the number of repairs made.
     pub fn open(path: &std::path::Path) -> Result<(Self, usize)> {
-        let (project, repairs) = guard(|| cc_core::load_with_repairs(path))??;
+        let (project, repairs) = guard(|| cc_core::load_with_repairs_localized(path, &crate::i18n::try_tr))??;
         let mut doc = Document::new(project);
         doc.path = Some(path.to_path_buf());
         Ok((Self::new(doc), repairs))
@@ -260,19 +260,15 @@ impl Session {
             return Some(s.clone());
         }
         let sheet_view = self.doc.project.view(view)?.clone();
-        let labels = cc_views::TitleLabels {
-            project: t!("title-project"),
-            sheet: t!("title-sheet"),
-            client: t!("title-client"),
-            number: t!("title-number"),
-            project_number: t!("title-project-number"),
-            author: t!("title-author"),
+        let env = cc_views::SheetEnv {
+            today: crate::i18n::today(),
+            format_date: crate::i18n::format_date,
+            as_indicated: t!("sheet-as-indicated"),
         };
         let ViewKind::Sheet { viewports, .. } = &sheet_view.kind else { return None };
         let drawings: HashMap<ViewId, Rc<Drawing2D>> =
             viewports.iter().filter_map(|vp| Some((vp.view, self.printed_drawing(vp.view)?))).collect();
-        let s =
-            Rc::new(cc_views::compose_sheet(&self.doc.project, &sheet_view, &labels, |v| drawings.get(&v).cloned())?);
+        let s = Rc::new(cc_views::compose_sheet(&self.doc.project, &sheet_view, &env, |v| drawings.get(&v).cloned())?);
         self.sheets.insert(view, (rev, s.clone()));
         Some(s)
     }

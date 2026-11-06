@@ -610,12 +610,14 @@ schedule-total = Total : { $count }
 schedule-hint = Cliquez une ligne pour sélectionner l'élément. Les nomenclatures se mettent à jour automatiquement.
 
 # Cartouche
-title-project = PROJET
-title-sheet = FEUILLE
-title-client = CLIENT
-title-number = NUMÉRO
-title-project-number = N° de projet
-title-author = Auteur :
+tpl-tb-project = PROJET
+tpl-tb-sheet = FEUILLE
+tpl-tb-client = CLIENT
+tpl-tb-number = NUMÉRO
+tpl-tb-project-number = N° de projet
+tpl-tb-author = Auteur :
+tpl-tb-standard = Cartouche standard
+sheet-as-indicated = Indiquée
 
 # Boîtes de dialogue
 dlg-project-info = Informations sur le projet

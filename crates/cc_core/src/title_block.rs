@@ -22,6 +22,68 @@ pub const MAX_SHEET_TEXT: usize = 4000;
 /// Pen width of a stroke without one, millimeters.
 pub const DEFAULT_WEIGHT: f64 = 0.25;
 
+/// Name key of the standard title block (component and type).
+pub const STANDARD_KEY: &str = "tpl-tb-standard";
+
+/// The title block every sheet had before title blocks were components:
+/// a border 10 mm in, and a 170 × 42 mm block in the bottom-right corner
+/// with the project, sheet and client rows and the sheet number cell.
+/// Captions are looked up by `n` (template keys `tpl-tb-*`).
+pub fn standard(n: &dyn Fn(&str) -> String) -> ComponentDef {
+    // A caption is fixed words: its braces are not fields.
+    let n = |key: &str| n(key).replace('{', "{{").replace('}', "}}");
+    let p = |u: &str, v: &str| ProfilePoint::new(u, v);
+    let stroke = |name: &str, points: Vec<ProfilePoint>, closed: bool, weight: &str| SheetItem {
+        name: name.into(),
+        shape: SheetShape::Stroke { points, closed, weight: weight.into(), color: None, fill: None },
+    };
+    let text = |name: &str, x: &str, y: &str, text: String, size: &str| SheetItem {
+        name: name.into(),
+        shape: SheetShape::Text {
+            x: x.into(),
+            y: y.into(),
+            text,
+            size: size.into(),
+            anchor: TextAnchor::Left,
+            rotation: String::new(),
+        },
+    };
+    // The block runs from x = SheetWidth - 180 to SheetWidth - 10 and from
+    // y = 10 to 52; rows split it at 24 and 38, the number cell at
+    // SheetWidth - 50. Texts start 2 mm into their cell, with their
+    // baseline one text height below where their top sits.
+    let (left, right) = ("SheetWidth - 180", "SheetWidth - 10");
+    let sheet = vec![
+        stroke(
+            "Border",
+            vec![p("10", "10"), p(right, "10"), p(right, "SheetHeight - 10"), p("10", "SheetHeight - 10")],
+            true,
+            "0.5",
+        ),
+        stroke("Block", vec![p(left, "10"), p(right, "10"), p(right, "52"), p(left, "52")], true, "0.25"),
+        stroke("Row 1", vec![p(left, "24"), p("SheetWidth - 50", "24")], false, "0.25"),
+        stroke("Row 2", vec![p(left, "38"), p(right, "38")], false, "0.25"),
+        stroke("Number cell", vec![p("SheetWidth - 50", "10"), p("SheetWidth - 50", "38")], false, "0.25"),
+        text("Project caption", "SheetWidth - 178", "47", n("tpl-tb-project"), "2"),
+        text("Project", "SheetWidth - 178", "42", "{project_name}".into(), "4"),
+        text("Sheet caption", "SheetWidth - 178", "33", n("tpl-tb-sheet"), "2"),
+        text("Sheet", "SheetWidth - 178", "28.5", "{sheet_name}".into(), "3.5"),
+        text("Client caption", "SheetWidth - 178", "19", n("tpl-tb-client"), "2"),
+        text("Client", "SheetWidth - 178", "15", "{client}".into(), "3"),
+        text("Number caption", "SheetWidth - 48", "33", n("tpl-tb-number"), "2"),
+        text("Number", "SheetWidth - 48", "25", "{sheet_number}".into(), "6"),
+        text(
+            "Project number",
+            "SheetWidth - 48",
+            "18.8",
+            format!("{} {{project_number}}", n("tpl-tb-project-number")),
+            "2.2",
+        ),
+        text("Author", "SheetWidth - 48", "13.8", format!("{} {{author}}", n("tpl-tb-author")), "2.2"),
+    ];
+    ComponentDef { kind: ComponentKind::TitleBlock, sheet, ..Default::default() }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SheetItem {
     pub name: String,
@@ -270,6 +332,33 @@ pub fn parse_iso_date(s: &str) -> Option<(i32, u32, u32)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_standard_block_matches_the_old_layout() {
+        let def = standard(&|k| crate::project::template_default(k).to_string());
+        assert_eq!(def.kind, ComponentKind::TitleBlock);
+        let paper = DVec2::new(420.0, 297.0);
+        let r = def.resolve_sheet(paper);
+        assert!(r.errors.is_empty(), "{:?}", r.errors);
+        // The border, 10 mm in, and the 170 × 42 block in the bottom-right corner.
+        let has_line = |a: DVec2, b: DVec2| {
+            r.strokes.iter().any(|s| {
+                s.points.windows(2).any(|w| (w[0] == a && w[1] == b) || (w[0] == b && w[1] == a))
+                    || (s.closed && s.points.first() == Some(&a) && s.points.last() == Some(&b))
+            })
+        };
+        assert!(has_line(DVec2::new(10.0, 10.0), DVec2::new(410.0, 10.0)));
+        assert!(has_line(DVec2::new(240.0, 10.0), DVec2::new(240.0, 52.0)));
+        let texts: Vec<&str> = r.texts.iter().map(|t| t.text.as_str()).collect();
+        for f in ["{project_name}", "{sheet_name}", "{client}", "{sheet_number}"] {
+            assert!(texts.contains(&f), "{f} in {texts:?}");
+        }
+        assert!(texts.contains(&"PROJETO"), "captions from the template keys");
+        // The sheet number's baseline start, where the old block drew it.
+        let number = r.texts.iter().find(|t| t.text == "{sheet_number}").unwrap();
+        assert_eq!(number.position, DVec2::new(paper.x - 48.0, 10.0 + 21.0 - 6.0));
+        assert_eq!((number.size, number.anchor), (6.0, TextAnchor::Left));
+    }
 
     #[test]
     fn iso_dates() {

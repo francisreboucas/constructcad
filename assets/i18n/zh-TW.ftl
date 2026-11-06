@@ -610,12 +610,14 @@ schedule-total = 總計：{ $count }
 schedule-hint = 點擊某一列即可選取該元素。表格會自動更新。
 
 # 圖框
-title-project = 專案
-title-sheet = 圖紙
-title-client = 客戶
-title-number = 編號
-title-project-number = 專案編號
-title-author = 作者：
+tpl-tb-project = 專案
+tpl-tb-sheet = 圖紙
+tpl-tb-client = 客戶
+tpl-tb-number = 編號
+tpl-tb-project-number = 專案編號
+tpl-tb-author = 作者：
+tpl-tb-standard = 標準圖框
+sheet-as-indicated = 如圖示
 
 # 對話方塊
 dlg-project-info = 專案資訊

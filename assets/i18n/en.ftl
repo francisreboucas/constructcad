@@ -610,12 +610,14 @@ schedule-total = Total: { $count }
 schedule-hint = Click a row to select the element. Schedules update automatically.
 
 # Title block
-title-project = PROJECT
-title-sheet = SHEET
-title-client = CLIENT
-title-number = NUMBER
-title-project-number = Project no.
-title-author = Author:
+tpl-tb-project = PROJECT
+tpl-tb-sheet = SHEET
+tpl-tb-client = CLIENT
+tpl-tb-number = NUMBER
+tpl-tb-project-number = Project no.
+tpl-tb-author = Author:
+tpl-tb-standard = Standard title block
+sheet-as-indicated = As indicated
 
 # Dialogs
 dlg-project-info = Project Information

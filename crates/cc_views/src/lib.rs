@@ -35,7 +35,7 @@ pub use legend::legend;
 pub use plan::{is_structural, plan, plan_of};
 pub use projected::{Frame, Look, axonometric, elevation, section};
 pub use schedule::{Cell, Row, Table, field_value, schedule, schedule_where, to_csv};
-pub use sheet::{MARGIN, PlacedViewport, Sheet, TITLE_H, TITLE_W, TitleLabels, compose as compose_sheet};
+pub use sheet::{MARGIN, PlacedViewport, Sheet, SheetEnv, compose as compose_sheet};
 
 use cc_core::{Project, View, ViewKind};
 use cc_geom::ModelGeometry;
@@ -314,8 +314,12 @@ mod tests {
         let sheet = project.views_of(ViewCategory::Sheet).next().unwrap().clone();
         let ViewKind::Sheet { viewports, .. } = &sheet.kind else { panic!("not a sheet") };
         assert!(!viewports.is_empty());
-        let labels = TitleLabels { project: "Projeto".into(), ..Default::default() };
-        let composed = compose_sheet(&project, &sheet, &labels, |id| {
+        let env = SheetEnv {
+            today: (2026, 1, 1),
+            format_date: |y, m, d| format!("{y}-{m}-{d}"),
+            as_indicated: String::new(),
+        };
+        let composed = compose_sheet(&project, &sheet, &env, |id| {
             project.view(id).and_then(|v| generate(&project, &geom, v)).map(std::rc::Rc::new)
         })
         .unwrap();
@@ -337,7 +341,7 @@ mod tests {
                 _ => None,
             })
             .collect();
-        assert!(texts.contains(&"Projeto"));
+        assert!(texts.contains(&"PROJETO"), "the standard title block's caption: {texts:?}");
         assert!(texts.contains(&project.info.name.as_str()));
         // Everything lies on the paper.
         let (lo, hi) = composed.drawing.bounds().unwrap();

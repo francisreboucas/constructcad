@@ -26,3 +26,25 @@ fn project_fields_are_set_renamed_and_removed() {
     assert_eq!(info["fields"]["Etapa"], "Executivo");
     assert_eq!(fails(&mut s, "project_info_set", json!({"fields": {"  ": "x"}})), ErrorCode::InvalidArguments);
 }
+
+#[test]
+fn template_sheets_draw_the_standard_title_block_with_their_fields() {
+    let mut s = Session::default();
+    let sheet = s.project().sheets_in_order()[0];
+    let name = s.project().info.name.clone();
+    let drawing = &s.sheet(sheet).unwrap().drawing;
+    let texts: Vec<&str> = drawing
+        .prims
+        .iter()
+        .filter_map(|p| match p {
+            cc_views::Prim::Text { text, .. } => Some(text.as_str()),
+            _ => None,
+        })
+        .collect();
+    for t in ["A101", name.as_str(), "Proj. nº 0001"] {
+        assert!(texts.contains(&t), "{t} in {texts:?}");
+    }
+    // Every field is filled in (a 3D view's name, "{3D}", has braces of its own).
+    let unfilled = |t: &&str| cc_views::sheet_fields::KEYS.iter().any(|k| t.contains(&format!("{{{k}}}")));
+    assert!(!texts.iter().any(unfilled), "fields filled in: {texts:?}");
+}

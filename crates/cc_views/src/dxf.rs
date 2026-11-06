@@ -323,10 +323,11 @@ pub fn to_dxf(drawing: &Drawing2D, scale: DxfScale, layer: &dyn Fn(&Prim) -> Str
                 if value.trim().is_empty() || !p.is_finite() || !(size.is_finite() && *size > 0.0) {
                     continue;
                 }
-                // Horizontal (left, center) and vertical (bottom, middle) alignment.
+                // Horizontal (left, center, right) and vertical (bottom, middle) alignment.
                 let (h, v) = match anchor {
                     Anchor::LeftBottom => (0, 1),
                     Anchor::CenterBottom => (1, 1),
+                    Anchor::RightBottom => (2, 1),
                     Anchor::Center => (1, 2),
                 };
                 w.pair(0, "TEXT");

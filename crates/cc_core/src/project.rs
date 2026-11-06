@@ -430,9 +430,32 @@ impl Project {
                 ],
             },
         );
+        let tb = p.add_standard_title_block(&n);
+        p.give_sheets_title_block(tb);
         p.ensure_phases(&n);
         p.ensure_uids();
         p
+    }
+
+    /// Add the standard title block type (named by `n`) and return its id.
+    pub fn add_standard_title_block(&mut self, n: &dyn Fn(&str) -> String) -> ElementTypeId {
+        let id = ElementTypeId(self.alloc_id());
+        let name = n(crate::title_block::STANDARD_KEY);
+        let data = TypeData::Component { component: name.clone(), def: crate::title_block::standard(n) };
+        self.types.insert(id, ElementType { id, name, data, info: Default::default(), uid: Default::default() });
+        id
+    }
+
+    /// Point every sheet without a title block at `id`; returns how many.
+    pub fn give_sheets_title_block(&mut self, id: ElementTypeId) -> usize {
+        let mut n = 0;
+        for v in self.views.values_mut() {
+            if let ViewKind::Sheet { title_block: t @ None, .. } = &mut v.kind {
+                *t = Some(id);
+                n += 1;
+            }
+        }
+        n
     }
 
     /// Assign persistent unique ids to the project, types and elements that
@@ -1072,6 +1095,13 @@ pub fn template_default(key: &str) -> &'static str {
         "tpl-schedule-windows" => "Tabela de janelas",
         "tpl-schedule-walls" => "Tabela de paredes",
         "tpl-sheet-plans" => "Plantas",
+        "tpl-tb-standard" => "Carimbo padrão",
+        "tpl-tb-project" => "PROJETO",
+        "tpl-tb-sheet" => "FOLHA",
+        "tpl-tb-client" => "CLIENTE",
+        "tpl-tb-number" => "NÚMERO",
+        "tpl-tb-project-number" => "Proj. nº",
+        "tpl-tb-author" => "Autor:",
         "tpl-type-room" => "Ambiente",
         "tpl-type-column-rect" => "Pilar 20 x 20 cm",
         "tpl-type-column-round" => "Pilar circular 30 cm",

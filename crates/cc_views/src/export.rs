@@ -14,6 +14,7 @@ fn anchor_offsets(anchor: Anchor) -> (f64, f64) {
     match anchor {
         Anchor::LeftBottom => (0.28, 0.0),
         Anchor::CenterBottom => (0.28, 0.5),
+        Anchor::RightBottom => (0.28, 1.0),
         Anchor::Center => (-0.35, 0.5),
     }
 }

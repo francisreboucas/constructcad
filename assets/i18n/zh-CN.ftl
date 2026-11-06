@@ -610,12 +610,14 @@ schedule-total = 合计：{ $count }
 schedule-hint = 单击某一行可选择该图元。明细表会自动更新。
 
 # Title block
-title-project = 项目
-title-sheet = 图纸
-title-client = 业主
-title-number = 编号
-title-project-number = 项目编号
-title-author = 作者：
+tpl-tb-project = 项目
+tpl-tb-sheet = 图纸
+tpl-tb-client = 业主
+tpl-tb-number = 编号
+tpl-tb-project-number = 项目编号
+tpl-tb-author = 作者：
+tpl-tb-standard = 标准图签
+sheet-as-indicated = 如图示
 
 # Dialogs
 dlg-project-info = 项目信息

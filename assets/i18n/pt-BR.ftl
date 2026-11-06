@@ -610,12 +610,14 @@ schedule-total = Total: { $count }
 schedule-hint = Clique em uma linha para selecionar o elemento. As tabelas são atualizadas automaticamente.
 
 # Carimbo
-title-project = PROJETO
-title-sheet = FOLHA
-title-client = CLIENTE
-title-number = NÚMERO
-title-project-number = Proj. nº
-title-author = Autor:
+tpl-tb-project = PROJETO
+tpl-tb-sheet = FOLHA
+tpl-tb-client = CLIENTE
+tpl-tb-number = NÚMERO
+tpl-tb-project-number = Proj. nº
+tpl-tb-author = Autor:
+tpl-tb-standard = Carimbo padrão
+sheet-as-indicated = Indicada
 
 # Diálogos
 dlg-project-info = Informações do projeto

@@ -610,12 +610,14 @@ schedule-total = Totale: { $count }
 schedule-hint = Fai clic su una riga per selezionare l'elemento. Gli abachi si aggiornano automaticamente.
 
 # Cartiglio
-title-project = PROGETTO
-title-sheet = TAVOLA
-title-client = COMMITTENTE
-title-number = NUMERO
-title-project-number = N. progetto
-title-author = Autore:
+tpl-tb-project = PROGETTO
+tpl-tb-sheet = TAVOLA
+tpl-tb-client = COMMITTENTE
+tpl-tb-number = NUMERO
+tpl-tb-project-number = N. progetto
+tpl-tb-author = Autore:
+tpl-tb-standard = Cartiglio standard
+sheet-as-indicated = Indicata
 
 # Finestre di dialogo
 dlg-project-info = Informazioni sul progetto

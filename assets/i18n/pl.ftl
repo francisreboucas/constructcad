@@ -610,12 +610,14 @@ schedule-total = Razem: { $count }
 schedule-hint = Kliknij wiersz, aby zaznaczyć element. Zestawienia aktualizują się automatycznie.
 
 # Tabliczka rysunkowa
-title-project = PROJEKT
-title-sheet = ARKUSZ
-title-client = INWESTOR
-title-number = NUMER
-title-project-number = Nr projektu
-title-author = Autor:
+tpl-tb-project = PROJEKT
+tpl-tb-sheet = ARKUSZ
+tpl-tb-client = INWESTOR
+tpl-tb-number = NUMER
+tpl-tb-project-number = Nr projektu
+tpl-tb-author = Autor:
+tpl-tb-standard = Tabliczka standardowa
+sheet-as-indicated = Jak podano
 
 # Okna dialogowe
 dlg-project-info = Informacje o projekcie

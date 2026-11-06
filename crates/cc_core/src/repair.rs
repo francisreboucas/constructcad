@@ -784,11 +784,30 @@ mod tests {
                 n += 3;
             }
         }
+        // A second title block type, on a second sheet, is valid and stays.
+        let standard = p.title_blocks().first().copied().unwrap();
+        let mut other = p.element_type(standard).unwrap().clone();
+        other.id = crate::ElementTypeId(p.alloc_id());
+        other.name = "Other".into();
+        let other_id = other.id;
+        p.types.insert(other_id, other);
+        let kept = crate::ViewId(p.alloc_id());
+        let kind = ViewKind::Sheet {
+            number: "B1".into(),
+            size: crate::SheetSize::A3,
+            portrait: false,
+            viewports: Vec::new(),
+            title_block: Some(other_id),
+            fields: Default::default(),
+            issue_date: String::new(),
+        };
+        p.views.insert(kept, crate::View::new(kept, "B1", 1, kind));
         let fixes = p.repair();
         assert!(fixes >= n);
         for v in p.views.values() {
             if let ViewKind::Sheet { title_block, issue_date, fields, .. } = &v.kind {
-                assert!(title_block.is_none_or(|t| p.title_blocks().contains(&t)));
+                let expected = if v.id == kept { other_id } else { standard };
+                assert_eq!(*title_block, Some(expected), "{}", v.name);
                 assert!(issue_date.is_empty() && fields.is_empty());
             }
         }

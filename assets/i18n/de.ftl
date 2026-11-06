@@ -610,12 +610,14 @@ schedule-total = Summe: { $count }
 schedule-hint = Klicken Sie auf eine Zeile, um das Bauteil auszuwählen. Bauteillisten werden automatisch aktualisiert.
 
 # Plankopf
-title-project = PROJEKT
-title-sheet = PLAN
-title-client = BAUHERR
-title-number = NUMMER
-title-project-number = Projekt-Nr.
-title-author = Verfasser:
+tpl-tb-project = PROJEKT
+tpl-tb-sheet = PLAN
+tpl-tb-client = BAUHERR
+tpl-tb-number = NUMMER
+tpl-tb-project-number = Projekt-Nr.
+tpl-tb-author = Verfasser:
+tpl-tb-standard = Standard-Schriftfeld
+sheet-as-indicated = Angegeben
 
 # Dialoge
 dlg-project-info = Projektinformationen

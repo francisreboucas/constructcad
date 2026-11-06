@@ -610,12 +610,14 @@ schedule-total = 合計: { $count }
 schedule-hint = 行をクリックすると要素が選択されます。集計表は自動的に更新されます。
 
 # Title block
-title-project = プロジェクト
-title-sheet = シート
-title-client = クライアント
-title-number = 番号
-title-project-number = プロジェクト番号
-title-author = 作成者:
+tpl-tb-project = プロジェクト
+tpl-tb-sheet = シート
+tpl-tb-client = クライアント
+tpl-tb-number = 番号
+tpl-tb-project-number = プロジェクト番号
+tpl-tb-author = 作成者:
+tpl-tb-standard = 標準表題欄
+sheet-as-indicated = 図示
 
 # Dialogs
 dlg-project-info = プロジェクト情報

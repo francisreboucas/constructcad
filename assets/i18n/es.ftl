@@ -610,12 +610,14 @@ schedule-total = Total: { $count }
 schedule-hint = Haga clic en una fila para seleccionar el elemento. Las tablas se actualizan automáticamente.
 
 # Cajetín
-title-project = PROYECTO
-title-sheet = HOJA
-title-client = CLIENTE
-title-number = NÚMERO
-title-project-number = N.º de proyecto
-title-author = Autor:
+tpl-tb-project = PROYECTO
+tpl-tb-sheet = HOJA
+tpl-tb-client = CLIENTE
+tpl-tb-number = NÚMERO
+tpl-tb-project-number = N.º de proyecto
+tpl-tb-author = Autor:
+tpl-tb-standard = Rótulo estándar
+sheet-as-indicated = Indicada
 
 # Cuadros de diálogo
 dlg-project-info = Información del proyecto

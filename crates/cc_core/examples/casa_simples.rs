@@ -207,7 +207,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 number: "A102".into(),
                 size: cc_core::SheetSize::A3,
                 portrait: false,
-                title_block: None,
+                title_block: p.title_blocks().first().copied(),
                 fields: Default::default(),
                 issue_date: String::new(),
                 viewports: vec![

@@ -804,18 +804,18 @@ fn the_showcase_macro_builds_its_project() {
     assert_eq!([count(&mut s, "wall"), count(&mut s, "door"), count(&mut s, "room")], [13, 5, 5]);
     assert!(count(&mut s, "rebar") > 0 && count(&mut s, "pipe") > 0 && count(&mut s, "conduit") > 0);
     let get = |s: &mut Session, id: u64| run(s, "element_get", json!({"id": id}));
-    assert!(get(&mut s, 97)["params"]["bulge"].as_f64().unwrap() > 0.0, "the arc wall");
-    assert!(get(&mut s, 116)["params"]["shape"]["Hip"].is_object(), "the hip roof");
-    assert_eq!(get(&mut s, 94)["phase_demolished"]["id"], 81, "the demolished partition");
-    assert_eq!(get(&mut s, 247)["type"]["id"], 58, "the distribution board");
+    assert!(get(&mut s, 98)["params"]["bulge"].as_f64().unwrap() > 0.0, "the arc wall");
+    assert!(get(&mut s, 117)["params"]["shape"]["Hip"].is_object(), "the hip roof");
+    assert_eq!(get(&mut s, 95)["phase_demolished"]["id"], 82, "the demolished partition");
+    assert_eq!(get(&mut s, 248)["type"]["id"], 58, "the distribution board");
     let views = run(&mut s, "views_list", json!({}));
     let view = |id: u64| views.as_array().unwrap().iter().find(|v| v["id"] == id).map(|v| v["name"].clone());
-    assert_eq!(view(334), Some(json!("Board diagram")));
-    assert_eq!(view(342), Some(json!("3D North-east")));
-    let loads = run(&mut s, "circuit_loads", json!({"panel": 247}));
+    assert_eq!(view(335), Some(json!("Board diagram")));
+    assert_eq!(view(343), Some(json!("3D North-east")));
+    let loads = run(&mut s, "circuit_loads", json!({"panel": 248}));
     assert!(loads.to_string().contains("Kitchen and bath outlets"));
-    for filter in [341, 343] {
-        assert!(run(&mut s, "filter_elements", json!({"filter": filter, "view": 340}))["count"].as_u64().unwrap() > 0);
+    for filter in [342, 344] {
+        assert!(run(&mut s, "filter_elements", json!({"filter": filter, "view": 341}))["count"].as_u64().unwrap() > 0);
     }
 }
 
