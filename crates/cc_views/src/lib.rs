@@ -25,6 +25,7 @@ mod projected;
 pub mod raster;
 mod schedule;
 mod sheet;
+pub mod sheet_fields;
 mod topography;
 
 pub use annotate::{DimensionLayout, HIGHLIGHT_ONLY, dimension_layout};
