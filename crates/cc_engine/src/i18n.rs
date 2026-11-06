@@ -20,10 +20,11 @@ pub enum Language {
     ZhTw,
     ZhCn,
     Ja,
+    Arabic,
 }
 
 impl Language {
-    pub const ALL: [Language; 12] = [
+    pub const ALL: [Language; 13] = [
         Language::PtBr,
         Language::En,
         Language::Es,
@@ -36,6 +37,7 @@ impl Language {
         Language::ZhTw,
         Language::ZhCn,
         Language::Ja,
+        Language::Arabic,
     ];
 
     /// BCP 47 code, used for persistence.
@@ -53,6 +55,7 @@ impl Language {
             Language::ZhTw => "zh-TW",
             Language::ZhCn => "zh-CN",
             Language::Ja => "ja",
+            Language::Arabic => "ar",
         }
     }
 
@@ -71,6 +74,7 @@ impl Language {
             Language::ZhTw => "繁體中文",
             Language::ZhCn => "简体中文",
             Language::Ja => "日本語",
+            Language::Arabic => "العربية",
         }
     }
 
@@ -103,6 +107,7 @@ impl Language {
             "zh" if traditional => Language::ZhTw,
             "zh" => Language::ZhCn,
             "ja" => Language::Ja,
+            "ar" => Language::Arabic,
             _ => return None,
         };
         Some(lang)
@@ -128,6 +133,7 @@ impl Language {
             Language::ZhTw => include_str!("../../../assets/i18n/zh-TW.ftl"),
             Language::ZhCn => include_str!("../../../assets/i18n/zh-CN.ftl"),
             Language::Ja => include_str!("../../../assets/i18n/ja.ftl"),
+            Language::Arabic => include_str!("../../../assets/i18n/ar.ftl"),
         }
     }
 
@@ -137,7 +143,12 @@ impl Language {
 
     /// Whether numbers use a decimal comma.
     pub fn decimal_comma(self) -> bool {
-        !matches!(self, Language::En | Language::ZhTw | Language::ZhCn | Language::Ja)
+        !matches!(self, Language::En | Language::ZhTw | Language::ZhCn | Language::Ja | Language::Arabic)
+    }
+
+    /// Whether the language is written right-to-left.
+    pub const fn is_rtl(self) -> bool {
+        matches!(self, Self::Arabic)
     }
 }
 
@@ -158,6 +169,45 @@ pub fn set_language(lang: Language) {
     cc_views::format::set_decimal_comma(lang.decimal_comma());
 }
 
+/// Whether the currently active language is written right-to-left.
+pub fn is_rtl() -> bool {
+    language().is_rtl()
+}
+
+fn is_arabic_char(c: char) -> bool {
+    matches!(c,
+        '\u{0600}'..='\u{06FF}' | // Arabic
+        '\u{0750}'..='\u{077F}' | // Arabic Supplement
+        '\u{08A0}'..='\u{08FF}' | // Arabic Extended-A
+        '\u{FB50}'..='\u{FDFF}' | // Arabic Presentation Forms-A
+        '\u{FE70}'..='\u{FEFF}'   // Arabic Presentation Forms-B
+    )
+}
+
+/// Reshapes connected Arabic characters and reorders them visually for left-to-right renderers like egui.
+pub fn shape_arabic_text(text: &str) -> String {
+    if !text.chars().any(is_arabic_char) {
+        return text.to_string();
+    }
+    let reshaped = arabic_reshaper::arabic_reshape(text);
+    let mut lines = Vec::new();
+    for line in reshaped.split('\n') {
+        let clean = line.strip_suffix('\r').unwrap_or(line);
+        if clean.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+        let bidi_info = unicode_bidi::BidiInfo::new(clean, Some(unicode_bidi::Level::rtl()));
+        if let Some(para) = bidi_info.paragraphs.first() {
+            let reordered = bidi_info.reorder_line(para, para.range.clone());
+            lines.push(reordered.into_owned());
+        } else {
+            lines.push(clean.to_string());
+        }
+    }
+    lines.join("\n")
+}
+
 /// Parse `key = value` lines; `#` starts a comment line.
 pub fn parse_messages(source: &str) -> HashMap<String, String> {
     source
@@ -176,16 +226,25 @@ pub fn try_tr(key: &str) -> Option<String> {
 
 /// Translate `key`; falls back to Portuguese, then to the key itself so gaps are visible.
 pub fn tr(key: &str) -> String {
-    try_tr(key).or_else(|| bundle(Language::PtBr).get(key).cloned()).unwrap_or_else(|| key.to_string())
+    let s = try_tr(key).or_else(|| bundle(Language::PtBr).get(key).cloned()).unwrap_or_else(|| key.to_string());
+    if language().is_rtl() {
+        shape_arabic_text(&s)
+    } else {
+        s
+    }
 }
 
 /// Translate `key`, substituting `{ $name }` placeholders.
 pub fn tr_args(key: &str, args: &[(&str, String)]) -> String {
-    let mut s = tr(key);
+    let mut s = try_tr(key).or_else(|| bundle(Language::PtBr).get(key).cloned()).unwrap_or_else(|| key.to_string());
     for (name, value) in args {
         s = s.replace(&format!("{{ ${name} }}"), value);
     }
-    s
+    if language().is_rtl() {
+        shape_arabic_text(&s)
+    } else {
+        s
+    }
 }
 
 /// `t!("key")` or `t!("key", "name" => value, ...)`.
@@ -238,6 +297,10 @@ mod tests {
         assert_eq!(Language::from_code("zh"), Some(Language::ZhCn));
         assert_eq!(Language::from_code("ja-JP"), Some(Language::Ja));
         assert_eq!(Language::from_code("ja_JP.UTF-8"), Some(Language::Ja));
+        assert_eq!(Language::from_code("ar"), Some(Language::Arabic));
+        assert_eq!(Language::from_code("ar-SA"), Some(Language::Arabic));
+        assert_eq!(Language::from_code("ar-EG"), Some(Language::Arabic));
+        assert_eq!(Language::from_code("ar_AE.UTF-8"), Some(Language::Arabic));
         assert_eq!(Language::from_code("ko-KR"), None);
         assert_eq!(Language::from_code("p"), None);
         for l in Language::ALL {
@@ -277,6 +340,33 @@ mod tests {
         assert!(missing.is_empty(), "missing template names: {missing:?}");
         assert!(project.levels.iter().all(|l| !l.name.is_empty()));
         // Layers must reference materials that exist under their translated names.
+        for t in project.types.values() {
+            for layer in t.layers() {
+                assert!(project.materials.iter().any(|m| m.name == layer.material), "{}", layer.material);
+            }
+        }
+    }
+
+    #[test]
+    fn arabic_shaping_and_rtl() {
+        assert!(Language::Arabic.is_rtl());
+        assert!(!Language::En.is_rtl());
+        let shaped = shape_arabic_text("جدار");
+        assert!(!shaped.is_empty());
+        assert_ne!(shaped, "جدار");
+    }
+
+    #[test]
+    fn arabic_template_names() {
+        let messages = parse_messages(Language::Arabic.source());
+        let asked = std::cell::RefCell::new(Vec::new());
+        let project = cc_core::Project::from_template_localized(&|k| {
+            asked.borrow_mut().push(k.to_string());
+            messages.get(k).cloned()
+        });
+        let missing: Vec<_> = asked.borrow().iter().filter(|k| !messages.contains_key(*k)).cloned().collect();
+        assert!(missing.is_empty(), "missing template names: {missing:?}");
+        assert!(project.levels.iter().all(|l| !l.name.is_empty()));
         for t in project.types.values() {
             for layer in t.layers() {
                 assert!(project.materials.iter().any(|m| m.name == layer.material), "{}", layer.material);

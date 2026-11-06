@@ -76,4 +76,22 @@ mod tests {
         missing.dedup();
         assert!(missing.is_empty(), "missing translations: {missing:?}");
     }
+
+    #[test]
+    fn language_switch_flips_direction() {
+        set_language(Language::En);
+        assert!(!is_rtl());
+
+        set_language(Language::Arabic);
+        assert!(is_rtl());
+
+        set_language(Language::PtBr);
+        assert!(!is_rtl());
+
+        set_language(Language::Arabic);
+        assert!(is_rtl());
+
+        set_language(Language::En);
+        assert!(!is_rtl());
+    }
 }

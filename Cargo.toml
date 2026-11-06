@@ -40,6 +40,8 @@ schemars = "1"
 log = "0.4"
 sys-locale = "0.3.2"
 env_logger = "0.11"
+arabic_reshaper = "0.4.2"
+unicode-bidi = "0.3.18"
 # `raster-images`: pictures in exported PNGs (the decoders `image` brings anyway).
 resvg = { version = "0.45.1", default-features = false, features = ["raster-images"] }
 # Compressing the pixels of pictures in exported PDFs (cc_views).

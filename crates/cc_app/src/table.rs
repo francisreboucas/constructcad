@@ -25,6 +25,7 @@ fn row_height() -> f32 {
 
 /// Collapsible section header; `add` draws the rows while it is open.
 pub fn section(ui: &mut Ui, id: &str, title: String, add: impl FnOnce(&mut Ui)) {
+    let is_rtl = crate::i18n::is_rtl();
     let state_id = ui.make_persistent_id(("prop-section", id));
     let mut open = ui.data_mut(|d| *d.get_persisted_mut_or(state_id, true));
     let (rect, response) = ui.allocate_exact_size(vec2(ui.available_width(), row_height()), Sense::click());
@@ -33,10 +34,27 @@ pub fn section(ui: &mut Ui, id: &str, title: String, add: impl FnOnce(&mut Ui)) 
     let fill = if response.hovered() { PALETTE.hover } else { PALETTE.surface };
     painter.rect_filled(rect, 0.0, fill);
     painter.hline(rect.x_range(), rect.bottom() - 0.5, Stroke::new(1.0, PALETTE.border));
-    let chevron = Rect::from_center_size(egui::pos2(rect.left() + 11.0, rect.center().y), vec2(9.0, 9.0));
-    icons::paint(painter, chevron, if open { Icon::ChevronDown } else { Icon::ChevronRight }, PALETTE.text_muted);
+    let chevron_pos = if is_rtl {
+        egui::pos2(rect.right() - 11.0, rect.center().y)
+    } else {
+        egui::pos2(rect.left() + 11.0, rect.center().y)
+    };
+    let chevron = Rect::from_center_size(chevron_pos, vec2(9.0, 9.0));
+    let icon = if open {
+        Icon::ChevronDown
+    } else if is_rtl {
+        Icon::ChevronLeft
+    } else {
+        Icon::ChevronRight
+    };
+    icons::paint(painter, chevron, icon, PALETTE.text_muted);
     let font = egui::FontId::new(font_size(), theme::semibold());
-    painter.text(egui::pos2(rect.left() + 22.0, rect.center().y), egui::Align2::LEFT_CENTER, title, font, PALETTE.text);
+    let (text_pos, align) = if is_rtl {
+        (egui::pos2(rect.right() - 22.0, rect.center().y), egui::Align2::RIGHT_CENTER)
+    } else {
+        (egui::pos2(rect.left() + 22.0, rect.center().y), egui::Align2::LEFT_CENTER)
+    };
+    painter.text(text_pos, align, title, font, PALETTE.text);
     if response.clicked() {
         open = !open;
         ui.data_mut(|d| d.insert_persisted(state_id, open));
@@ -48,19 +66,41 @@ pub fn section(ui: &mut Ui, id: &str, title: String, add: impl FnOnce(&mut Ui)) 
 
 /// One table row: a label cell and a value cell filled by `add`.
 pub fn row<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
+    let is_rtl = crate::i18n::is_rtl();
     let width = ui.available_width();
     let row_h = row_height();
     let (rect, _) = ui.allocate_exact_size(vec2(width, row_h), Sense::hover());
-    let split = (rect.left() + width * LABEL_SHARE).round();
+    let split = if is_rtl {
+        (rect.right() - width * LABEL_SHARE).round()
+    } else {
+        (rect.left() + width * LABEL_SHARE).round()
+    };
     let painter = ui.painter();
     let grid = Stroke::new(1.0, PALETTE.border);
     painter.hline(rect.x_range(), rect.bottom() - 0.5, grid);
     painter.vline(split + 0.5, rect.y_range(), grid);
-    let label_rect = Rect::from_min_max(rect.min, egui::pos2(split, rect.bottom()));
+
+    let (label_rect, value_rect) = if is_rtl {
+        (
+            Rect::from_min_max(egui::pos2(split, rect.top()), rect.max),
+            Rect::from_min_max(rect.min + vec2(2.0, 1.0), egui::pos2(split - 2.0, rect.bottom() - 1.0)),
+        )
+    } else {
+        (
+            Rect::from_min_max(rect.min, egui::pos2(split, rect.bottom())),
+            Rect::from_min_max(egui::pos2(split + 2.0, rect.top() + 1.0), rect.max - vec2(2.0, 2.0)),
+        )
+    };
+
     let font = egui::FontId::proportional(font_size());
+    let (text_pos, align) = if is_rtl {
+        (egui::pos2(label_rect.right() - 10.0, rect.center().y), egui::Align2::RIGHT_CENTER)
+    } else {
+        (egui::pos2(label_rect.left() + 10.0, rect.center().y), egui::Align2::LEFT_CENTER)
+    };
     ui.painter_at(label_rect.shrink2(vec2(6.0, 0.0))).text(
-        egui::pos2(label_rect.left() + 10.0, rect.center().y),
-        egui::Align2::LEFT_CENTER,
+        text_pos,
+        align,
         label,
         font,
         PALETTE.text_muted,
@@ -68,8 +108,12 @@ pub fn row<R>(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui) -> R) -> R {
     let label_hover = ui.interact(label_rect, ui.id().with(("prop-label", label)), Sense::hover());
     label_hover.on_hover_text(label);
 
-    let value_rect = Rect::from_min_max(egui::pos2(split + 2.0, rect.top() + 1.0), rect.max - vec2(2.0, 2.0));
-    let builder = UiBuilder::new().max_rect(value_rect).layout(Layout::left_to_right(Align::Center));
+    let value_layout = if is_rtl {
+        Layout::right_to_left(Align::Center)
+    } else {
+        Layout::left_to_right(Align::Center)
+    };
+    let builder = UiBuilder::new().max_rect(value_rect).layout(value_layout);
     ui.scope_builder(builder, |ui| {
         let w = value_rect.width();
         let s = ui.spacing_mut();

@@ -20,6 +20,8 @@ serde.workspace = true
 serde_json.workspace = true
 schemars.workspace = true
 sys-locale.workspace = true
+arabic_reshaper.workspace = true
+unicode-bidi.workspace = true
 
 [lints]
 workspace = true

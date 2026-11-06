@@ -22,7 +22,12 @@ pub fn sample_project(name: &str) -> Option<Project> {
 }
 
 pub fn show(ui: &mut Ui, state: &mut AppState) {
-    egui::Panel::left("home-sidebar")
+    let side_panel = if crate::i18n::is_rtl() {
+        egui::Panel::right("home-sidebar")
+    } else {
+        egui::Panel::left("home-sidebar")
+    };
+    side_panel
         .frame(egui::Frame::new().fill(PALETTE.surface).inner_margin(egui::Margin::symmetric(24, 24)))
         .resizable(false)
         .exact_size(SIDEBAR_WIDTH)
