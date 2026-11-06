@@ -541,10 +541,14 @@ impl Project {
         let type_ids: Vec<_> = self.types.keys().copied().collect();
         for view in self.views.values_mut() {
             match &mut view.kind {
-                ViewKind::Sheet { viewports, .. } => {
+                ViewKind::Sheet { viewports, size, .. } => {
                     let before = viewports.len();
                     viewports.retain(|vp| view_ids.contains(&vp.view) && vp.center.is_finite());
                     repairs += before - viewports.len();
+                    if !size.is_valid() {
+                        *size = crate::SheetSize::A3;
+                        repairs += 1;
+                    }
                 }
                 ViewKind::Legend { types } => {
                     let before = types.len();
@@ -733,6 +737,19 @@ mod tests {
         p.types.insert(id, ty(data(Some(other))));
         assert_eq!(p.repair(), 1);
         assert!(matches!(p.element_type(id).map(|t| &t.data), Some(TypeData::Sweep { sketch: None, .. })));
+    }
+
+    #[test]
+    fn bad_custom_paper_resets_to_a3() {
+        use crate::{SheetSize, ViewKind};
+        let mut p = Project::from_template();
+        let sheet = p.views.values_mut().find(|v| matches!(v.kind, ViewKind::Sheet { .. }));
+        let Some(sheet) = sheet else { return };
+        if let ViewKind::Sheet { size, .. } = &mut sheet.kind {
+            *size = SheetSize::Custom { width: f64::NAN, height: 10.0 };
+        }
+        assert!(p.repair() >= 1);
+        assert!(p.views.values().any(|v| matches!(v.kind, ViewKind::Sheet { size: SheetSize::A3, .. })));
     }
 
     #[test]

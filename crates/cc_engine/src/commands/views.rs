@@ -197,7 +197,15 @@ impl Command for ViewCreate {
             }
             "sheet" => {
                 let n = count(p, ViewCategory::Sheet) + 101;
-                let kind = ViewKind::Sheet { number: format!("A{n}"), size: SheetSize::A3, viewports: Vec::new() };
+                let kind = ViewKind::Sheet {
+                    number: format!("A{n}"),
+                    size: SheetSize::A3,
+                    portrait: false,
+                    viewports: Vec::new(),
+                    title_block: None,
+                    fields: Default::default(),
+                    issue_date: String::new(),
+                };
                 (t!("default-sheet-name"), 1, kind, t!("tx-new-sheet"))
             }
             other => return Err(EngineError::invalid(format!("unknown view kind '{other}'"))),
@@ -432,9 +440,10 @@ impl Command for SheetPlaceView {
             return Err(EngineError::rejected(t!("msg-view-already-placed")));
         }
         let center = self.center.map(point).transpose()?;
+        let paper = p.view(sheet_id).and_then(|v| v.paper_mm()).unwrap_or(glam::DVec2::new(420.0, 297.0));
         edit(s, t!("tx-place-view"), |e| {
-            if let Some(ViewKind::Sheet { viewports, size, .. }) = e.view_mut(sheet_id).map(|v| &mut v.kind) {
-                let center = center.unwrap_or(size.size_mm() * glam::DVec2::new(0.4, 0.55));
+            if let Some(ViewKind::Sheet { viewports, .. }) = e.view_mut(sheet_id).map(|v| &mut v.kind) {
+                let center = center.unwrap_or(paper * glam::DVec2::new(0.4, 0.55));
                 viewports.push(Viewport { view, center });
             }
             Ok(())

@@ -49,8 +49,8 @@ pub fn compose(
     labels: &TitleLabels,
     mut drawing_of: impl FnMut(ViewId) -> Option<Rc<Drawing2D>>,
 ) -> Option<Sheet> {
-    let ViewKind::Sheet { number, size, viewports } = &sheet.kind else { return None };
-    let paper = size.size_mm();
+    let ViewKind::Sheet { number, viewports, .. } = &sheet.kind else { return None };
+    let paper = sheet.paper_mm().unwrap_or(DVec2::new(420.0, 297.0));
     let mut d = Drawing2D::default();
     let rect = |d: &mut Drawing2D, lo: DVec2, hi: DVec2, style| {
         d.polyline(&[lo, DVec2::new(hi.x, lo.y), hi, DVec2::new(lo.x, hi.y)], true, style, None);

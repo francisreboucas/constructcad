@@ -206,6 +206,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ViewKind::Sheet {
                 number: "A102".into(),
                 size: cc_core::SheetSize::A3,
+                portrait: false,
+                title_block: None,
+                fields: Default::default(),
+                issue_date: String::new(),
                 viewports: vec![
                     Viewport { view: south, center: DVec2::new(130.0, 170.0) },
                     Viewport { view: section, center: DVec2::new(310.0, 170.0) },

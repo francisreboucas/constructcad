@@ -383,6 +383,10 @@ impl Project {
             ViewKind::Sheet {
                 number: "A101".into(),
                 size: SheetSize::A3,
+                portrait: false,
+                title_block: None,
+                fields: Default::default(),
+                issue_date: String::new(),
                 viewports: vec![
                     Viewport { view: plan, center: DVec2::new(130.0, 160.0) },
                     Viewport { view: threed, center: DVec2::new(320.0, 190.0) },
