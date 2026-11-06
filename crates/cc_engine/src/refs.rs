@@ -178,10 +178,20 @@ pub fn elements(p: &Project, ids: &[u64]) -> Result<Vec<ElementId>> {
     ids.iter().map(|id| element(p, *id)).collect()
 }
 
-/// A category by its English name (`wall`, `door`…), case-insensitive.
+/// A category by its English name (`wall`, `door`…, `titleblock`), case-insensitive.
 pub fn category(name: &str) -> Result<Category> {
-    Category::ALL
-        .into_iter()
+    find_category(&Category::NAMED, name)
+}
+
+/// A category that views draw and filter (not title blocks), by name.
+pub fn view_category(name: &str) -> Result<Category> {
+    find_category(&Category::ALL, name)
+}
+
+fn find_category(among: &[Category], name: &str) -> Result<Category> {
+    among
+        .iter()
+        .copied()
         .find(|c| format!("{c:?}").eq_ignore_ascii_case(name.trim()))
         .ok_or_else(|| EngineError::invalid(format!("unknown category '{name}'")))
 }

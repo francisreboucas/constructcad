@@ -317,3 +317,21 @@ fn renaming_a_text_parameter_keeps_the_sheets_values() {
     let view = run(&mut s, "view_get", json!({"view": sheet}));
     assert_eq!(view["params"]["fields"], json!({"Drawn": "Bia"}));
 }
+
+#[test]
+fn title_blocks_are_a_category_by_name() {
+    let mut s = Session::default();
+    let types = run(&mut s, "types_list", json!({"category": "titleblock"}));
+    let types = types.as_array().unwrap();
+    assert_eq!(types.len(), 1);
+    assert_eq!(types[0]["category"], "titleblock");
+    let cats = run(&mut s, "categories_list", json!({}));
+    let tb = cats.as_array().unwrap().iter().find(|c| c["category"] == "titleblock").unwrap();
+    assert_eq!(tb["types"], 1);
+    // Views neither draw nor filter title blocks.
+    let plan = s.project().views.values().find(|v| v.category() == cc_core::ViewCategory::FloorPlan).unwrap().id.0;
+    assert_eq!(
+        fails(&mut s, "view_graphics_set", json!({"view": plan, "category": "titleblock", "visible": false})),
+        ErrorCode::InvalidArguments
+    );
+}

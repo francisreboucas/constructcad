@@ -45,7 +45,7 @@ impl Command for CategoriesList {
     const KIND: CommandKind = CommandKind::Query;
     fn run(self, s: &mut Session) -> Result<Value> {
         let p = s.project();
-        Ok(Category::ALL
+        Ok(Category::NAMED
             .into_iter()
             .map(|c| {
                 json!({
