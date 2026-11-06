@@ -157,7 +157,7 @@ fn icon_gallery_snapshots() {
     }
     let mut results = egui_kittest::SnapshotResults::new();
     for (theme, name) in [(egui::Theme::Light, "icons_light"), (egui::Theme::Dark, "icons_dark")] {
-        let mut harness = themed_harness(sample_state(), egui::vec2(950.0, 260.0), theme, icon_gallery);
+        let mut harness = themed_harness(sample_state(), egui::vec2(950.0, 360.0), theme, icon_gallery);
         results.add(harness.try_snapshot(name));
     }
     results.unwrap();
