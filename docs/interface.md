@@ -247,6 +247,18 @@ Curtain walls are walls of a curtain type (a project without one gets one from t
 - **Saving**: the *Autosave* interval (off, or every 1, 2, 5, 10 or 15 minutes; see below) and how many recent projects the home screen lists.
 - **Keyboard shortcuts**: every command with its keys. Click a command's box and type two letters to give it new keys (they replace the old ones at once, in tooltips, the palette and views); keys another command already has are refused and the row says which. Leave the box empty to take the keys away, and *Default* brings back the original ones. Search finds a command by name or keys. Ctrl shortcuts, Delete and Esc are fixed.
 
+## Visual programming
+
+*Manage → Macros → Visual Programming* opens the graph editor in a panel under the views, so the model and the graph are seen together (`constructcad project.ccad --graph file.ccgraph` opens one at startup). A graph is a set of nodes joined by wires (see [Visual programming graphs](automation.md#visual-programming-graphs) for what the nodes do and how running again updates the model).
+
+- **Adding nodes**: double-click or right-click the background to open the node search; type words of the node's name, group or description and press Enter (or click a match). Every engine command is a node, next to the built-in nodes (inputs, math, logic, lists, geometry, parameters, outputs) and the Lua node.
+- **Wiring**: drag from an output (right side) to an input (left side), or the other way. Dragging from a wired input picks its wire up. Ports are colored by type; a wire between types that do not fit is refused with a message in the status bar.
+- **Moving around**: drag a node to move it (with the others selected); drag the background to select with a box (Shift or Ctrl adds); the middle or right button pans; the wheel zooms about the pointer. *Zoom to Fit* frames the graph.
+- **Inputs**: number, integer, slider, boolean and text nodes have their value on the node. The inspector on the right edits the selected node: its name (on input and output nodes, the name of the graph's input or result), the list lacing, the values of its unwired inputs (JSON, or plain text), a command node's *Show all inputs*, a Lua node's inputs, outputs and code, and *Use Selection* on *select_elements*. It shows the node's outputs, error or reason it was skipped after a run. With no node selected it shows the graph's name, *Allow file commands*, how many elements the graph made, *Select Elements* and *Release Elements*.
+- **Running**: *Run* (F5) runs the graph through the engine as one undo step; the toolbar and the status bar show how many elements were created, changed and deleted. *Automatic* runs it after every change. Each node shows its value (or error) under it; clicking a node selects the elements it made.
+- **Keys** while the pointer is over the panel: Delete removes the selected nodes, Ctrl+C / Ctrl+V copy and paste them, Ctrl+A selects all, Ctrl+Z / Ctrl+Y undo and redo graph edits (the model's own undo is on the quick access toolbar), Ctrl+S saves the graph.
+- **Files**: *New*, *Open…*, *Save*, *Save As…* work with `.ccgraph` files (the dialogs start in the macros folder). Closing the panel, *New* or *Open…* with unsaved changes asks first.
+
 ## Plugins
 
 Plugins add commands to ConstructCAD (see [Plugins](automation.md#plugins) in the automation guide). *Manage → Plugins* holds two buttons: *Plugins…* opens the Plugins window, and *Plugin Commands* is a menu of the installed plugins' commands, by plugin; choosing one opens its form in the [command palette](#running-engine-commands), where **Run** executes it as one undo step and shows what the plugin printed. The palette also finds plugin commands by name.

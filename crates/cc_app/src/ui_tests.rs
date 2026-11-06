@@ -2137,3 +2137,79 @@ fn wall_tool_offers_a_curtain_type() {
     assert!(ty.curtain().is_some(), "the tool draws curtain walls");
     assert_eq!(state.project().types_of(cc_core::Category::Wall).filter(|t| t.curtain().is_some()).count(), 1);
 }
+
+/// The graph editor alone, in a panel of its own.
+fn graph_harness(state: AppState) -> Harness<'static, AppState> {
+    themed_harness(state, egui::vec2(1200.0, 520.0), egui::Theme::Light, |ui, state| {
+        crate::app::shortcuts(ui.ctx(), state);
+        crate::graph_ui::show(ui, state);
+        crate::dialogs::show(ui.ctx(), state);
+    })
+}
+
+fn wall_count(state: &AppState) -> usize {
+    state.project().elements.values().filter(|e| e.category() == cc_core::Category::Wall).count()
+}
+
+/// Visual Programming opens the graph editor from the Manage tab.
+#[test]
+fn visual_programming_opens_from_the_manage_tab() {
+    let mut state = sample_state();
+    state.ribbon_tab = RibbonTab::Manage;
+    let mut harness = app_harness(state);
+    harness.get_by_role_and_label(Role::Button, &t!("action-visual-programming")).click();
+    harness.run();
+    assert!(harness.state().graph.open);
+}
+
+/// Run builds the graph's walls once; running again changes them in place.
+#[test]
+fn the_graph_editor_runs_the_graph() {
+    let mut state = sample_state();
+    let graph = serde_json::json!({
+        "uid": "00000000000000000000000000000abc",
+        "nodes": [
+            {"id": 1, "kind": {"builtin": "number"}, "values": {"value": 3}, "pos": [0, 0]},
+            {"id": 2, "kind": {"builtin": "sequence"}, "values": {"start": 30, "step": 4}, "pos": [220, 0]},
+            {"id": 3, "kind": {"builtin": "point"}, "values": {"y": 30}, "pos": [440, 0]},
+            {"id": 4, "kind": {"builtin": "point"}, "values": {"y": 34}, "pos": [440, 120]},
+            {"id": 5, "kind": {"command": "wall_create"}, "pos": [660, 0]}
+        ],
+        "wires": [
+            {"from": [1, "value"], "to": [2, "count"]},
+            {"from": [2, "list"], "to": [3, "x"]},
+            {"from": [2, "list"], "to": [4, "x"]},
+            {"from": [3, "point"], "to": [5, "start"]},
+            {"from": [4, "point"], "to": [5, "end"]}
+        ]
+    });
+    state.graph.graph = cc_engine::graph::Graph::from_value(graph).unwrap().0;
+    state.graph.open = true;
+    let before = wall_count(&state);
+    let mut harness = graph_harness(state);
+    harness.get_by_role_and_label(Role::Button, &t!("graph-run")).click();
+    harness.run();
+    let report = harness.state().graph.report.clone().unwrap().unwrap();
+    assert_eq!(report["errors"], 0, "{report}");
+    assert_eq!(wall_count(harness.state()), before + 3);
+    harness.get_by_role_and_label(Role::Button, &t!("graph-run")).click();
+    harness.run();
+    assert_eq!(wall_count(harness.state()), before + 3, "a second run changes the same walls");
+}
+
+/// The node search adds the node typed, where it was opened.
+#[test]
+fn the_node_search_adds_a_node() {
+    let mut state = sample_state();
+    state.graph.open = true;
+    crate::graph_ui::open_search(&mut state, egui::pos2(100.0, 50.0), egui::pos2(300.0, 200.0));
+    let mut harness = graph_harness(state);
+    harness.get_by_label(&t!("graph-search-hint")).type_text("polygon_points");
+    harness.run();
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let g = &harness.state().graph.graph;
+    assert_eq!(g.nodes.len(), 1, "one node added");
+    assert_eq!(g.nodes[0].kind, cc_engine::graph::NodeKind::Builtin("polygon_points".into()));
+    assert_eq!(g.nodes[0].pos, [100.0, 50.0]);
+}

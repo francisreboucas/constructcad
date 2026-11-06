@@ -23,6 +23,7 @@ struct Settings {
     phases: Vec<crate::Phase>,
     phase_filters: BTreeMap<crate::PhaseFilterId, crate::PhaseFilter>,
     phase_graphics: crate::PhaseGraphics,
+    graph_bindings: BTreeMap<ElementId, crate::graph_binding::GraphBinding>,
 }
 
 impl Settings {
@@ -41,6 +42,7 @@ impl Settings {
             phases: p.phases.clone(),
             phase_filters: p.phase_filters.clone(),
             phase_graphics: p.phase_graphics,
+            graph_bindings: p.graph_bindings.clone(),
         }
     }
 
@@ -58,6 +60,7 @@ impl Settings {
         p.phases = self.phases;
         p.phase_filters = self.phase_filters;
         p.phase_graphics = self.phase_graphics;
+        p.graph_bindings = self.graph_bindings;
     }
 }
 
@@ -225,6 +228,10 @@ impl<'a> EditCtx<'a> {
             if self.project.pinned.contains(&id) {
                 self.touch_settings();
                 self.project.pinned.remove(&id);
+            }
+            if self.project.graph_bindings.contains_key(&id) {
+                self.touch_settings();
+                self.project.graph_bindings.remove(&id);
             }
             if self.project.joined_with(id).next().is_some() {
                 self.touch_settings();
@@ -507,6 +514,22 @@ impl<'a> EditCtx<'a> {
     }
 
     /// Graphics of each phase status.
+    /// Bind an element to the graph call that made it, or unbind it with `None`.
+    pub fn set_graph_binding(&mut self, id: ElementId, binding: Option<crate::graph_binding::GraphBinding>) {
+        if self.project.graph_bindings.get(&id) == binding.as_ref() {
+            return;
+        }
+        self.touch_settings();
+        match binding {
+            Some(b) if self.project.elements.contains_key(&id) => {
+                self.project.graph_bindings.insert(id, b);
+            }
+            _ => {
+                self.project.graph_bindings.remove(&id);
+            }
+        }
+    }
+
     pub fn phase_graphics_mut(&mut self) -> &mut crate::PhaseGraphics {
         self.touch_settings();
         &mut self.project.phase_graphics

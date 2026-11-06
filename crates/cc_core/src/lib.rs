@@ -16,6 +16,7 @@ pub mod dim_refs;
 mod document;
 mod element;
 pub mod expr;
+pub mod graph_binding;
 pub mod graphics;
 pub mod grid;
 mod ids;

@@ -17,6 +17,7 @@ mod defaults;
 pub mod dimensions;
 mod error;
 pub mod extension;
+pub mod graph;
 pub mod i18n;
 pub mod reference;
 mod refs;

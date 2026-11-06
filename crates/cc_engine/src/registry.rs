@@ -345,4 +345,11 @@ registry![
         phases::PhaseGraphicsGet,
         phases::PhaseGraphicsSet,
     ],
+    "Visual programming" => [
+        graph::GraphRun,
+        graph::GraphCheck,
+        graph::GraphNodes,
+        graph::GraphElements,
+        graph::GraphRelease,
+    ],
 ];

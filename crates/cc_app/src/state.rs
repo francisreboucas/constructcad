@@ -180,6 +180,8 @@ pub struct AppState {
     pub text_edit: Option<crate::text_tool::TextEditor>,
     /// Options of the text tools.
     pub text_options: crate::text_tool::TextOptions,
+    /// The visual programming editor (see [`crate::graph_ui`]).
+    pub graph: crate::graph_ui::GraphEditor,
     /// Selection seen last frame (see [`AppState::follow_selection`]).
     seen_selection: BTreeSet<ElementId>,
 }
@@ -237,6 +239,7 @@ impl AppState {
             clipboard: Default::default(),
             zoom_default: Default::default(),
             seen_selection: Default::default(),
+            graph: Default::default(),
             value_edit: None,
             component_env: None,
             sketch: None,
