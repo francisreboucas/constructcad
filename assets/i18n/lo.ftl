@@ -2446,3 +2446,7 @@ action-today = ມື້ນີ້
 msg-invalid-date = ພິມວັນທີເປັນ YYYY-MM-DD ຫຼື ປ່ອຍວ່າງ
 section-sheet-fields = ຊ່ອງຂໍ້ມູນແຜ່ນ
 msg-title-block-error = ປ້າຍຊື່, ຊິ້ນ { $piece }: { $error }
+info-project-fields = ຊ່ອງຂໍ້ມູນໂຄງການ
+info-add-field = ເພີ່ມຊ່ອງ
+info-new-field = ຊ່ອງ
+msg-field-name-taken = ມີຊ່ອງຊື່ນີ້ແລ້ວ ຫຼື ຊື່ວ່າງ

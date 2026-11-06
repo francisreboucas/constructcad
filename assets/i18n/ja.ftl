@@ -2444,3 +2444,7 @@ action-today = 今日
 msg-invalid-date = 日付は YYYY-MM-DD で入力するか、空にしてください
 section-sheet-fields = シートの項目
 msg-title-block-error = 表題欄、要素 { $piece }: { $error }
+info-project-fields = プロジェクトの項目
+info-add-field = 項目を追加
+info-new-field = 項目
+msg-field-name-taken = その名前の項目がすでにあるか、名前が空です

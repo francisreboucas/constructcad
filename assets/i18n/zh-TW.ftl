@@ -2444,3 +2444,7 @@ action-today = 今天
 msg-invalid-date = 請以 YYYY-MM-DD 輸入日期，或留空
 section-sheet-fields = 圖紙欄位
 msg-title-block-error = 圖框標題欄，元素 { $piece }：{ $error }
+info-project-fields = 專案欄位
+info-add-field = 新增欄位
+info-new-field = 欄位
+msg-field-name-taken = 已有同名欄位，或名稱為空

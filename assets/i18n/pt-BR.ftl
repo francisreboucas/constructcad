@@ -2444,3 +2444,7 @@ action-today = Hoje
 msg-invalid-date = Digite a data como AAAA-MM-DD, ou deixe vazio
 section-sheet-fields = Campos da folha
 msg-title-block-error = Carimbo, peça { $piece }: { $error }
+info-project-fields = Campos do projeto
+info-add-field = Adicionar campo
+info-new-field = Campo
+msg-field-name-taken = Já existe um campo com esse nome, ou o nome está vazio

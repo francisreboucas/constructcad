@@ -2444,3 +2444,7 @@ action-today = 今天
 msg-invalid-date = 请按 YYYY-MM-DD 输入日期，或留空
 section-sheet-fields = 图纸字段
 msg-title-block-error = 图签，元素 { $piece }：{ $error }
+info-project-fields = 项目字段
+info-add-field = 添加字段
+info-new-field = 字段
+msg-field-name-taken = 已有同名字段，或名称为空

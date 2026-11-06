@@ -2445,3 +2445,7 @@ action-today = Сьогодні
 msg-invalid-date = Введіть дату як РРРР-ММ-ДД або залиште порожнім
 section-sheet-fields = Поля аркуша
 msg-title-block-error = Штамп, елемент { $piece }: { $error }
+info-project-fields = Поля проєкту
+info-add-field = Додати поле
+info-new-field = Поле
+msg-field-name-taken = Поле з такою назвою вже є, або назва порожня

@@ -106,6 +106,7 @@ fn project_info(ctx: &Context, state: &mut AppState) {
                     ui.end_row();
                 }
             });
+            project_fields(ui, state);
         },
         |f| {
             ok = f.primary(t!("action-ok"));
@@ -114,6 +115,73 @@ fn project_info(ctx: &Context, state: &mut AppState) {
     );
     if ok_cancel(state, &response, ok) {
         state.dialogs.project_info = false;
+    }
+}
+
+/// Add a project field with an unused name (`Field 1`, `Field 2`…) and no value.
+pub(crate) fn add_project_field(state: &mut AppState) -> bool {
+    let base = t!("info-new-field");
+    let info = &state.project().info;
+    let Some(name) = (1..=10_000).map(|i| format!("{base} {i}")).find(|n| info.field(n).is_none()) else {
+        return false;
+    };
+    crate::engine_edit::info(state, None, |i| i.fields.push(cc_core::ProjectField { name, value: String::new() }))
+}
+
+/// Rename project field `old` (refused when the new name is empty or taken).
+pub(crate) fn rename_project_field(state: &mut AppState, old: &str, new: &str) -> bool {
+    let new = new.trim().to_string();
+    if new.is_empty() || state.project().info.field(&new).is_some() {
+        state.message = t!("msg-field-name-taken");
+        return false;
+    }
+    crate::engine_edit::info(state, None, |i| {
+        if let Some(f) = i.fields.iter_mut().find(|f| f.name == old) {
+            f.name = new;
+        }
+    })
+}
+
+/// Remove project field `name`.
+pub(crate) fn remove_project_field(state: &mut AppState, name: &str) -> bool {
+    crate::engine_edit::info(state, None, |i| i.fields.retain(|f| f.name != name))
+}
+
+/// The project fields table: name (committed on Enter), value (as typed), ×.
+fn project_fields(ui: &mut Ui, state: &mut AppState) {
+    ui.add_space(12.0);
+    ui.label(theme::title(t!("info-project-fields")));
+    ui.add_space(4.0);
+    let fields = state.project().info.fields.clone();
+    egui::Grid::new("info-fields").num_columns(3).spacing([10.0, 6.0]).show(ui, |ui| {
+        form_label(ui, &t!("prop-name"));
+        form_label(ui, &t!("prop-value"));
+        ui.end_row();
+        for f in &fields {
+            if let Some(new) = crate::table::commit_text(ui, ("info-field-name", &f.name), &f.name, 140.0, "") {
+                rename_project_field(state, &f.name, &new);
+            }
+            let mut value = f.value.clone();
+            let r = crate::table::live_text(ui, ("info-field-value", &f.name), &mut value, |ui, t| {
+                ui.add(egui::TextEdit::singleline(t).desired_width(220.0))
+            });
+            if r.changed() {
+                let name = f.name.clone();
+                crate::engine_edit::info(state, Some(key(("info-field", &f.name))), |i| {
+                    if let Some(x) = i.fields.iter_mut().find(|x| x.name == name) {
+                        x.value = value;
+                    }
+                });
+            }
+            done(state, &r);
+            if ui.small_button("×").on_hover_text(t!("action-delete")).clicked() {
+                remove_project_field(state, &f.name);
+            }
+            ui.end_row();
+        }
+    });
+    if ui.button(format!("+ {}", t!("info-add-field"))).clicked() {
+        add_project_field(state);
     }
 }
 
@@ -511,5 +579,28 @@ fn update_install(ctx: &Context, state: &mut AppState) {
             ctx.open_url(egui::OpenUrl::new_tab(&url));
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn project_fields_are_added_renamed_and_removed() {
+        let mut state = AppState::new(cc_core::Document::new(crate::actions::new_project()));
+        assert!(add_project_field(&mut state));
+        assert!(add_project_field(&mut state));
+        let names: Vec<String> = state.project().info.fields.iter().map(|f| f.name.clone()).collect();
+        let base = t!("info-new-field");
+        assert_eq!(names, [format!("{base} 1"), format!("{base} 2")]);
+        assert!(rename_project_field(&mut state, &names[0], "Engineer"));
+        assert_eq!(state.project().info.field("Engineer"), Some(""));
+        // Empty and taken names are refused.
+        assert!(!rename_project_field(&mut state, "Engineer", " "));
+        assert!(!rename_project_field(&mut state, "Engineer", &names[1]));
+        assert_eq!(state.message, t!("msg-field-name-taken"));
+        assert!(remove_project_field(&mut state, "Engineer"));
+        assert_eq!(state.project().info.fields.len(), 1);
     }
 }

@@ -801,6 +801,23 @@ fn preferences_cancel_restores_and_ok_keeps() {
     assert!(!harness.state().prefs.detailed_tooltips, "OK keeps");
 }
 
+/// Project Information adds a project field; Cancel undoes it, OK keeps it.
+#[test]
+fn project_fields_are_kept_by_ok_and_undone_by_cancel() {
+    for (button, kept) in [(t!("action-cancel"), false), (t!("action-ok"), true)] {
+        let mut state = sample_state();
+        state.dialogs.project_info = true;
+        let mut harness = app_harness(state);
+        harness.get_by_label(&format!("+ {}", t!("info-add-field"))).click();
+        harness.run();
+        assert_eq!(harness.state().project().info.fields.len(), 1);
+        harness.get_by_label(&button).click();
+        harness.run();
+        assert!(!harness.state().dialogs.project_info);
+        assert_eq!(harness.state().project().info.fields.len(), usize::from(kept), "{button}");
+    }
+}
+
 /// The library window's Manage Folders opens Preferences on the file
 /// locations, where the folder list now lives.
 #[test]

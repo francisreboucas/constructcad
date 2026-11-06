@@ -2444,3 +2444,7 @@ action-today = Today
 msg-invalid-date = Type the date as YYYY-MM-DD, or leave it empty
 section-sheet-fields = Sheet Fields
 msg-title-block-error = Title block, piece { $piece }: { $error }
+info-project-fields = Project fields
+info-add-field = Add field
+info-new-field = Field
+msg-field-name-taken = A field already has that name, or the name is empty
