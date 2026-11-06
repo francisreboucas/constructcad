@@ -270,8 +270,22 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         if escape {
             crate::sketch_mode::escape(state);
         }
-        if delete && let Some(s) = state.sketch.as_mut() {
-            s.delete_selected();
+        if let Some(s) = state.sketch.as_mut() {
+            if delete {
+                s.delete_selected();
+            }
+            // Lengths typed after the first point (issue #179).
+            if s.typing() {
+                if backspace {
+                    s.typed.pop();
+                }
+                let both = s.draw == crate::sketch_mode::Draw::Rect;
+                for event in &events {
+                    if let Event::Text(text) = event {
+                        text.chars().for_each(|ch| _ = s.typed.type_char(ch, both));
+                    }
+                }
+            }
         }
         return;
     }
@@ -326,18 +340,7 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
     for event in events {
         let Event::Text(text) = event else { continue };
         for ch in text.chars() {
-            if typing_length && (ch.is_ascii_digit() || ch == ',' || ch == '.') {
-                state.typed.push(ch);
-                continue;
-            }
-            // Feet and inch marks and fractions (`12'6 1/2"`); a space or a
-            // dash only inside a length already started.
-            let started = !state.typed.length.is_empty() && !state.typed.angle_active;
-            if typing_length
-                && cc_views::format::imperial()
-                && (matches!(ch, '\'' | '"' | '/') || (started && matches!(ch, ' ' | '-')))
-            {
-                state.typed.push(ch);
+            if typing_length && state.typed.type_char(ch, false) {
                 continue;
             }
             if !ch.is_ascii_alphabetic() {
@@ -378,7 +381,8 @@ impl eframe::App for ConstructApp {
     /// While a segment is drawn, Tab switches the typed field (length or
     /// angle) instead of moving keyboard focus between widgets.
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        if !self.state.typing_segment() || ctx.memory(|m| m.focused().is_some()) {
+        let sketch = self.state.sketch.as_ref().is_some_and(|s| s.typing());
+        if !(sketch || self.state.typing_segment()) || ctx.memory(|m| m.focused().is_some()) {
             return;
         }
         let is_tab = |e: &Event| matches!(e, Event::Key { key: Key::Tab, .. });
@@ -386,7 +390,11 @@ impl eframe::App for ConstructApp {
             raw_input.events.iter().filter(|e| matches!(e, Event::Key { key: Key::Tab, pressed: true, .. })).count();
         raw_input.events.retain(|e| !is_tab(e));
         if presses % 2 == 1 {
-            self.state.typed.angle_active = !self.state.typed.angle_active;
+            let typed = match self.state.sketch.as_mut() {
+                Some(s) => &mut s.typed,
+                None => &mut self.state.typed,
+            };
+            typed.angle_active = !typed.angle_active;
         }
     }
 
