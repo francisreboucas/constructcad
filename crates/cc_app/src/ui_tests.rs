@@ -1369,6 +1369,90 @@ fn sketch_mode_creates_and_edits_outlines() {
     assert_eq!(state.session.doc.revision(), revision, "cancel changes nothing");
 }
 
+/// Issue #179: a slab's sketch takes typed sizes. A rectangle takes its
+/// width, then (after Tab) its depth, and Enter places it; a line takes its
+/// length; Escape drops what was typed before the picks.
+#[test]
+fn sketches_take_typed_lengths() {
+    use crate::sketch_mode::Draw;
+    use cc_core::sketch::SketchCurve;
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    state.active_view = Some(plan);
+    crate::actions::activate_category_tool(&mut state, cc_core::Category::Floor);
+    state.sketch.as_mut().unwrap().draw = Draw::Rect;
+    // The app's keys and a canvas of the sketch, 20 points per meter around the origin.
+    let mut harness = themed_harness(state, egui::vec2(600.0, 400.0), egui::Theme::Light, |ui, state| {
+        crate::app::shortcuts(ui.ctx(), state);
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click());
+        let xf = crate::paint::Xf { screen: resp.rect.center(), origin: glam::DVec2::ZERO, scale: 20.0 };
+        let raw = resp.hover_pos().map(|p| xf.to_world(p));
+        let snapped = raw.map(|r| crate::tools::Snap::plain(r, false));
+        let Some(mut s) = state.sketch.take() else { return };
+        crate::sketch_mode::interact(ui, &resp, &painter, &mut s, &state.modify, raw, snapped, &xf);
+        state.sketch = Some(s);
+    });
+    harness.run();
+    let center = egui::pos2(300.0, 200.0);
+    let pointer = |h: &mut Harness<'static, AppState>, pos: egui::Pos2, click: bool| {
+        h.input_mut().events.push(egui::Event::PointerMoved(pos));
+        h.run();
+        if click {
+            for pressed in [true, false] {
+                let (button, modifiers) = (egui::PointerButton::Primary, egui::Modifiers::NONE);
+                h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed, modifiers });
+                h.run();
+            }
+        }
+    };
+    let typed = |h: &mut Harness<'static, AppState>, text: &str| {
+        h.input_mut().events.push(egui::Event::Text(text.into()));
+        h.run();
+    };
+    let sketch = |h: &Harness<'static, AppState>| h.state().sketch.clone().unwrap();
+
+    // The first corner at the origin; the cursor up and to the left; 5, Tab, 4, Enter.
+    pointer(&mut harness, center, true);
+    assert!(sketch(&harness).typing());
+    pointer(&mut harness, center + egui::vec2(-30.0, -50.0), false);
+    typed(&mut harness, "5");
+    // Tab switches the field in the app's raw input hook, which the harness skips.
+    harness.state_mut().sketch.as_mut().unwrap().typed.angle_active = true;
+    typed(&mut harness, "4");
+    assert_eq!((sketch(&harness).typed.length.as_str(), sketch(&harness).typed.angle.as_str()), ("5", "4"));
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let s = sketch(&harness);
+    assert_eq!(s.curves.len(), 4, "Enter placed the rectangle");
+    let pts: Vec<glam::DVec2> = s.curves.iter().flat_map(|c| c.points()).collect();
+    let (min, max) = pts.iter().fold((pts[0], pts[0]), |(lo, hi), p| (lo.min(*p), hi.max(*p)));
+    assert!((max - min).distance(glam::DVec2::new(5.0, 4.0)) < 1e-9, "{min} {max}");
+    assert!(min.x.abs() > 1.0 && max.x.abs() < 1e-9, "on the cursor's side: {min} {max}");
+    assert!(s.typed.is_empty() && s.picks.is_empty());
+
+    // A line: 3 m towards the cursor.
+    harness.state_mut().sketch.as_mut().unwrap().draw = Draw::Line;
+    let start = center + egui::vec2(0.0, 100.0);
+    pointer(&mut harness, start, true);
+    pointer(&mut harness, start + egui::vec2(60.0, 0.0), false);
+    typed(&mut harness, "3");
+    harness.key_press(egui::Key::Enter);
+    harness.run();
+    let s = sketch(&harness);
+    let Some(SketchCurve::Line { a, b }) = s.curves.last().copied() else { panic!("{:?}", s.curves) };
+    assert!((a.distance(b) - 3.0).abs() < 1e-9 && (b - a).x > 0.0, "{a} {b}");
+    assert_eq!(s.picks, vec![b], "the line goes on from its end");
+    // Escape drops the typed value first, then the chain.
+    typed(&mut harness, "7");
+    harness.key_press(egui::Key::Escape);
+    harness.run();
+    let s = sketch(&harness);
+    assert!(s.typed.is_empty() && s.picks == vec![b]);
+    // Letters are not lengths.
+    typed(&mut harness, "x");
+    assert!(sketch(&harness).typed.is_empty());
+}
+
 /// A piece of the component environment is sketched in the same sketch as
 /// outlines in plans: its ribbon, options, picked curve and Finish.
 #[test]

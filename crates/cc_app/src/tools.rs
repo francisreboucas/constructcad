@@ -1100,31 +1100,7 @@ pub(crate) fn temp_dimension(
     let len = a.distance(p);
     let Some(dir) = (p - a).try_normalize() else { return };
     let thin = Stroke::new(1.0, TEMP_DIM);
-    // Dimension line, offset to the left of the segment.
-    let n = dir.perp();
-    let offset = (side + 26.0 / xf.scale) * n;
-    let gap = n * (4.0 / xf.scale);
-    let over = n * (5.0 / xf.scale);
-    let (da, dp) = (a + offset, p + offset);
-    for q in [a, p] {
-        painter.line_segment([xf.to_screen(q + n * side + gap), xf.to_screen(q + offset + over)], thin);
-    }
-    painter.line_segment([xf.to_screen(da), xf.to_screen(dp)], thin);
-    // Architectural ticks.
-    let tick = (dir + n).normalize_or_zero() * (5.0 / xf.scale);
-    for q in [da, dp] {
-        painter.line_segment([xf.to_screen(q - tick), xf.to_screen(q + tick)], Stroke::new(1.5, TEMP_DIM));
-    }
-    let unit = format::current().0.length.unit;
-    let text = match (typed.length.is_empty(), unit.is_fractional()) {
-        (true, _) => format::length(len),
-        // Feet and inches carry their own marks.
-        (false, true) => format!("{} \u{23ce}", typed.length),
-        (false, false) => format!("{} {} \u{23ce}", typed.length, unit.symbol()),
-    };
-    let screen_dir = xf.to_screen(dp) - xf.to_screen(da);
-    let mid = xf.to_screen((da + dp) * 0.5) + (xf.to_screen(da + n) - xf.to_screen(da)).normalized() * 9.0;
-    dim_text(painter, mid, text, screen_dir.y.atan2(screen_dir.x), !typed.angle_active);
+    dimension_line(painter, xf, a, p, &typed.length, !typed.angle_active, side);
 
     // Angle to the reference direction.
     let reference = reference.and_then(|r| r.try_normalize()).unwrap_or(DVec2::X);
@@ -1150,6 +1126,40 @@ pub(crate) fn temp_dimension(
     let text =
         if typed.angle.is_empty() { format::angle(degrees.abs()) } else { format!("{}\u{b0} \u{23ce}", typed.angle) };
     dim_text(painter, label_at, text, 0.0, typed.angle_active);
+}
+
+/// A temporary dimension line beside the segment from `a` to `p` (to its
+/// left, `side` further out) with its length, or the `typed` value;
+/// `active` marks the field typing goes to.
+pub(crate) fn dimension_line(painter: &Painter, xf: &Xf, a: DVec2, p: DVec2, typed: &str, active: bool, side: f64) {
+    let len = a.distance(p);
+    let Some(dir) = (p - a).try_normalize() else { return };
+    let thin = Stroke::new(1.0, TEMP_DIM);
+    // Dimension line, offset to the left of the segment.
+    let n = dir.perp();
+    let offset = (side + 26.0 / xf.scale) * n;
+    let gap = n * (4.0 / xf.scale);
+    let over = n * (5.0 / xf.scale);
+    let (da, dp) = (a + offset, p + offset);
+    for q in [a, p] {
+        painter.line_segment([xf.to_screen(q + n * side + gap), xf.to_screen(q + offset + over)], thin);
+    }
+    painter.line_segment([xf.to_screen(da), xf.to_screen(dp)], thin);
+    // Architectural ticks.
+    let tick = (dir + n).normalize_or_zero() * (5.0 / xf.scale);
+    for q in [da, dp] {
+        painter.line_segment([xf.to_screen(q - tick), xf.to_screen(q + tick)], Stroke::new(1.5, TEMP_DIM));
+    }
+    let unit = format::current().0.length.unit;
+    let text = match (typed.is_empty(), unit.is_fractional()) {
+        (true, _) => format::length(len),
+        // Feet and inches carry their own marks.
+        (false, true) => format!("{typed} \u{23ce}"),
+        (false, false) => format!("{typed} {} \u{23ce}", unit.symbol()),
+    };
+    let screen_dir = xf.to_screen(dp) - xf.to_screen(da);
+    let mid = xf.to_screen((da + dp) * 0.5) + (xf.to_screen(da + n) - xf.to_screen(da)).normalized() * 9.0;
+    dim_text(painter, mid, text, screen_dir.y.atan2(screen_dir.x), active);
 }
 
 /// Values typed while drawing a segment: digits go to the active field
@@ -1185,6 +1195,30 @@ impl TypedInput {
 
     pub fn angle_value(&self) -> Option<f64> {
         format::parse_number(&self.angle).filter(|v| v.is_finite())
+    }
+
+    /// The second field read as a length, for tools that take two (a
+    /// rectangle's width and depth).
+    pub fn second_length(&self) -> Option<f64> {
+        format::parse_length(&self.angle).filter(|v| v.is_finite() && *v > 0.0)
+    }
+
+    /// Takes a character typed into the active field, if it belongs in a
+    /// value: digits and decimal marks, and in feet and inches the marks,
+    /// fractions (`12'6 1/2"`) and, inside a length already started, a space
+    /// or a dash. `second_is_length` when the second field is a length too.
+    pub fn type_char(&mut self, ch: char, second_is_length: bool) -> bool {
+        if ch.is_ascii_digit() || ch == ',' || ch == '.' {
+            self.push(ch);
+            return true;
+        }
+        let in_length = !self.angle_active || second_is_length;
+        let started = !if self.angle_active { &self.angle } else { &self.length }.is_empty();
+        if in_length && format::imperial() && (matches!(ch, '\'' | '"' | '/') || (started && matches!(ch, ' ' | '-'))) {
+            self.push(ch);
+            return true;
+        }
+        false
     }
 
     /// The end of a segment from `a` toward the cursor `p`, with the typed

@@ -17,7 +17,7 @@ use crate::paint::{HIGHLIGHT, PREVIEW, Xf};
 use crate::state::AppState;
 use crate::t;
 use crate::theme::{self, PALETTE};
-use crate::tools::{Snap, Tool, draw_snap, snap_at, temp_dimension};
+use crate::tools::{Snap, Tool, TypedInput, dimension_line, draw_snap, snap_at, temp_dimension};
 use cc_core::arc::Arc;
 use cc_core::sketch::{JOIN_TOL, Sketch, SketchCurve, SketchError};
 use cc_core::sketch_edit;
@@ -151,6 +151,9 @@ pub struct Session {
     pub points: Vec<DVec3>,
     /// The picked points (indices into `points`), deleted with the curves.
     pub selected_points: BTreeSet<usize>,
+    /// Values typed after the first point (a length and an angle, or a
+    /// rectangle's width and depth; Tab switches the field).
+    pub typed: TypedInput,
 }
 
 impl Session {
@@ -171,7 +174,47 @@ impl Session {
             piece: None,
             points: Vec::new(),
             selected_points: BTreeSet::new(),
+            typed: TypedInput::default(),
         }
+    }
+
+    /// The tool takes typed values: it has its first point and the next
+    /// one ends a segment from it (a line, a radius, an axis, a move) or is
+    /// a rectangle's opposite corner.
+    pub fn typing(&self) -> bool {
+        self.picks.len() == 1
+            && matches!(
+                self.draw,
+                Draw::Line
+                    | Draw::Rect
+                    | Draw::Polygon
+                    | Draw::PolygonOut
+                    | Draw::Circle
+                    | Draw::Arc3
+                    | Draw::ArcCenter
+                    | Draw::Ellipse
+                    | Draw::Move
+                    | Draw::Copy
+            )
+    }
+
+    /// The point the cursor `p` stands for with the typed values: along
+    /// the cursor's direction from the last pick at the typed length (and
+    /// angle from the X axis), or a rectangle's corner with the typed width
+    /// and depth on the cursor's side.
+    pub fn typed_point(&self, p: DVec2) -> DVec2 {
+        let Some(&a) = self.picks.last() else { return p };
+        if !self.typing() || self.typed.is_empty() {
+            return p;
+        }
+        if self.draw != Draw::Rect {
+            return self.typed.apply(a, p, None);
+        }
+        let d = p - a;
+        let side = |v: f64| if v < 0.0 { -1.0 } else { 1.0 };
+        let dx = self.typed.length_value().map_or(d.x, |w| side(d.x) * w);
+        let dy = self.typed.second_length().map_or(d.y, |h| side(d.y) * h);
+        a + DVec2::new(dx, dy)
     }
 
     /// Nothing is picked: no curve and no point.
@@ -656,7 +699,10 @@ pub fn escape(state: &mut AppState) {
         p.axis = false;
         return;
     }
-    if !s.picks.is_empty() || s.picked.is_some() {
+    // Typed values go first.
+    if !s.typed.is_empty() || s.typed.angle_active {
+        s.typed.clear();
+    } else if !s.picks.is_empty() || s.picked.is_some() {
         s.picks.clear();
         s.picked = None;
     } else if s.draw != Draw::Select {
@@ -676,6 +722,7 @@ pub fn set_draw(state: &mut AppState, draw: Draw) {
     s.draw = draw;
     s.picks.clear();
     s.picked = None;
+    s.typed.clear();
 }
 
 /// Add lines along the loop of the level's walls (their exterior faces;
@@ -744,6 +791,14 @@ pub fn interact(
         painter.circle_stroke(xf.to_screen(p), 6.0, Stroke::new(1.5, PALETTE.danger));
     }
     paint_points(painter, xf, &s.points, &s.selected_points);
+    // Typed values belong to the segment being drawn; Enter places them
+    // as a click would (issue #179).
+    if !s.typing() {
+        s.typed.clear();
+    }
+    let enter = !s.typed.is_empty() && ui.input(|i| i.key_pressed(egui::Key::Enter));
+    let click = resp.clicked() || enter;
+    let had_typed = !s.typed.is_empty();
     if s.draw == Draw::Select {
         select(ui, resp, painter, s, raw, snapped.map(|x| x.point), xf, tol);
         None
@@ -757,12 +812,35 @@ pub fn interact(
     } else if s.draw.modifies() {
         let (Some(raw), Some(sn)) = (raw, snapped) else { return None };
         draw_snap(painter, xf, sn);
-        modify(resp, painter, s, opts, raw, sn.point, xf, tol)
+        let p = s.typed_point(sn.point);
+        let message = modify(click, painter, s, opts, raw, p, xf, tol);
+        if click && had_typed {
+            s.typed.clear();
+        }
+        message
     } else {
         let sn = snapped?;
         draw_snap(painter, xf, sn);
-        draw(resp, painter, s, sn.point, xf, tol);
+        let p = s.typed_point(sn.point);
+        draw(click, painter, s, p, xf, tol);
+        if click && had_typed {
+            s.typed.clear();
+        }
         arc_tangent_hint(s, sn.point, tol)
+    }
+}
+
+/// A rectangle's temporary dimensions: its width and depth outside it,
+/// with the typed values.
+fn rect_dimensions(painter: &Painter, xf: &Xf, a: DVec2, c: DVec2, typed: &TypedInput) {
+    let center = (a + c) * 0.5;
+    let corner = DVec2::new(c.x, a.y);
+    for (u, v, text, active) in
+        [(a, corner, &typed.length, !typed.angle_active), (corner, c, &typed.angle, typed.angle_active)]
+    {
+        // Dimension lines go on the left of their segment: run it so that is outside.
+        let (u, v) = if (v - u).perp().dot(center - u) > 0.0 { (v, u) } else { (u, v) };
+        dimension_line(painter, xf, u, v, text, active, 0.0);
     }
 }
 
@@ -966,7 +1044,7 @@ fn select(
 }
 
 /// The drawing tools: preview at `p`, and a click adds a point or the curve.
-fn draw(resp: &Response, painter: &Painter, s: &mut Session, p: DVec2, xf: &Xf, tol: f64) {
+fn draw(click: bool, painter: &Painter, s: &mut Session, p: DVec2, xf: &Xf, tol: f64) {
     let preview = |painter: &Painter, curves: &[SketchCurve]| {
         for c in curves.iter().filter(|c| c.is_valid()) {
             let pts: Vec<egui::Pos2> = c.points().iter().map(|q| xf.to_screen(*q)).collect();
@@ -980,10 +1058,14 @@ fn draw(resp: &Response, painter: &Painter, s: &mut Session, p: DVec2, xf: &Xf, 
         (None, Some(&last)) => preview(painter, &[SketchCurve::Line { a: last, b: p }]),
         _ => {}
     }
-    if let (Some(&a), Draw::Line | Draw::Rect) = (picks.first(), s.draw) {
-        temp_dimension(painter, xf, a, p, None, None, 0.0);
+    if let (Some(&a), true) = (picks.last(), s.typing()) {
+        if s.draw == Draw::Rect {
+            rect_dimensions(painter, xf, a, p, &s.typed);
+        } else {
+            temp_dimension(painter, xf, a, p, None, Some(&s.typed), 0.0);
+        }
     }
-    if !resp.clicked() {
+    if !click {
         return;
     }
     let needed = match s.draw {
@@ -1113,7 +1195,7 @@ fn mirror_axis(s: &Session, p: DVec2, tol: f64) -> Option<(DVec2, DVec2)> {
 /// the curves clicked. Returns a message when a click does nothing.
 #[allow(clippy::too_many_arguments)]
 fn modify(
-    resp: &Response,
+    click: bool,
     painter: &Painter,
     s: &mut Session,
     opts: &crate::modify::ModifyOptions,
@@ -1122,7 +1204,6 @@ fn modify(
     xf: &Xf,
     tol: f64,
 ) -> Option<String> {
-    let click = resp.clicked();
     let hit = s.curve_at(raw, tol);
     let hover = |painter: &Painter, i: Option<usize>| {
         if let Some(c) = i.and_then(|i| s.curves.get(i)) {
@@ -1135,7 +1216,7 @@ fn modify(
         }
         let t = match (s.draw, s.picks.as_slice()) {
             (Draw::Move | Draw::Copy, [base]) => {
-                temp_dimension(painter, xf, *base, p, None, None, 0.0);
+                temp_dimension(painter, xf, *base, p, None, Some(&s.typed), 0.0);
                 Some(PlanTransform::translate(p - *base))
             }
             (Draw::Rotate, [center, from]) => {
@@ -1548,6 +1629,39 @@ mod tests {
         assert!(free_end(&s, DVec2::new(4.0, 0.0), 0.1).is_some());
         s.curves.push(SketchCurve::Line { a: DVec2::new(4.0, 0.0), b: DVec2::new(4.0, 4.0) });
         assert!(free_end(&s, DVec2::new(4.0, 0.0), 0.1).is_none());
+    }
+
+    /// Issue #179: the values typed after the first point.
+    #[test]
+    fn typed_values_place_the_next_point() {
+        let a = DVec2::new(1.0, 1.0);
+        let cursor = DVec2::new(-2.0, 3.0);
+        let typed = |draw: Draw, length: &str, second: &str| {
+            let mut s = session(draw);
+            s.picks.push(a);
+            s.typed.length = length.into();
+            s.typed.angle = second.into();
+            s.typed_point(cursor)
+        };
+        // Nothing typed, or no first point: the cursor.
+        assert_eq!(typed(Draw::Rect, "", ""), cursor);
+        assert!(!session(Draw::Rect).typing() && session(Draw::Rect).typed_point(cursor) == cursor);
+        // A rectangle: width and depth on the cursor's side; either alone.
+        assert!(typed(Draw::Rect, "5", "4").distance(DVec2::new(-4.0, 5.0)) < 1e-9);
+        assert!(typed(Draw::Rect, "5", "").distance(DVec2::new(-4.0, 3.0)) < 1e-9);
+        assert!(typed(Draw::Rect, "", "0,5").distance(DVec2::new(-2.0, 1.5)) < 1e-9);
+        // A circle's radius and a move's distance go towards the cursor; an angle turns them.
+        let toward = (cursor - a).normalize();
+        assert!(typed(Draw::Circle, "2", "").distance(a + toward * 2.0) < 1e-9);
+        assert!(typed(Draw::Move, "2", "").distance(a + toward * 2.0) < 1e-9);
+        assert!(typed(Draw::Line, "2", "90").distance(DVec2::new(1.0, 3.0)) < 1e-9);
+        // Tools without a segment from their pick take none.
+        assert_eq!(typed(Draw::Rotate, "2", ""), cursor);
+        // A rectangle's second field takes lengths, letters nowhere.
+        let mut s = session(Draw::Rect);
+        s.typed.angle_active = true;
+        assert!(s.typed.type_char('3', true) && !s.typed.type_char('x', true));
+        assert_eq!(s.typed.second_length(), Some(3.0));
     }
 
     #[test]
