@@ -56,6 +56,7 @@ No parameters.
 | `address` | string | optional | Project address. |
 | `author` | string | optional | Author of the drawings. |
 | `client` | string | optional | Client name. |
+| `fields` | object | optional | Project fields by name: a text sets the field (adding it), `null` removes it. |
 | `name` | string | optional | Project name. |
 | `number` | string | optional | Project number. |
 

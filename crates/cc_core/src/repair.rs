@@ -128,6 +128,11 @@ impl Project {
         }
         self.sort_levels();
 
+        let before = self.info.fields.len();
+        let mut seen = std::collections::BTreeSet::new();
+        self.info.fields.retain(|f| !f.name.trim().is_empty() && seen.insert(f.name.clone()));
+        repairs += before - self.info.fields.len();
+
         // Curtain panels may only be component types.
         let components: std::collections::BTreeSet<crate::ElementTypeId> =
             self.types.values().filter(|t| matches!(t.data, TypeData::Component { .. })).map(|t| t.id).collect();
@@ -716,8 +721,20 @@ fn repair_scripted(def: &mut crate::ComponentDef) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, Wall};
+    use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, ProjectField, Wall};
     use glam::DVec2;
+
+    #[test]
+    fn project_fields_drop_empty_and_repeated_names() {
+        let mut p = Project::from_template();
+        p.info.fields = vec![
+            ProjectField { name: "A".into(), value: "1".into() },
+            ProjectField { name: " ".into(), value: "2".into() },
+            ProjectField { name: "A".into(), value: "3".into() },
+        ];
+        assert_eq!(p.repair(), 2);
+        assert_eq!(p.info.fields, vec![ProjectField { name: "A".into(), value: "1".into() }]);
+    }
 
     /// A sweep type's curves that do not draw its profile (a crafted or
     /// hand-edited file) are dropped on load; curves that do are kept.

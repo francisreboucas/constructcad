@@ -158,6 +158,7 @@ pub fn info(state: &mut AppState, key: Option<u64>, f: impl FnOnce(&mut cc_core:
         client: changed(&old.client, &new.client),
         address: changed(&old.address, &new.address),
         author: changed(&old.author, &new.author),
+        fields: field_changes(&old, &new),
     };
     run(state, key, command)
 }
@@ -200,4 +201,23 @@ pub fn level(state: &mut AppState, id: LevelId, key: Option<u64>, f: impl FnOnce
         elevation: (new.elevation != old.elevation).then_some(new.elevation),
     };
     run(state, key, command)
+}
+
+/// The `fields` argument of `project_info_set` turning `old`'s project fields into `new`'s.
+fn field_changes(
+    old: &cc_core::ProjectInfo,
+    new: &cc_core::ProjectInfo,
+) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let mut map = serde_json::Map::new();
+    for f in &new.fields {
+        if old.field(&f.name) != Some(f.value.as_str()) {
+            map.insert(f.name.clone(), serde_json::Value::String(f.value.clone()));
+        }
+    }
+    for f in &old.fields {
+        if new.field(&f.name).is_none() {
+            map.insert(f.name.clone(), serde_json::Value::Null);
+        }
+    }
+    (!map.is_empty()).then_some(map)
 }

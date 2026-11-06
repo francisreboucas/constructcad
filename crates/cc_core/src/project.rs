@@ -8,6 +8,13 @@ use glam::DVec2;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+/// A project value named by the user (shown by title blocks as `{project:Name}`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+pub struct ProjectField {
+    pub name: String,
+    pub value: String,
+}
+
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct ProjectInfo {
     /// Persistent unique id of the project.
@@ -18,6 +25,16 @@ pub struct ProjectInfo {
     pub client: String,
     pub address: String,
     pub author: String,
+    /// Fields named by the user, in the order they were added.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fields: Vec<ProjectField>,
+}
+
+impl ProjectInfo {
+    /// The value of the field called `name`.
+    pub fn field(&self, name: &str) -> Option<&str> {
+        self.fields.iter().find(|f| f.name == name).map(|f| f.value.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -120,6 +137,7 @@ impl Project {
             client: String::new(),
             address: String::new(),
             author: String::new(),
+            fields: Vec::new(),
         };
         let ground = LevelId(p.alloc_id());
         let first = LevelId(p.alloc_id());

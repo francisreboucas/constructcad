@@ -75,7 +75,9 @@ pub use persist::{
 };
 pub use phase::{Phase, PhaseDisplay, PhaseFilter, PhaseGraphics, PhaseState, PhaseStatus};
 pub use profile::{ProfilePoint, SketchPlane};
-pub use project::{Group, Level, Project, ProjectInfo, can_join_geometry, join_priority, template_default};
+pub use project::{
+    Group, Level, Project, ProjectField, ProjectInfo, can_join_geometry, join_priority, template_default,
+};
 pub use ramp::{RampCheck, RampIssue, RampLayout, RampRules, RampShape, ramp_flights};
 pub use schedule::{ScheduleDef, ScheduleField};
 pub use stair::{
