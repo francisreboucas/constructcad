@@ -89,6 +89,8 @@ impl Element {
                 if t.mirror {
                     std::mem::swap(&mut w.start, &mut w.end);
                     std::mem::swap(&mut w.join_start, &mut w.join_end);
+                    let length = w.length();
+                    w.curtain.reverse(length);
                 }
             }
             ElementKind::Door(h) | ElementKind::Window(h) => {

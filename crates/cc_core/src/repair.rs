@@ -126,9 +126,21 @@ impl Project {
         }
         self.sort_levels();
 
+        // Curtain panels may only be component types.
+        let components: std::collections::BTreeSet<crate::ElementTypeId> =
+            self.types.values().filter(|t| matches!(t.data, TypeData::Component { .. })).map(|t| t.id).collect();
+        let is_component = |id: crate::ElementTypeId| components.contains(&id);
         for ty in self.types.values_mut() {
             match &mut ty.data {
-                TypeData::Wall { layers, .. } | TypeData::Floor { layers } => {
+                TypeData::Wall { layers, curtain, .. } => {
+                    for layer in layers.iter_mut() {
+                        repairs += usize::from(fix_positive(&mut layer.thickness, 0.01));
+                    }
+                    if let Some(c) = curtain {
+                        repairs += c.repair(&is_component);
+                    }
+                }
+                TypeData::Floor { layers } => {
                     for layer in layers.iter_mut() {
                         repairs += usize::from(fix_positive(&mut layer.thickness, 0.01));
                     }
@@ -432,6 +444,11 @@ impl Project {
                 w.bulge = fixed;
                 repairs += 1;
             }
+        }
+        // Curtain wall adjustments: finite positions, bounded lists, panels of component types.
+        for e in self.elements.values_mut() {
+            let ElementKind::Wall(w) = &mut e.kind else { continue };
+            repairs += w.curtain.repair(&is_component);
         }
         // Systems: circuits fed by a missing board lose it, voltages are positive;
         // elements drop references to missing systems (a pipe keeps one system).

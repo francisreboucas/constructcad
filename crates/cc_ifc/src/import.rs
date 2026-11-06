@@ -1215,7 +1215,7 @@ impl<'a> Importer<'a> {
             fallback,
             uid,
             |d| matches!(d, TypeData::Wall { layers, .. } if (layers.iter().map(|l| l.thickness).sum::<f64>() - thickness).abs() < TYPE_TOL),
-            || TypeData::Wall { layers, function },
+            || TypeData::Wall { layers, function, curtain: None },
         );
         let wall =
             Wall { base_offset: z0 - elevation, height: z1 - z0, structural: structural.unwrap_or(false), ..wall };

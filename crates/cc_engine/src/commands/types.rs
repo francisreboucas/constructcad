@@ -227,6 +227,12 @@ impl Command for TypeDelete {
         if p.elements.values().any(|e| e.type_id == id) {
             return Err(EngineError::rejected("elements use this type"));
         }
+        let panel = |c: &cc_core::curtain::CurtainSystem| c.components().contains(&id);
+        let curtains_use = p.types.values().filter_map(|t| t.curtain()).any(panel)
+            || p.walls().any(|(_, w)| w.curtain.components().any(|c| c == id));
+        if curtains_use {
+            return Err(EngineError::rejected("curtain walls use this type as a panel"));
+        }
         if p.types_of(category).count() <= 1 {
             return Err(EngineError::rejected("the last type of a category cannot be deleted"));
         }

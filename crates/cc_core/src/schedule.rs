@@ -73,6 +73,12 @@ pub enum ScheduleField {
     FramingVolume,
     /// How many mass floors a mass has.
     FloorCount,
+    /// Number of panels of a curtain wall.
+    PanelCount,
+    /// Area of a curtain wall's glass panels.
+    GlazedArea,
+    /// Total length of a curtain wall's mullions.
+    MullionLength,
 }
 
 impl ScheduleField {
@@ -126,6 +132,9 @@ impl ScheduleField {
             ScheduleField::TileCount => "col-tile-count",
             ScheduleField::FramingLength => "col-framing-length",
             ScheduleField::FramingVolume => "col-framing-volume",
+            ScheduleField::PanelCount => "col-panel-count",
+            ScheduleField::GlazedArea => "col-glazed-area",
+            ScheduleField::MullionLength => "col-mullion-length",
         }
     }
 
@@ -136,7 +145,18 @@ impl ScheduleField {
         let type_info = [F::TypeMark, F::Description, F::Manufacturer, F::Model, F::FireRating, F::Cost];
         let phases = [F::PhaseCreated, F::PhaseDemolished];
         let specific: &[F] = match category {
-            Category::Wall => &[F::Length, F::Height, F::Thickness, F::Area, F::Volume, F::Function, F::Structural],
+            Category::Wall => &[
+                F::Length,
+                F::Height,
+                F::Thickness,
+                F::Area,
+                F::Volume,
+                F::Function,
+                F::Structural,
+                F::PanelCount,
+                F::GlazedArea,
+                F::MullionLength,
+            ],
             Category::Door => &[F::Width, F::Height, F::Sill, F::Host, F::ComponentName],
             Category::Window => &[F::Width, F::Height, F::Sill, F::Host, F::ComponentName],
             Category::Floor | Category::Ceiling => &[F::Thickness, F::Area, F::Perimeter, F::Volume],

@@ -81,6 +81,8 @@ pub struct WallGeom {
     /// `(u0, u1, z0, z1)` along the centerline, the top running straight
     /// from `z0` to `z1` (empty: the flat `top_z`).
     pub top_profile: Vec<(f64, f64, f64, f64)>,
+    /// The panels and mullions of a curtain wall (its body instead of layers).
+    pub curtain: Option<crate::curtain::CurtainGeom>,
 }
 
 /// Where the core of a wall met in a T runs through the outer layers of the
@@ -361,6 +363,20 @@ impl WallLine {
     }
 }
 
+/// Where a straight wall (a curtain wall) lies inside another straight
+/// wall `host`, parallel to it and within its faces: the span `(u0, u1)`
+/// along the host it takes up.
+pub(crate) fn embedded_in(wall: &WallLine, host: &WallLine) -> Option<(f64, f64)> {
+    if wall.arc().is_some() || host.arc().is_some() || wall.chord_dir().perp_dot(host.chord_dir()).abs() > 1e-6 {
+        return None;
+    }
+    let (a, b) = (host.locate(wall.start), host.locate(wall.end));
+    let (lo, hi) = (a.0.min(b.0), a.0.max(b.0));
+    let tol = 1e-6;
+    let inside = a.1.abs().max(b.1.abs()) <= host.half + tol && lo >= -tol && hi <= host.length() + tol;
+    (inside && hi - lo > tol).then_some((lo, hi))
+}
+
 /// Resolve the join at one end of `walls[me]` (`at_start` selects the end).
 /// Faces of arc walls are their true circles; where two faces do not cross
 /// the end is cut along the tangent of the arc at the end instead.
@@ -511,6 +527,7 @@ impl WallGeom {
             layer_gaps: Vec::new(),
             arc,
             top_profile: Vec::new(),
+            curtain: None,
         }
     }
 

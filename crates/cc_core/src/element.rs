@@ -349,6 +349,9 @@ pub struct Wall {
     /// keeps its own top.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub attach_top: Option<ElementId>,
+    /// Adjustments to the grid of a curtain wall type (ignored by other types).
+    #[serde(default, skip_serializing_if = "crate::curtain::CurtainEdits::is_empty")]
+    pub curtain: crate::curtain::CurtainEdits,
 }
 
 impl Default for Wall {
@@ -366,6 +369,7 @@ impl Default for Wall {
             join_end: true,
             bulge: 0.0,
             attach_top: None,
+            curtain: Default::default(),
         }
     }
 }
