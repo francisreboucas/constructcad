@@ -212,7 +212,12 @@ fn a_title_block_is_built_from_commands_and_saved() {
     let mut t = Session::default();
     let loaded = run(&mut t, "component_load", json!({"path": path}));
     let got = run(&mut t, "component_get", json!({"type": loaded["types"][0]}));
-    assert!(got.to_string().contains("Image"));
+    assert_eq!(got["def"]["sheet"][2]["shape"]["Image"]["image"]["format"], "Png");
+    // The loaded picture is the one saved: format, size and bytes.
+    let original = picture(&s, tb, 2);
+    let loaded = picture(&t, loaded["types"][0].as_u64().unwrap(), 2);
+    assert_eq!(*loaded, *original);
+    assert!(!loaded.data.is_empty());
     assert_eq!(t.project().title_blocks().len(), 2);
     std::fs::remove_dir_all(&dir).ok();
     run(&mut s, "component_sheet_piece_set", json!({"type": tb, "index": 0, "name": "Border"}));

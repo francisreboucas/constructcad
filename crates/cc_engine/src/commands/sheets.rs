@@ -229,6 +229,7 @@ impl Command for SheetFields {
             today: crate::i18n::today(),
             format_date: crate::i18n::format_date,
             as_indicated: &as_indicated,
+            sheets: Default::default(),
         };
         // `issue_date` is not in the menu's keys; it follows `date`.
         let mut keys: Vec<&str> = cc_views::sheet_fields::KEYS.to_vec();
@@ -244,7 +245,7 @@ impl Command for SheetFields {
         let params: Vec<Value> = def
             .iter()
             .flat_map(|d| d.params.iter())
-            .filter(|q| q.kind == cc_core::ParamKind::Text && q.instance)
+            .filter(|q| q.kind.is_text() && q.instance)
             .map(|q| {
                 json!({
                     "name": q.name,

@@ -66,6 +66,7 @@ pub fn compose(
             today: env.today,
             format_date: env.format_date,
             as_indicated: &env.as_indicated,
+            sheets: Default::default(),
         };
         draw_title_block(&mut d, &def.resolve_sheet(paper), &ctx);
     }

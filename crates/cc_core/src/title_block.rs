@@ -19,6 +19,8 @@ pub const SHEET_HEIGHT: &str = "SheetHeight";
 pub const MAX_SHEET_PIECES: usize = 2000;
 pub const MAX_STROKE_POINTS: usize = 2000;
 pub const MAX_SHEET_TEXT: usize = 4000;
+/// Most points a title block's strokes may have in all, once arcs are flattened.
+pub const MAX_SHEET_POINTS: usize = 500_000;
 /// Pen width of a stroke without one, millimeters.
 pub const DEFAULT_WEIGHT: f64 = 0.25;
 
@@ -202,9 +204,20 @@ impl ComponentDef {
         let scope = self.scope(&Default::default(), &[(SHEET_WIDTH, paper.x), (SHEET_HEIGHT, paper.y)]);
         let lookup = |name: &str| scope.get(name);
         let mut out = SheetPieces::default();
+        let mut points = 0;
         for (i, item) in self.sheet.iter().enumerate().take(MAX_SHEET_PIECES) {
+            let strokes = out.strokes.len();
             if let Err(e) = resolve_piece(i, &item.shape, &lookup, &mut out) {
                 out.errors.push((i, e));
+            } else if out.strokes.len() > strokes {
+                // Strokes past the budget of flattened points are left out.
+                let n = out.strokes.last().map_or(0, |s| s.points.len());
+                if points + n > MAX_SHEET_POINTS {
+                    out.strokes.truncate(strokes);
+                    out.errors.push((i, PartError::Degenerate));
+                } else {
+                    points += n;
+                }
             }
         }
         out
@@ -371,12 +384,18 @@ pub fn is_iso_date(s: &str) -> bool {
     parse_iso_date(s).is_some()
 }
 
-/// Year, month and day of a `YYYY-MM-DD` date.
+/// Year, month and day of a `YYYY-MM-DD` date: exactly four, two and two
+/// ASCII digits.
 pub fn parse_iso_date(s: &str) -> Option<(i32, u32, u32)> {
-    let mut it = s.trim().splitn(3, '-');
-    let y: i32 = it.next()?.parse().ok()?;
-    let m: u32 = it.next()?.parse().ok()?;
-    let d: u32 = it.next()?.parse().ok()?;
+    let b = s.as_bytes();
+    let digits = |r: std::ops::Range<usize>| {
+        b.get(r)?.iter().try_fold(0u32, |n, c| c.is_ascii_digit().then(|| n * 10 + u32::from(c - b'0')))
+    };
+    if b.len() != 10 || b.get(4) != Some(&b'-') || b.get(7) != Some(&b'-') {
+        return None;
+    }
+    let y = i32::try_from(digits(0..4)?).ok()?;
+    let (m, d) = (digits(5..7)?, digits(8..10)?);
     let leap = (y % 4 == 0 && y % 100 != 0) || y % 400 == 0;
     let days = match m {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
@@ -442,9 +461,37 @@ mod tests {
     }
 
     #[test]
+    fn the_flattened_points_are_bounded() {
+        let long = || {
+            let points = (0..MAX_STROKE_POINTS).map(|k| ProfilePoint::new(&k.to_string(), "0")).collect();
+            let shape = SheetShape::Stroke { points, closed: false, weight: String::new(), color: None, fill: None };
+            SheetItem { name: "L".into(), shape }
+        };
+        let def = block((0..300).map(|_| long()).collect());
+        let r = def.resolve_sheet(DVec2::new(420.0, 297.0));
+        let kept = MAX_SHEET_POINTS / MAX_STROKE_POINTS;
+        assert_eq!(r.strokes.len(), kept);
+        assert_eq!(r.strokes.iter().map(|s| s.points.len()).sum::<usize>(), MAX_SHEET_POINTS);
+        assert_eq!(r.errors.len(), 300 - kept);
+        assert_eq!(r.errors[0], (kept, PartError::Degenerate));
+    }
+
+    #[test]
     fn iso_dates() {
         assert_eq!(parse_iso_date("2026-11-06"), Some((2026, 11, 6)));
         assert!(is_iso_date("2024-02-29") && !is_iso_date("2026-02-29") && !is_iso_date("06/11/2026"));
+        for bad in [
+            " 2026-11-06",
+            "2026-11-06 ",
+            "+2026-11-06",
+            "2026-+11-06",
+            "2026-11-+6",
+            "2026-1-6",
+            "0000-01-01",
+            "２０２６-11-06",
+        ] {
+            assert!(!is_iso_date(bad), "{bad}");
+        }
     }
     use crate::component::{ComponentDef, ComponentKind, ComponentParam, ParamKind};
     use crate::profile::ProfilePoint;

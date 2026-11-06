@@ -99,6 +99,11 @@ impl CameraState {
 pub const MIN_PAPER_MM: f64 = 50.0;
 pub const MAX_PAPER_MM: f64 = 5000.0;
 
+/// A custom paper side within the limits (the smallest when not a number).
+fn paper_side(v: f64) -> f64 {
+    if v.is_nan() { MIN_PAPER_MM } else { v.clamp(MIN_PAPER_MM, MAX_PAPER_MM) }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SheetSize {
     A0,
@@ -116,7 +121,8 @@ pub enum SheetSize {
 impl SheetSize {
     pub const ALL: [SheetSize; 5] = [SheetSize::A0, SheetSize::A1, SheetSize::A2, SheetSize::A3, SheetSize::A4];
 
-    /// Landscape paper size in millimeters (a custom size as typed).
+    /// Landscape paper size in millimeters (a custom size as typed, kept
+    /// within [`MIN_PAPER_MM`] and [`MAX_PAPER_MM`]).
     pub fn size_mm(self) -> DVec2 {
         match self {
             SheetSize::A0 => DVec2::new(1189.0, 841.0),
@@ -124,7 +130,7 @@ impl SheetSize {
             SheetSize::A2 => DVec2::new(594.0, 420.0),
             SheetSize::A3 => DVec2::new(420.0, 297.0),
             SheetSize::A4 => DVec2::new(297.0, 210.0),
-            SheetSize::Custom { width, height } => DVec2::new(width, height),
+            SheetSize::Custom { width, height } => DVec2::new(paper_side(width), paper_side(height)),
         }
     }
 
@@ -634,6 +640,11 @@ mod paper_tests {
         assert_eq!(sheet(custom, true).paper_mm(), Some(DVec2::new(594.0, 1000.0)));
         assert_eq!(custom.label(), "1000 × 594 mm");
         assert_eq!(SheetSize::A1.label(), "A1");
+        // Each side stays within the limits, whatever a file holds.
+        let wild = SheetSize::Custom { width: 1e9, height: f64::NAN };
+        assert_eq!(sheet(wild, false).paper_mm(), Some(DVec2::new(MAX_PAPER_MM, MIN_PAPER_MM)));
+        let tiny = SheetSize::Custom { width: 1.0, height: f64::NEG_INFINITY };
+        assert_eq!(sheet(tiny, true).paper_mm(), Some(DVec2::new(MIN_PAPER_MM, MIN_PAPER_MM)));
     }
 
     #[test]

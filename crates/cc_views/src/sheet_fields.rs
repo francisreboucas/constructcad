@@ -2,7 +2,8 @@
 //! the title block's per-sheet parameters. Unknown keys stay as written.
 
 use cc_core::title_block::{FieldPart, field_parts};
-use cc_core::{ComponentDef, Project, View, ViewKind};
+use cc_core::{ComponentDef, Project, View, ViewId, ViewKind};
+use std::cell::OnceCell;
 
 /// The fixed keys, in the order the editor's menu lists them.
 pub const KEYS: [&str; 12] = [
@@ -30,6 +31,8 @@ pub struct FieldCtx<'a> {
     pub format_date: fn(i32, u32, u32) -> String,
     /// "As indicated", translated.
     pub as_indicated: &'a str,
+    /// The project's sheets in order, worked out on first use (`Default::default()`).
+    pub sheets: OnceCell<Vec<ViewId>>,
 }
 
 /// Replaces each `{key}` of `text` with its value; `{{` and `}}` are literal
@@ -58,10 +61,13 @@ pub fn value(key: &str, ctx: &FieldCtx) -> Option<String> {
     let v = match key.trim() {
         "sheet_number" => number.clone(),
         "sheet_name" => ctx.sheet.name.clone(),
-        "sheet_count" => p.sheets_in_order().len().to_string(),
-        "sheet_index" => {
-            p.sheets_in_order().iter().position(|id| *id == ctx.sheet.id).map_or(String::new(), |i| (i + 1).to_string())
-        }
+        "sheet_count" => ctx.sheets.get_or_init(|| p.sheets_in_order()).len().to_string(),
+        "sheet_index" => ctx
+            .sheets
+            .get_or_init(|| p.sheets_in_order())
+            .iter()
+            .position(|id| *id == ctx.sheet.id)
+            .map_or(String::new(), |i| (i + 1).to_string()),
         "sheet_scale" => sheet_scale(p, viewports, ctx.as_indicated),
         "paper" => size.label(),
         "project_name" => info.name.clone(),
@@ -159,9 +165,11 @@ mod tests {
             today: (2026, 11, 6),
             format_date: iso,
             as_indicated: "Indicada",
+            sheets: Default::default(),
         };
         let c = ctx(9002);
         assert_eq!(expand("Folha {sheet_number} ({sheet_index}/{sheet_count})", &c), "Folha A2 (2/3)");
+        assert_eq!(c.sheets.get().map(Vec::len), Some(3), "the sheets are worked out once, then kept");
         assert_eq!(expand("{project_name} · {project:CAU} · {paper}", &c), "Casa · A123 · A1");
         assert_eq!(expand("{date} {issue_date}", &c), "2026-11-06 2026-03-04");
         assert_eq!(expand("{param:Drawn}", &c), "Bia");
@@ -182,6 +190,7 @@ mod tests {
             today: (2026, 1, 1),
             format_date: iso,
             as_indicated: "x",
+            sheets: Default::default(),
         };
         assert_eq!(expand("é{é}ü{sheet_number}ñ{", &ctx), "é{é}üA2ñ{");
         assert_eq!(expand("ç{ã {sheet_number}ü", &ctx), "ç{ã A2ü");
@@ -197,6 +206,7 @@ mod tests {
             today: (2026, 1, 1),
             format_date: iso,
             as_indicated: "x",
+            sheets: Default::default(),
         };
         assert_eq!(expand("a }} b", &ctx), "a } b");
         assert_eq!(expand("a } b {sheet_number}", &ctx), "a } b A2");
@@ -232,6 +242,7 @@ mod tests {
                 today: (2026, 1, 1),
                 format_date: iso,
                 as_indicated: "Indicada",
+                sheets: Default::default(),
             };
             assert_eq!(expand("{sheet_scale}", &ctx), "1:50");
         }
@@ -243,6 +254,7 @@ mod tests {
             today: (2026, 1, 1),
             format_date: iso,
             as_indicated: "Indicada",
+            sheets: Default::default(),
         };
         assert_eq!(expand("{sheet_scale}", &ctx), "Indicada");
     }
