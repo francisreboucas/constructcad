@@ -1,5 +1,5 @@
 (
-  format_version: 19,
+  format_version: 20,
   generator: "ConstructCAD 0.9.1",
   project: (
     info: (
@@ -2923,6 +2923,27 @@
         ),
         uid: "9dea5498aacb44daa5d8ce4ee68e78e5",
       ),
+      (93): (
+        id: (93),
+        name: "Platô",
+        data: Pad(
+          cut_slope: 1.0,
+          fill_slope: 1.5,
+        ),
+        info: (
+          type_mark: "",
+          description: "",
+          manufacturer: "",
+          model: "",
+          url: "",
+          keynote: "",
+          classification: "",
+          fire_rating: "",
+          comments: "",
+          cost: None,
+        ),
+        uid: "45909963e53b43d1ba27e238b1b56007",
+      ),
     },
     elements: {
       (90): (
@@ -3102,6 +3123,27 @@
           )),
         )),
         uid: "42daeedb7a5c4ed0b2ec0db2891406e8",
+        phase_created: (81),
+      ),
+      (94): (
+        id: (94),
+        level: (1),
+        type_id: (93),
+        mark: "",
+        comments: "",
+        kind: Pad((
+          host: (90),
+          outline: [
+            (8.0, 3.0),
+            (20.0, 3.0),
+            (20.0, 9.0),
+            (8.0, 9.0),
+          ],
+          elevation: 1.5,
+          cut_slope: None,
+          fill_slope: Some(2.0),
+        )),
+        uid: "0e1f629faad048879a1da1d1457257b6",
         phase_created: (81),
       ),
     },
@@ -3497,6 +3539,6 @@
         temporary: Overridden,
       ),
     },
-    next_id: 93,
+    next_id: 95,
   ),
 )

@@ -578,10 +578,41 @@ fn terrain_round_trips() {
         assert_eq!(ta.name, tb.name);
         assert_eq!(ta.data, tb.data);
     }
-    // The same body: equal volumes.
+    // Its building pads, in ConstructCAD_Pads: outline, elevation, own slopes and type.
+    assert!(text.contains("'ConstructCAD_Pads'"));
+    let pads = |p: &Project| -> Vec<(cc_core::pad::Pad, String, TypeData)> {
+        p.elements
+            .values()
+            .filter_map(|e| match &e.kind {
+                ElementKind::Pad(pad) => {
+                    let t = p.element_type(e.type_id)?;
+                    Some((pad.clone(), t.name.clone(), t.data.clone()))
+                }
+                _ => None,
+            })
+            .collect()
+    };
+    let (a, b) = (pads(&original), pads(&imported));
+    assert_eq!(a.len(), 1, "the fixture has a pad");
+    assert_eq!(report.imported.get(&Category::Pad), Some(&1), "{report:?}");
+    for ((pa, na, da), (pb, nb, db)) in a.iter().zip(&b) {
+        assert_eq!(
+            (&pa.outline, pa.elevation, pa.cut_slope, pa.fill_slope),
+            (&pb.outline, pb.elevation, pb.cut_slope, pb.fill_slope)
+        );
+        assert_eq!((na, da), (nb, db));
+        let host = imported.element(pb.host).map(|h| h.category());
+        assert_eq!(host, Some(Category::Topography));
+    }
+    // The same graded body and earthworks: equal volumes.
     let (g0, g1) = (cc_geom::ModelGeometry::build(&original), cc_geom::ModelGeometry::build(&imported));
     let total = |g: &cc_geom::ModelGeometry| g.topographies.values().map(|t| t.volume).sum::<f64>();
     close(total(&g0), total(&g1), 1e-6, "terrain volume");
+    let earth = |g: &cc_geom::ModelGeometry| {
+        g.pads.values().map(|p| (p.cut, p.fill)).fold((0.0, 0.0), |s, v| (s.0 + v.0, s.1 + v.1))
+    };
+    close(earth(&g0).0, earth(&g1).0, 1e-6, "cut");
+    close(earth(&g0).1, earth(&g1).1, 1e-6, "fill");
 
     // Without the property set (another program's terrain): a generic component.
     let other = text.replace("'ConstructCAD_Topography'", "'Pset_Other'");
