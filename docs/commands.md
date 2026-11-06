@@ -822,12 +822,13 @@ No parameters.
 
 ### `sketch_set`
 
-*edit* — Draw an element's outline again from curves (edit its boundary): floors and roofs take the loops inside the outline as their openings; ceilings and masses take one loop. The element keeps the curves, so `sketch_get` gives them back.
+*edit* — Draw an element's outline again from curves (edit its boundary): floors and roofs take the loops inside the outline as their openings; ceilings and masses take one loop. The element keeps the curves, so `sketch_get` gives them back. A terrain's measured points can change in the same step (`points`).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `curves` | [JSON, …] | required | The curves, closed into loops. |
 | `id` | integer | required | Element id (a floor, ceiling, roof, mass, shaft or terrain). |
+| `points` | [[number, …], …] | optional | Terrain only: measured points `[[x, y, z], …]` replacing the current ones (points that repeat another in plan are dropped). |
 
 ### `mass_floors_set`
 

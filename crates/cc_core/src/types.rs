@@ -396,11 +396,11 @@ pub enum TypeData {
 }
 
 pub(crate) fn default_contour_interval() -> f64 {
-    1.0
+    crate::topography::DEFAULT_CONTOUR_INTERVAL
 }
 
 pub(crate) fn default_major_every() -> u32 {
-    5
+    crate::topography::DEFAULT_MAJOR_EVERY
 }
 
 impl TypeData {

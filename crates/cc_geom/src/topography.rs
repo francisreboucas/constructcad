@@ -85,18 +85,19 @@ impl HasPosition for Vertex {
 }
 
 /// Coordinates spade accepts: tiny values are zero (it refuses them otherwise).
-fn vertex(p: DVec2, z: f64) -> Vertex {
+fn spade_vertex(p: DVec2, z: f64) -> Vertex {
     let s = |v: f64| if v.abs() < 1e-30 { 0.0 } else { v };
     Vertex { position: Point2::new(s(p.x), s(p.y)), z }
 }
 
-/// Elevation of each boundary vertex from the points (relative z), or
-/// `None` with no points at all.
+/// Elevation of each boundary vertex from the points (relative z): linear
+/// over their triangulation, the nearest point's beyond it (so with one or
+/// two points too), 0 with none.
 fn boundary_elevations(boundary: &[DVec2], points: &[DVec3], warnings: &mut Vec<TopoWarning>) -> Vec<f64> {
     let mut dt = DelaunayTriangulation::<Vertex>::new();
     for p in points {
         // A point spade refuses (out of its range) is left out.
-        let _ = dt.insert(vertex(p.truncate(), p.z));
+        let _ = dt.insert(spade_vertex(p.truncate(), p.z));
     }
     if dt.num_vertices() < 3 {
         warnings.push(TopoWarning::FewPoints);
@@ -107,7 +108,7 @@ fn boundary_elevations(boundary: &[DVec2], points: &[DVec3], warnings: &mut Vec<
     boundary
         .iter()
         .map(|b| {
-            let at = vertex(*b, 0.0).position;
+            let at = spade_vertex(*b, 0.0).position;
             linear
                 .interpolate(|v| v.data().z, at)
                 .filter(|z| z.is_finite())
@@ -120,13 +121,15 @@ fn boundary_elevations(boundary: &[DVec2], points: &[DVec3], warnings: &mut Vec<
 /// Whether `p` lies inside `poly` or on its edges (within the point tolerance).
 fn inside_or_on(poly: &[DVec2], p: DVec2) -> bool {
     let n = poly.len();
-    polygon::contains(poly, p)
-        || (0..n).any(|i| {
-            let (a, b) = (poly[i], poly[(i + 1) % n]);
-            let ab = b - a;
-            let t = ((p - a).dot(ab) / ab.length_squared().max(1e-300)).clamp(0.0, 1.0);
-            (a + ab * t).distance(p) <= cc_core::topography::POINT_TOL
-        })
+    polygon::contains(poly, p) || (0..n).any(|i| on_segment(poly[i], poly[(i + 1) % n], p).is_some())
+}
+
+/// Where `p` lies along segment `a`–`b` (0 at `a`, 1 at `b`), when it is
+/// on the segment within the point tolerance.
+fn on_segment(a: DVec2, b: DVec2, p: DVec2) -> Option<f64> {
+    let ab = b - a;
+    let t = ((p - a).dot(ab) / ab.length_squared().max(1e-300)).clamp(0.0, 1.0);
+    ((a + ab * t).distance(p) <= cc_core::topography::POINT_TOL).then_some(t)
 }
 
 /// The boundary counter-clockwise, without repeated consecutive points.
@@ -151,7 +154,7 @@ fn clean_boundary(boundary: &[DVec2]) -> Vec<DVec2> {
 /// of the solid follow the surface's edge), and one on a boundary vertex
 /// only sets that vertex's elevation. Returns the boundary, its relative
 /// elevations and the points strictly inside.
-fn split_on_boundary(boundary: &[DVec2], bz: &[f64], inside: &[DVec3]) -> (Vec<DVec2>, Vec<f64>, Vec<DVec3>) {
+fn split_on_boundary(boundary: &[DVec2], boundary_z: &[f64], inside: &[DVec3]) -> (Vec<DVec2>, Vec<f64>, Vec<DVec3>) {
     let tol = cc_core::topography::POINT_TOL;
     let n = boundary.len();
     let mut corner_z: Vec<Option<f64>> = vec![None; n];
@@ -163,12 +166,7 @@ fn split_on_boundary(boundary: &[DVec2], bz: &[f64], inside: &[DVec3]) -> (Vec<D
             corner_z[i].get_or_insert(p.z);
             continue;
         }
-        let edge = (0..n).find_map(|i| {
-            let (a, b) = (boundary[i], boundary[(i + 1) % n]);
-            let ab = b - a;
-            let t = (q - a).dot(ab) / ab.length_squared().max(1e-300);
-            ((0.0..=1.0).contains(&t) && (a + ab * t).distance(q) <= tol).then_some((i, t))
-        });
+        let edge = (0..n).find_map(|i| on_segment(boundary[i], boundary[(i + 1) % n], q).map(|t| (i, t)));
         match edge {
             Some((i, t)) => on_edge[i].push((t, *p)),
             None => inner.push(*p),
@@ -178,7 +176,7 @@ fn split_on_boundary(boundary: &[DVec2], bz: &[f64], inside: &[DVec3]) -> (Vec<D
     let mut out_z = Vec::with_capacity(n);
     for i in 0..n {
         out_b.push(boundary[i]);
-        out_z.push(corner_z[i].unwrap_or(bz.get(i).copied().unwrap_or(0.0)));
+        out_z.push(corner_z[i].unwrap_or(boundary_z.get(i).copied().unwrap_or(0.0)));
         let mut along = std::mem::take(&mut on_edge[i]);
         along.sort_by(|a, b| a.0.total_cmp(&b.0));
         for (_, p) in along {
@@ -194,12 +192,17 @@ fn split_on_boundary(boundary: &[DVec2], bz: &[f64], inside: &[DVec3]) -> (Vec<D
 }
 
 /// Surface triangles (relative z) of the points inside `boundary` (ccw)
-/// with the boundary elevations `bz`.
-fn surface(boundary: &[DVec2], bz: &[f64], inner: &[DVec3], warnings: &mut Vec<TopoWarning>) -> Vec<[DVec3; 3]> {
+/// with the boundary elevations `boundary_z`.
+fn surface(
+    boundary: &[DVec2],
+    boundary_z: &[f64],
+    inner: &[DVec3],
+    warnings: &mut Vec<TopoWarning>,
+) -> Vec<[DVec3; 3]> {
     let mut cdt = ConstrainedDelaunayTriangulation::<Vertex>::new();
     let mut handles = Vec::with_capacity(boundary.len());
-    for (p, z) in boundary.iter().zip(bz) {
-        match cdt.insert(vertex(*p, *z)) {
+    for (p, z) in boundary.iter().zip(boundary_z) {
+        match cdt.insert(spade_vertex(*p, *z)) {
             Ok(h) => handles.push(h),
             Err(_) => {
                 warnings.push(TopoWarning::Failed);
@@ -208,7 +211,7 @@ fn surface(boundary: &[DVec2], bz: &[f64], inner: &[DVec3], warnings: &mut Vec<T
         }
     }
     for p in inner {
-        let _ = cdt.insert(vertex(p.truncate(), p.z));
+        let _ = cdt.insert(spade_vertex(p.truncate(), p.z));
     }
     let n = handles.len();
     let mut crossing = false;
@@ -249,34 +252,34 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
     let built = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         let mut w = Vec::new();
         // Points surveyed beyond the boundary still say how high it runs.
-        let bz = boundary_elevations(&boundary, &points, &mut w);
-        let (edge, bz, inner) = split_on_boundary(&boundary, &bz, &inner);
-        let tris = surface(&edge, &bz, &inner, &mut w);
-        (edge, bz, tris, w)
+        let boundary_z = boundary_elevations(&boundary, &points, &mut w);
+        let (edge, boundary_z, inner) = split_on_boundary(&boundary, &boundary_z, &inner);
+        let tris = surface(&edge, &boundary_z, &inner, &mut w);
+        (edge, boundary_z, tris, w)
     }));
-    let (boundary, bz, mut triangles) = match built {
-        Ok((edge, bz, tris, w)) if !tris.is_empty() => {
+    let (boundary, boundary_z, mut triangles) = match built {
+        Ok((edge, boundary_z, tris, w)) if !tris.is_empty() => {
             warnings = w;
-            (edge, bz, tris)
+            (edge, boundary_z, tris)
         }
         Ok((_, _, _, w)) => {
             warnings = w;
             if !warnings.contains(&TopoWarning::Failed) {
                 warnings.push(TopoWarning::Failed);
             }
-            let (bz, tris) = flat(&boundary);
-            (boundary, bz, tris)
+            let (boundary_z, tris) = flat_surface(&boundary);
+            (boundary, boundary_z, tris)
         }
         Err(_) => {
             warnings.push(TopoWarning::Failed);
-            let (bz, tris) = flat(&boundary);
-            (boundary, bz, tris)
+            let (boundary_z, tris) = flat_surface(&boundary);
+            (boundary, boundary_z, tris)
         }
     };
     for tri in &mut triangles {
         tri.iter_mut().for_each(|p| p.z += level);
     }
-    let boundary: Vec<DVec3> = boundary.iter().zip(&bz).map(|(p, z)| p.extend(z + level)).collect();
+    let boundary: Vec<DVec3> = boundary.iter().zip(&boundary_z).map(|(p, z)| p.extend(z + level)).collect();
     let zs = triangles.iter().flatten().map(|p| p.z).chain(boundary.iter().map(|p| p.z));
     let (min_z, max_z) = zs.fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), z| (lo.min(z), hi.max(z)));
     if !(min_z.is_finite() && max_z.is_finite()) {
@@ -291,7 +294,7 @@ pub fn topo_geom(project: &Project, e: &Element, t: &Topography) -> Option<TopoG
 
 /// A flat surface at relative elevation 0 over `boundary` (ccw): the
 /// boundary's own triangles and zero elevations.
-fn flat(boundary: &[DVec2]) -> (Vec<f64>, Vec<[DVec3; 3]>) {
+fn flat_surface(boundary: &[DVec2]) -> (Vec<f64>, Vec<[DVec3; 3]>) {
     let tris = polygon::triangulate(boundary)
         .into_iter()
         .filter_map(|[a, b, c]| {
@@ -566,8 +569,11 @@ mod tests {
         ];
         let g = geom(pts, rect(10.0, 4.0));
         let c = contours(&g, 1.0, 5, MAX_CONTOURS);
-        // Elevations 0 to 10: the ends touch only the boundary edge, so 1..=9
-        // are lines across, and 0 and 10 run along the edges.
+        // Elevations 0 to 10: 1..=9 are lines across. The highest, 10, runs
+        // along the edge x = 10; the lowest, 0, gives no line (vertices at a
+        // contour's height count as above it, so nothing lies below 0).
+        assert!(c.iter().any(|c| c.z == 10.0 && c.points.iter().all(|p| (p.x - 10.0).abs() < 1e-9)), "{c:?}");
+        assert!(c.iter().all(|c| c.z != 0.0), "{c:?}");
         let inner: Vec<_> = c.iter().filter(|c| c.z > 0.5 && c.z < 9.5).collect();
         assert_eq!(inner.len(), 9);
         for line in inner {
@@ -581,6 +587,48 @@ mod tests {
         let few = contours(&g, 1.0, 5, 4);
         let zs: std::collections::BTreeSet<i64> = few.iter().map(|c| c.z as i64).collect();
         assert!(zs.len() <= 4, "{zs:?}");
+    }
+
+    #[test]
+    fn the_boundary_takes_the_elevations_of_points_beyond_it() {
+        // z = 0.1 x + 0.2 y surveyed on a grid reaching 5 m past a 10 x 10
+        // lot: its corners lie inside the points' hull, so they take the
+        // plane's own elevations, as does every point of the surface.
+        let plane = |x: f64, y: f64| 0.1 * x + 0.2 * y;
+        let mut pts = Vec::new();
+        for i in -5..=15 {
+            for j in -5..=15 {
+                let (x, y) = (i as f64 + 0.5, j as f64 + 0.25);
+                pts.push(DVec3::new(x, y, plane(x, y)));
+            }
+        }
+        let g = geom(pts, rect(10.0, 10.0));
+        assert!(g.warnings.is_empty(), "{:?}", g.warnings);
+        assert_eq!(g.boundary.len(), 4);
+        for b in &g.boundary {
+            assert!((b.z - plane(b.x, b.y)).abs() < 1e-9, "{b}");
+        }
+        assert!(g.triangles.iter().flatten().all(|p| (p.z - plane(p.x, p.y)).abs() < 1e-9));
+        // Points beyond the lot are not vertices of the surface.
+        assert!(g.triangles.iter().flatten().all(|p| (0.0..=10.0).contains(&p.x) && (0.0..=10.0).contains(&p.y)));
+        assert!(g.min_z.abs() < 1e-9 && (g.max_z - 3.0).abs() < 1e-9, "{} {}", g.min_z, g.max_z);
+    }
+
+    #[test]
+    fn beyond_the_points_hull_the_boundary_takes_the_nearest_point() {
+        // Two points: no triangle to interpolate over, so each corner takes
+        // the elevation of the point nearest it (a warning says so), and the
+        // surface still passes through both.
+        let pts = vec![DVec3::new(2.0, 5.0, 1.0), DVec3::new(8.0, 5.0, 4.0)];
+        let g = geom(pts.clone(), rect(10.0, 10.0));
+        assert_eq!(g.warnings, [TopoWarning::FewPoints]);
+        for b in &g.boundary {
+            let want = if b.x < 5.0 { 1.0 } else { 4.0 };
+            assert!((b.z - want).abs() < 1e-9, "{b}");
+        }
+        for p in pts {
+            assert!(g.triangles.iter().flatten().any(|q| q.distance(p) < 1e-9), "{p}");
+        }
     }
 
     #[test]

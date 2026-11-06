@@ -233,7 +233,8 @@ impl Command for SketchGet {
 /// Draw an element's outline again from curves (edit its boundary): floors
 /// and roofs take the loops inside the outline as their openings; ceilings
 /// and masses take one loop. The element keeps the curves, so `sketch_get`
-/// gives them back.
+/// gives them back. A terrain's measured points can change in the same
+/// step (`points`).
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct SketchSet {
@@ -241,6 +242,10 @@ pub struct SketchSet {
     pub id: u64,
     /// The curves, closed into loops.
     pub curves: Vec<CurveArg>,
+    /// Terrain only: measured points `[[x, y, z], …]` replacing the current
+    /// ones (points that repeat another in plan are dropped).
+    #[serde(default)]
+    pub points: Option<Vec<super::topography::Point3>>,
 }
 
 impl Command for SketchSet {
@@ -249,6 +254,11 @@ impl Command for SketchSet {
     fn run(self, s: &mut Session) -> Result<Value> {
         let id = refs::element(s.project(), self.id)?;
         let sketch = sketch_of(&self.curves)?;
+        if self.points.is_some()
+            && !matches!(s.project().element(id).map(|e| &e.kind), Some(ElementKind::Topography(_)))
+        {
+            return Err(EngineError::invalid("only terrain has points"));
+        }
         let mut kind =
             s.project().element(id).map(|e| e.kind.clone()).ok_or_else(|| EngineError::not_found("element"))?;
         match &mut kind {
@@ -282,6 +292,9 @@ impl Command for SketchSet {
             ElementKind::Topography(t) => {
                 t.boundary = outline(&sketch)?;
                 t.sketch = Some(sketch);
+                if let Some(points) = &self.points {
+                    t.points = super::topography::checked_points(points)?;
+                }
             }
             _ => {
                 return Err(EngineError::invalid(

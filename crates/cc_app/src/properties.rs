@@ -1389,9 +1389,6 @@ fn component_services(ui: &mut Ui, state: &mut AppState, el: &Element, c: &cc_co
     });
 }
 
-/// A conceptual mass: its level, base offset and height, whether it is a
-/// loft, and its mass floors (a box per level it spans, with the area of
-/// each and the totals).
 /// Most points listed in a terrain's properties (scripts edit the rest).
 const MAX_POINT_ROWS: usize = 200;
 
@@ -1471,6 +1468,9 @@ fn topography_props(ui: &mut Ui, state: &mut AppState, el: &Element, t: &cc_core
     });
 }
 
+/// A conceptual mass: its level, base offset and height, whether it is a
+/// loft, and its mass floors (a box per level it spans, with the area of
+/// each and the totals).
 fn mass_props(ui: &mut Ui, state: &mut AppState, el: &Element, m: &cc_core::mass::Mass) {
     let id = el.id;
     section(ui, "constraints", t!("section-constraints"), |ui| {

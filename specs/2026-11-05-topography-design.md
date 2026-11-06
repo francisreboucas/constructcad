@@ -44,7 +44,8 @@ pub struct Topography {
 - The type is `TypeData::Topography { material, contour_interval, major_every }`.
   Its serde defaults are 1.0 m and 5. Repair clamps the interval to at least
   0.01 and `major_every` to at least 1. The type is created on the first use,
-  with a project earth material (added if missing, by name).
+  with the project's earth material: the first of the earth class, or the
+  template's earth material added by name when there is none.
 - `Element::drawn_sketch`/`sketched_profile` cover the boundary, so
   `sync_sketches` drops a sketch that no longer makes it.
 - `Element::transform`/`translate` move the points (in plan), the boundary and
@@ -69,8 +70,10 @@ pub struct Topography {
   kept in the model and shape the boundary's elevations, but are not
   vertices of the surface.
 - Degenerate cases:
-  - Fewer than 3 usable points: a flat surface at the level elevation, or at
-    the single point's z.
+  - Fewer than 3 usable points: no points give a flat surface at the level
+    elevation; one or two give each boundary vertex the z of the nearest
+    point (step 2), so one point gives a flat surface at its z and two give
+    a surface that still passes through both.
   - Collinear points: the surface still triangulates through the boundary
     vertices.
   - Each degenerate case produces a warning string.
@@ -104,7 +107,8 @@ pub struct Topography {
 ## Views (cc_views)
 
 - Floor plans draw the terrain of their level in every plan, whatever the
-  height.
+  height. Structural plans leave it out, like the other elements that are not
+  structural, and ceiling plans draw nothing.
 - Below the cut plane:
   - Minor contours as `LineStyle::Thin` and majors as `LineStyle::Projection`
     (there is no heavier projection style, so the weight difference comes from
@@ -129,9 +133,11 @@ pub struct Topography {
   - Parameters: `level`, optional `type`, `points: [[x, y, z]]`, either
     `boundary: [[x, y]]` or `curves: [CurveArg]` (the sketch is kept), and an
     optional `base_depth`.
+  - With neither `boundary` nor `curves`, the convex hull of the points.
   - A project without a terrain type gets one.
 - `topography_points_set`:
-  - Parameters: `element`, and either `points` (replace all) or the edits
+  - Parameters: `id` (the element, like the other `*_set` commands), and
+    either `points` (replace all) or the edits
     `add: [[x, y, z]]`, `remove: [index]` and `set: [{index, z}]`.
   - Indices are checked with `get`; an out-of-range index is an error and the
     edit is refused.
@@ -141,7 +147,9 @@ pub struct Topography {
   `element_set` (`element_params`) show and patch `base_depth`, points and
   boundary.
 - `element_get` adds `topography: { min_z, max_z, base_z, area, volume, warnings }`.
-- `sketch_get` and `sketch_set` work on the boundary.
+- `sketch_get` and `sketch_set` work on the boundary. `sketch_set` also takes
+  a terrain's `points`, so *Edit Boundary* changes the boundary and the
+  points in one command (one undo step, or none when either is refused).
 - Schedules: `Category::Topography` fields `Mark`, `Type`, `Level`, `Area`,
   `Volume`.
 - Register everything in `registry!`, with doc comments on every parameter.
@@ -157,10 +165,12 @@ pub struct Topography {
 - The button opens sketch mode (`Tool::Sketch { category: Topography }`) for
   the boundary. Sketch mode gets one more tool for this category, *Point*,
   which places points at a clicked position. The options bar has an
-  *Elevation* field (the last value is kept) for the z of the next point.
+  *Elevation* field (the last value is kept, from one sketch to the next)
+  for the z of the next point.
 - Points show in the sketch preview as small crosses with their elevation,
-  and can be picked and deleted. *Finish* runs `topography_create` with the
-  `curves` and `points`.
+  and can be picked (a click, Ctrl to add, or a window) and deleted with the
+  curves. *Finish* runs `topography_create` with the `curves` and `points`,
+  or `sketch_set` with both when editing.
 - Properties:
   - `base_depth`.
   - A collapsible *Points* section (`table.rs`) with editable x, y and z per

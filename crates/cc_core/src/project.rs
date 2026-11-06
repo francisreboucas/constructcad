@@ -141,7 +141,7 @@ impl Project {
             (&n("tpl-mat-porcelain"), [240, 240, 236], C::Ceramic),
             (&n("tpl-mat-steel"), [140, 146, 152], C::Metal),
             (&n("tpl-mat-pvc"), [236, 236, 230], C::Plastic),
-            (&n("tpl-mat-earth"), [150, 122, 88], C::Earth),
+            (&n("tpl-mat-earth"), crate::topography::EARTH_COLOR, C::Earth),
         ]
         .into_iter()
         .map(|(name, color, class)| {
@@ -979,7 +979,7 @@ impl Project {
 }
 
 /// Portuguese names of the default template, keyed like the translation files.
-pub(crate) fn template_default(key: &str) -> &'static str {
+pub fn template_default(key: &str) -> &'static str {
     match key {
         "tpl-project-name" => "Novo projeto",
         "tpl-level-ground" => "Térreo",

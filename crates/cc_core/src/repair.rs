@@ -156,7 +156,7 @@ impl Project {
                 TypeData::Text { size, .. } => repairs += usize::from(fix_positive(size, 2.5)),
                 TypeData::Room {} | TypeData::CadImport {} | TypeData::Mass { .. } | TypeData::Shaft {} => {}
                 TypeData::Topography { contour_interval, major_every, .. } => {
-                    if !(contour_interval.is_finite() && *contour_interval >= 0.01) {
+                    if !(contour_interval.is_finite() && *contour_interval >= crate::topography::MIN_CONTOUR_INTERVAL) {
                         *contour_interval = crate::types::default_contour_interval();
                         repairs += 1;
                     }

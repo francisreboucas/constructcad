@@ -30,8 +30,9 @@ fn slope_points() -> Value {
     json!([[0.0, 0.0, 0.0], [20.0, 0.0, 2.0], [20.0, 10.0, 2.0], [0.0, 10.0, 0.0], [10.0, 5.0, 1.0]])
 }
 
+/// The terrain figures `element_get` shows.
 fn derived(s: &mut Session, id: u64) -> Value {
-    run(s, "element_get", json!({"id": id}))["derived"].clone()
+    run(s, "element_get", json!({"id": id}))["derived"]["topography"].clone()
 }
 
 #[test]
@@ -146,22 +147,26 @@ fn points_are_edited_by_index() {
 fn a_boundary_and_points_edited_together_are_one_step_or_none() {
     let mut s = Session::default();
     let t = id(&run(&mut s, "topography_create", json!({"points": slope_points(), "boundary": rect(20.0, 10.0)})));
-    let square = json!({"id": t, "curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 10]}]});
-    // The points edit is refused: the new boundary is undone with it.
+    let square = json!([{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 10]}]);
+    // Bad points are refused: the new boundary is not kept either.
     let depth = s.doc.undo_depth();
-    let failed = s.group("edit", |s| {
-        s.execute("sketch_set", square.clone())?;
-        s.execute("topography_points_set", json!({"id": t, "remove": [99]}))
-    });
-    assert!(failed.is_err());
+    assert_eq!(
+        fails(&mut s, "sketch_set", json!({"id": t, "curves": square, "points": [[1, 1, "x"]]})),
+        ErrorCode::InvalidArguments
+    );
     assert_eq!(s.doc.undo_depth(), depth);
     assert!((derived(&mut s, t)["area"].as_f64().unwrap() - 200.0).abs() < 1e-9);
-    // Both succeed: one undo step brings back the boundary and the points.
-    s.group("edit", |s| {
-        s.execute("sketch_set", square.clone())?;
-        s.execute("topography_points_set", json!({"id": t, "add": [[5.0, 5.0, 7.0]]}))
-    })
-    .unwrap();
+    // Only terrain has points.
+    let floor = id(&run(&mut s, "floor_create", json!({"boundary": rect(4.0, 4.0)})));
+    assert_eq!(
+        fails(&mut s, "sketch_set", json!({"id": floor, "curves": square, "points": [[1, 1, 1]]})),
+        ErrorCode::InvalidArguments
+    );
+    // Both at once: one undo step brings back the boundary and the points.
+    let depth = s.doc.undo_depth();
+    let mut points = slope_points();
+    points.as_array_mut().unwrap().push(json!([5.0, 5.0, 7.0]));
+    run(&mut s, "sketch_set", json!({"id": t, "curves": square, "points": points}));
     assert_eq!(s.doc.undo_depth(), depth + 1);
     assert_eq!(derived(&mut s, t)["max_z"].as_f64(), Some(7.0));
     run(&mut s, "undo", json!({}));

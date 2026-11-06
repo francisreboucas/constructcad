@@ -9,8 +9,11 @@ use crate::registry::{Command, CommandKind};
 use crate::session::Session;
 use crate::t;
 use cc_core::material::{Material, MaterialClass};
-use cc_core::topography::{MAX_OUTLINE, MAX_POINTS, Topography, clean_points};
-use cc_core::{Category, ElementId, ElementKind, ElementType, ElementTypeId, Project, TypeData};
+use cc_core::topography::{
+    DEFAULT_BASE_DEPTH, DEFAULT_CONTOUR_INTERVAL, DEFAULT_MAJOR_EVERY, EARTH_COLOR, MAX_OUTLINE, MAX_POINTS,
+    MIN_CONTOUR_INTERVAL, Topography, clean_points, earth_material,
+};
+use cc_core::{Category, ElementId, ElementKind, ElementType, ElementTypeId, TypeData};
 use glam::{DVec2, DVec3};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -28,9 +31,13 @@ fn points3(list: &[Point3]) -> Result<Vec<DVec3>> {
     list.iter().map(|p| point3(*p)).collect()
 }
 
-/// The project's earth material: the first of the earth class, or none.
-fn earth_material(p: &Project) -> Option<String> {
-    p.materials.iter().find(|m| m.identity.class == MaterialClass::Earth).map(|m| m.name.clone())
+/// A terrain's new points: at most [`MAX_POINTS`], finite, and those that
+/// repeat another in plan dropped.
+pub(crate) fn checked_points(list: &[Point3]) -> Result<Vec<DVec3>> {
+    if list.len() > MAX_POINTS {
+        return Err(EngineError::invalid(format!("at most {MAX_POINTS} points")));
+    }
+    Ok(clean_points(&points3(list)?))
 }
 
 /// A terrain type for a project that has none, in `material`.
@@ -38,7 +45,11 @@ pub fn new_topography_type(id: ElementTypeId, material: String) -> ElementType {
     ElementType {
         id,
         name: t!("tpl-type-topography"),
-        data: TypeData::Topography { material, contour_interval: 1.0, major_every: 5 },
+        data: TypeData::Topography {
+            material,
+            contour_interval: DEFAULT_CONTOUR_INTERVAL,
+            major_every: DEFAULT_MAJOR_EVERY,
+        },
         info: Default::default(),
         uid: Default::default(),
     }
@@ -47,13 +58,15 @@ pub fn new_topography_type(id: ElementTypeId, material: String) -> ElementType {
 /// The earth material for a new terrain type, added to the project when it has none.
 fn ensure_earth(e: &mut cc_core::EditCtx) -> String {
     if let Some(name) = earth_material(e.project()) {
-        return name;
+        return name.to_string();
     }
+    // By name: the template's earth material, unless a material of another
+    // class already has its name.
     let mut name = t!("tpl-mat-earth");
     while e.project().material(&name).is_some() {
         name.push('*');
     }
-    let mut m = Material::new(name.as_str(), [150, 122, 88]);
+    let mut m = Material::new(name.as_str(), EARTH_COLOR);
     cc_core::material::template_properties(&mut m, MaterialClass::Earth);
     e.materials_mut().push(m);
     name
@@ -94,10 +107,7 @@ impl Command for TopographyCreate {
     const NAME: &'static str = "topography_create";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        if self.points.len() > MAX_POINTS {
-            return Err(EngineError::invalid(format!("at most {MAX_POINTS} points")));
-        }
-        let points = clean_points(&points3(&self.points)?);
+        let points = checked_points(&self.points)?;
         let (boundary, drawn) = match &self.curves {
             Some(_) if !self.boundary.is_empty() => {
                 return Err(EngineError::invalid("give boundary or curves, not both"));
@@ -117,7 +127,7 @@ impl Command for TopographyCreate {
                 "the boundary needs 3 to {MAX_OUTLINE} points (give boundary, curves, or at least three points around)"
             )));
         }
-        let base_depth = positive(self.base_depth.unwrap_or(2.0), "base_depth")?;
+        let base_depth = positive(self.base_depth.unwrap_or(DEFAULT_BASE_DEPTH), "base_depth")?;
         let topo = Topography { points, boundary, base_depth, sketch: drawn };
         if !topo.is_valid() {
             return Err(EngineError::invalid("the boundary encloses no area"));
@@ -254,11 +264,11 @@ impl Command for TopographyTypeCreate {
             Some(m) => Some(refs::material(s.project(), &Ref::Name(m))?),
             None => None,
         };
-        let interval = positive(self.contour_interval.unwrap_or(1.0), "contour_interval")?;
-        if interval < 0.01 {
-            return Err(EngineError::invalid("contour_interval must be at least 0.01"));
+        let interval = positive(self.contour_interval.unwrap_or(DEFAULT_CONTOUR_INTERVAL), "contour_interval")?;
+        if interval < MIN_CONTOUR_INTERVAL {
+            return Err(EngineError::invalid(format!("contour_interval must be at least {MIN_CONTOUR_INTERVAL}")));
         }
-        let major = self.major_every.unwrap_or(5);
+        let major = self.major_every.unwrap_or(DEFAULT_MAJOR_EVERY);
         if major == 0 {
             return Err(EngineError::invalid("major_every must be at least 1"));
         }
@@ -282,13 +292,18 @@ impl Command for TopographyTypeCreate {
     }
 }
 
-/// The figures `element_get` shows for a terrain surface.
+/// The figures `element_get` shows for a terrain surface, as `topography`.
 pub(crate) fn derived(g: &cc_geom::topography::TopoGeom, derived: &mut serde_json::Map<String, Value>) {
-    derived.insert("min_z".into(), json!(g.min_z));
-    derived.insert("max_z".into(), json!(g.max_z));
-    derived.insert("base_z".into(), json!(g.base_z));
-    derived.insert("area".into(), json!(g.area));
-    derived.insert("triangles".into(), json!(g.triangles.len()));
     let warnings: Vec<&str> = g.warnings.iter().map(|w| w.code()).collect();
-    derived.insert("warnings".into(), json!(warnings));
+    derived.insert(
+        "topography".into(),
+        json!({
+            "min_z": g.min_z,
+            "max_z": g.max_z,
+            "base_z": g.base_z,
+            "area": g.area,
+            "volume": g.volume,
+            "warnings": warnings,
+        }),
+    );
 }

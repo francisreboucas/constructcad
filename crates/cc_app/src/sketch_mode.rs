@@ -145,10 +145,12 @@ pub struct Session {
     drag: Option<(Grip, Vec<SketchCurve>)>,
     /// What a sketch of the component environment makes.
     pub piece: Option<crate::component_sketch::PieceSketch>,
-    /// A terrain's measured points (plan position and elevation above the level).
+    /// A terrain's measured points (plan position and elevation above the
+    /// level); the elevation of the next one is in the options bar
+    /// ([`crate::modify::ModifyOptions::point_elevation`]).
     pub points: Vec<DVec3>,
-    /// Elevation of the next point placed.
-    pub elevation: f64,
+    /// The picked points (indices into `points`), deleted with the curves.
+    pub selected_points: BTreeSet<usize>,
 }
 
 impl Session {
@@ -168,8 +170,30 @@ impl Session {
             drag: None,
             piece: None,
             points: Vec::new(),
-            elevation: 0.0,
+            selected_points: BTreeSet::new(),
         }
+    }
+
+    /// Nothing is picked: no curve and no point.
+    pub fn nothing_selected(&self) -> bool {
+        self.selected.is_empty() && self.selected_points.is_empty()
+    }
+
+    /// Unpick every curve and point.
+    pub fn clear_selection(&mut self) {
+        self.selected.clear();
+        self.selected_points.clear();
+    }
+
+    /// The point nearest `p` in plan within `tol`.
+    fn point_at(&self, p: DVec2, tol: f64) -> Option<usize> {
+        self.points
+            .iter()
+            .enumerate()
+            .map(|(i, q)| (i, q.truncate().distance(p)))
+            .filter(|(_, d)| *d <= tol)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(i, _)| i)
     }
 
     fn snapshot(&self) -> Snapshot {
@@ -228,7 +252,7 @@ impl Session {
         if let Some(prev) = self.undo.pop() {
             let now = self.restore(prev);
             self.redo.push(now);
-            self.selected.clear();
+            self.clear_selection();
         }
     }
 
@@ -236,19 +260,26 @@ impl Session {
         if let Some(next) = self.redo.pop() {
             let now = self.restore(next);
             self.undo.push(now);
-            self.selected.clear();
+            self.clear_selection();
         }
     }
 
-    /// Remove the selected curves.
+    /// Remove the selected curves and points (one undo step).
     pub fn delete_selected(&mut self) {
-        if self.selected.is_empty() {
+        if self.nothing_selected() {
             return;
         }
         self.remember();
         let selected = std::mem::take(&mut self.selected);
         let mut i = 0;
         self.curves.retain(|_| {
+            let keep = !selected.contains(&i);
+            i += 1;
+            keep
+        });
+        let selected = std::mem::take(&mut self.selected_points);
+        let mut i = 0;
+        self.points.retain(|_| {
             let keep = !selected.contains(&i);
             i += 1;
             keep
@@ -501,33 +532,15 @@ pub fn finish(state: &mut AppState) {
     let curves: Vec<CurveArg> = session.curves.iter().map(CurveArg::of).collect();
     let out = match session.target {
         Target::Edit { id } => {
-            // A terrain's boundary and points change together: one undo step,
-            // and a refused points edit leaves the boundary as it was.
+            // A terrain's boundary and points change in one command (one undo step).
             let points = match state.project().element(id).map(|e| &e.kind) {
                 Some(cc_core::ElementKind::Topography(t)) if t.points != session.points => {
-                    Some(session.points.iter().map(|p| p.to_array()).collect::<Vec<_>>())
+                    Some(session.points.iter().map(|p| p.to_array()).collect())
                 }
                 _ => None,
             };
-            let result = state.session.group(&t!("tx-modify"), |s| {
-                s.run(cc_engine::commands::sketch::SketchSet { id: id.0, curves })?;
-                if let Some(points) = points {
-                    let points = Some(points);
-                    s.run(cc_engine::commands::topography::TopographyPointsSet {
-                        id: id.0,
-                        points,
-                        ..Default::default()
-                    })?;
-                }
-                Ok(())
-            });
-            match result {
-                Ok(()) => Some(id),
-                Err(e) => {
-                    state.message = e.message;
-                    None
-                }
-            }
+            let command = cc_engine::commands::sketch::SketchSet { id: id.0, curves, points };
+            crate::actions::run_command(state, command).map(|_| id)
         }
         Target::New { category, type_id } => {
             // The type picked in the type selector since the sketch opened.
@@ -636,7 +649,7 @@ pub fn escape(state: &mut AppState) {
     } else if s.draw != Draw::Select {
         s.draw = Draw::Select;
     } else {
-        s.selected.clear();
+        s.clear_selection();
     }
 }
 
@@ -717,7 +730,7 @@ pub fn interact(
     {
         painter.circle_stroke(xf.to_screen(p), 6.0, Stroke::new(1.5, PALETTE.danger));
     }
-    paint_points(painter, xf, &s.points);
+    paint_points(painter, xf, &s.points, &s.selected_points);
     if s.draw == Draw::Select {
         select(ui, resp, painter, s, raw, snapped.map(|x| x.point), xf, tol);
         None
@@ -725,7 +738,7 @@ pub fn interact(
         let sn = snapped?;
         draw_snap(painter, xf, sn);
         if resp.clicked() {
-            s.add_point(sn.point.extend(s.elevation));
+            s.add_point(sn.point.extend(opts.point_elevation));
         }
         None
     } else if s.draw.modifies() {
@@ -740,12 +753,13 @@ pub fn interact(
     }
 }
 
-/// A terrain's points: small crosses with their elevations.
-fn paint_points(painter: &Painter, xf: &Xf, points: &[DVec3]) {
-    let stroke = Stroke::new(1.4, SKETCH);
+/// A terrain's points: small crosses with their elevations, the picked ones highlighted.
+fn paint_points(painter: &Painter, xf: &Xf, points: &[DVec3], selected: &BTreeSet<usize>) {
     // Labels only while they can be read.
     let labels = points.len() <= 400;
-    for p in points {
+    for (i, p) in points.iter().enumerate() {
+        let color = if selected.contains(&i) { HIGHLIGHT } else { SKETCH };
+        let stroke = Stroke::new(1.4, color);
         let c = xf.to_screen(p.truncate());
         painter.line_segment([c + egui::vec2(-4.0, -4.0), c + egui::vec2(4.0, 4.0)], stroke);
         painter.line_segment([c + egui::vec2(-4.0, 4.0), c + egui::vec2(4.0, -4.0)], stroke);
@@ -755,7 +769,7 @@ fn paint_points(painter: &Painter, xf: &Xf, points: &[DVec3]) {
                 egui::Align2::LEFT_BOTTOM,
                 cc_views::format::length(p.z),
                 egui::FontId::proportional(10.0),
-                SKETCH,
+                color,
             );
         }
     }
@@ -836,10 +850,16 @@ fn select(
                 })
                 .map(|(i, _)| i)
                 .collect();
+            // Points inside the window, either way it was dragged.
+            let points: BTreeSet<usize> = (0..s.points.len())
+                .filter(|&i| s.points.get(i).is_some_and(|p| rect.contains(xf.to_screen(p.truncate()))))
+                .collect();
             if ui.input(|i| i.modifiers.command) {
                 s.selected.extend(picked);
+                s.selected_points.extend(points);
             } else {
                 s.selected = picked;
+                s.selected_points = points;
             }
             s.boxing = None;
         }
@@ -880,6 +900,26 @@ fn select(
         }
         return;
     }
+    // A terrain's point under the cursor comes before the curves (Ctrl adds
+    // or removes it), so points on the boundary can be picked too.
+    if let Some(i) = s.point_at(raw, tol) {
+        if !s.selected_points.contains(&i)
+            && let Some(p) = s.points.get(i)
+        {
+            painter.circle_stroke(xf.to_screen(p.truncate()), 7.0, Stroke::new(2.0, HIGHLIGHT.gamma_multiply(0.6)));
+        }
+        if resp.clicked() {
+            if ui.input(|i| i.modifiers.command) {
+                if !s.selected_points.remove(&i) {
+                    s.selected_points.insert(i);
+                }
+            } else {
+                s.selected.clear();
+                s.selected_points = BTreeSet::from([i]);
+            }
+        }
+        return;
+    }
     // Hover and click pick a curve (Ctrl adds or removes it).
     let hit = s.curve_at(raw, tol);
     if let Some(i) = hit
@@ -902,8 +942,11 @@ fn select(
                     s.selected.insert(i);
                 }
             }
-            (Some(i), false) => s.selected = BTreeSet::from([i]),
-            (None, false) => s.selected.clear(),
+            (Some(i), false) => {
+                s.selected = BTreeSet::from([i]);
+                s.selected_points.clear();
+            }
+            (None, false) => s.clear_selection(),
             (None, true) => {}
         }
     }
@@ -1317,7 +1360,7 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         }
         Draw::Point => {
             ui.label(t!("opt-elevation"));
-            ui.add(crate::properties::length_drag(&mut s.elevation).range(-10_000.0..=10_000.0));
+            ui.add(crate::properties::length_drag(&mut opts.point_elevation).range(-10_000.0..=10_000.0));
             ui.separator();
         }
         Draw::Offset => {
@@ -1538,5 +1581,26 @@ mod tests {
         assert!(s.curves.is_empty());
         s.redo();
         assert_eq!(s.curves.len(), 4);
+    }
+
+    #[test]
+    fn terrain_points_are_picked_and_deleted_with_the_curves() {
+        let mut s = session(Draw::Select);
+        s.add(CurveArg::Rectangle { corner: [0.0, 0.0], opposite: [4.0, 2.0], rotation: 0.0 }.curves().unwrap());
+        for x in [1.0, 2.0, 3.0] {
+            s.add_point(DVec3::new(x, 1.0, x / 10.0));
+        }
+        assert_eq!(s.point_at(DVec2::new(2.05, 1.0), 0.1), Some(1));
+        assert_eq!(s.point_at(DVec2::new(2.5, 1.0), 0.1), None);
+        // A curve and two points go in one step, and come back with undo.
+        s.selected.insert(0);
+        s.selected_points.extend([0, 2]);
+        assert!(!s.nothing_selected());
+        s.delete_selected();
+        assert!(s.nothing_selected());
+        assert_eq!((s.curves.len(), s.points.len()), (3, 1));
+        assert_eq!(s.points[0], DVec3::new(2.0, 1.0, 0.2));
+        s.undo();
+        assert_eq!((s.curves.len(), s.points.len()), (4, 3));
     }
 }

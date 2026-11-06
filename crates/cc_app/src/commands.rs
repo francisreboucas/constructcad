@@ -1120,7 +1120,7 @@ impl UiCommand {
                     .then(|| t!("msg-select-first"))
             }
             Delete if state.sketch.is_some() => {
-                state.sketch.as_ref().is_some_and(|s| s.selected.is_empty()).then(|| t!("msg-select-first"))
+                state.sketch.as_ref().is_some_and(|s| s.nothing_selected()).then(|| t!("msg-select-first"))
             }
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             EditProfile if crate::profile_sketch::target(state).is_none() => Some(t!("why-select-sweep")),

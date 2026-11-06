@@ -3,6 +3,7 @@
 //! above it hatched in the type's material and outlined as cut.
 
 use crate::drawing::{Drawing2D, LineStyle};
+use cc_core::topography::{DEFAULT_CONTOUR_INTERVAL, DEFAULT_MAJOR_EVERY};
 use cc_core::{LevelId, Project, TypeData};
 use cc_geom::ModelGeometry;
 use cc_geom::topography::{MAX_CONTOURS, TopoGeom, chain, contours, slice};
@@ -23,7 +24,7 @@ pub(crate) fn draw(
             Some(TypeData::Topography { material, contour_interval, major_every }) => {
                 (material.as_str(), *contour_interval, *major_every)
             }
-            _ => ("", 1.0, 5),
+            _ => ("", DEFAULT_CONTOUR_INTERVAL, DEFAULT_MAJOR_EVERY),
         };
         let id = Some(*id);
         // The earth above the cut, hatched.

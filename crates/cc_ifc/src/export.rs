@@ -985,8 +985,8 @@ impl<'a> Exporter<'a> {
                     let length = |v: f64| Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(v)));
                     let count = |k: u32| Value::Typed("IFCCOUNTMEASURE", Box::new(Value::Int(i64::from(k))));
                     let props = vec![
-                        ("Points", text(encode_points(t.points.iter().map(|p| p.to_array().to_vec())))),
-                        ("Boundary", text(encode_points(t.boundary.iter().map(|p| p.to_array().to_vec())))),
+                        ("Points", text(crate::point_list::encode(t.points.iter().map(|p| p.to_array().to_vec())))),
+                        ("Boundary", text(crate::point_list::encode(t.boundary.iter().map(|p| p.to_array().to_vec())))),
                         ("BaseDepth", length(t.base_depth)),
                         ("Material", label(material)),
                         ("ContourInterval", length(*contour_interval)),
@@ -2214,23 +2214,6 @@ pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
 /// separated by `;`).
 pub const TOPOGRAPHY_PSET: &str = "ConstructCAD_Topography";
 
-/// Points as text: coordinates separated by spaces, points by `;`.
-pub(crate) fn encode_points(points: impl Iterator<Item = Vec<f64>>) -> String {
-    let parts: Vec<String> = points.map(|p| p.iter().map(|v| v.to_string()).collect::<Vec<_>>().join(" ")).collect();
-    parts.join(";")
-}
-
-/// Points read from [`encode_points`] text, `dims` numbers each: at most
-/// `max` of them; malformed or non-finite entries are skipped.
-pub(crate) fn decode_points(text: &str, dims: usize, max: usize) -> Vec<Vec<f64>> {
-    text.split(';')
-        .take(max)
-        .filter_map(|p| {
-            let v: Vec<f64> = p.split_whitespace().map_while(|s| s.parse::<f64>().ok()).collect();
-            (v.len() == dims && v.iter().all(|x| x.is_finite())).then_some(v)
-        })
-        .collect()
-}
 /// The framing's member sizes in [`ROOFING_PSET`]: member, width and height properties.
 pub const ROOFING_SIZES: [(&str, &str, &str); 4] = [
     ("Purlin", "PurlinWidth", "PurlinHeight"),

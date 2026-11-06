@@ -15,9 +15,24 @@ pub const MAX_POINTS: usize = 20_000;
 pub const MAX_OUTLINE: usize = 4096;
 /// Points closer than this in plan are one point (the first is kept).
 pub const POINT_TOL: f64 = 1e-6;
+/// Depth of the base below the lowest point, meters, unless given.
+pub const DEFAULT_BASE_DEPTH: f64 = 2.0;
+/// Spacing of the contour lines of a new terrain type, meters.
+pub const DEFAULT_CONTOUR_INTERVAL: f64 = 1.0;
+/// Every this many contours of a new terrain type, a major one.
+pub const DEFAULT_MAJOR_EVERY: u32 = 5;
+/// Smallest contour interval a terrain type keeps, meters.
+pub const MIN_CONTOUR_INTERVAL: f64 = 0.01;
+/// Color of an earth material added for terrain.
+pub const EARTH_COLOR: [u8; 3] = [150, 122, 88];
 
 fn default_base_depth() -> f64 {
-    2.0
+    DEFAULT_BASE_DEPTH
+}
+
+/// The project's earth material: the first of the earth class.
+pub fn earth_material(p: &crate::Project) -> Option<&str> {
+    p.materials.iter().find(|m| m.identity.class == crate::material::MaterialClass::Earth).map(|m| m.name.as_str())
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -50,11 +65,6 @@ impl Topography {
             && crate::mass::area(&self.boundary) > 1e-6
     }
 
-    /// Whether the points and base depth need no repair.
-    pub fn points_ok(&self) -> bool {
-        self.base_depth.is_finite() && self.base_depth > 1e-6 && clean_points(&self.points).len() == self.points.len()
-    }
-
     /// Drop non-finite points, points over `MAX_POINTS` and points that
     /// repeat another in plan, and reset a bad base depth; returns how many
     /// repairs were made.
@@ -83,7 +93,9 @@ pub fn clean_points(points: &[DVec3]) -> Vec<DVec3> {
         }
         // Neighboring cells too, so points just across a cell edge count as one.
         let (cx, cy) = (cell(p.x), cell(p.y));
-        let near = (-1..=1).any(|dx| (-1..=1).any(|dy| seen.contains(&(cx + dx, cy + dy))));
+        // Saturating: the cell of a huge coordinate is at the end of the range.
+        let near = (-1..=1_i64)
+            .any(|dx| (-1..=1_i64).any(|dy| seen.contains(&(cx.saturating_add(dx), cy.saturating_add(dy)))));
         if near && out.iter().any(|q: &DVec3| q.truncate().distance(p.truncate()) < POINT_TOL) {
             continue;
         }
@@ -115,11 +127,24 @@ mod tests {
             base_depth: -1.0,
             sketch: None,
         };
-        assert!(t.is_valid() && !t.points_ok());
+        assert!(t.is_valid());
         assert_eq!(t.repair(), 4);
         assert_eq!(t.points, vec![DVec3::new(1.0, 1.0, 0.5), DVec3::new(3.0, 3.0, 1.0)]);
         assert_eq!(t.base_depth, 2.0);
-        assert!(t.points_ok());
+        assert_eq!(t.repair(), 0);
+    }
+
+    #[test]
+    fn huge_coordinates_do_not_overflow() {
+        // Their cells saturate at the ends of the integer range, where looking
+        // at the neighboring cells used to overflow.
+        let points = vec![
+            DVec3::new(1e300, 1e300, 0.0),
+            DVec3::new(-1e300, -1e300, 0.0),
+            DVec3::new(1e300, 1e300, 1.0),
+            DVec3::new(f64::MAX, f64::MIN, 0.0),
+        ];
+        assert_eq!(clean_points(&points).len(), 3);
     }
 
     #[test]

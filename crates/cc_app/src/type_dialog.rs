@@ -345,7 +345,7 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
         section(ui, "type-contours", t!("section-contours"), |ui| {
             length_row(ui, state, &t!("prop-contour-interval"), tid, "contour", contour_interval, |d, v| {
                 if let TypeData::Topography { contour_interval, .. } = d {
-                    *contour_interval = v.max(0.01);
+                    *contour_interval = v.max(cc_core::topography::MIN_CONTOUR_INTERVAL);
                 }
             });
             let mut k = major_every;

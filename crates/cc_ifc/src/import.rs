@@ -1687,16 +1687,19 @@ impl<'a> Importer<'a> {
     /// Terrain as this program writes it ([`crate::export::TOPOGRAPHY_PSET`]):
     /// rebuilt from its points and boundary. Other terrain stays generic.
     fn import_topography(&mut self, id: u32, e: &Entity) -> bool {
-        use cc_core::topography::{MAX_OUTLINE, MAX_POINTS, Topography, clean_points};
+        use cc_core::topography::{
+            DEFAULT_BASE_DEPTH, DEFAULT_CONTOUR_INTERVAL, DEFAULT_MAJOR_EVERY, EARTH_COLOR, MAX_OUTLINE, MAX_POINTS,
+            MIN_CONTOUR_INTERVAL, Topography, clean_points,
+        };
         let set = |n: &str| n == crate::export::TOPOGRAPHY_PSET;
         let text = |name: &str| self.pset_texts(id, &set, name).first().map(|s| s.to_string());
         let (Some(points), Some(boundary)) = (text("Points"), text("Boundary")) else { return false };
         let s = self.scale;
-        let points: Vec<DVec3> = crate::export::decode_points(&points, 3, MAX_POINTS)
+        let points: Vec<DVec3> = crate::point_list::decode(&points, 3, MAX_POINTS)
             .into_iter()
             .map(|p| DVec3::new(p[0], p[1], p[2]) * s)
             .collect();
-        let boundary: Vec<DVec2> = crate::export::decode_points(&boundary, 2, MAX_OUTLINE)
+        let boundary: Vec<DVec2> = crate::point_list::decode(&boundary, 2, MAX_OUTLINE)
             .into_iter()
             .map(|p| DVec2::new(p[0], p[1]) * s)
             .collect();
@@ -1705,19 +1708,34 @@ impl<'a> Importer<'a> {
         let mut topo = Topography {
             points: clean_points(&points),
             boundary,
-            base_depth: number("BaseDepth").map_or(2.0, |d| d * s),
+            base_depth: number("BaseDepth").map_or(DEFAULT_BASE_DEPTH, |d| d * s),
             sketch: None,
         };
         topo.repair();
         if !topo.is_valid() {
             return false;
         }
-        let interval = number("ContourInterval").map(|v| v * s).filter(|v| *v >= 0.01).unwrap_or(1.0);
-        let major = number("MajorEvery").filter(|v| *v >= 1.0 && *v <= 1e6).map_or(5, |v| v as u32);
-        let material = text("Material").filter(|m| !m.trim().is_empty());
-        let material = match material {
-            Some(m) => self.material(&m, Some([150, 122, 88])),
-            None => self.material("Terra", Some([150, 122, 88])),
+        let interval = number("ContourInterval")
+            .map(|v| v * s)
+            .filter(|v| *v >= MIN_CONTOUR_INTERVAL)
+            .unwrap_or(DEFAULT_CONTOUR_INTERVAL);
+        let major = number("MajorEvery").filter(|v| *v >= 1.0 && *v <= 1e6).map_or(DEFAULT_MAJOR_EVERY, |v| v as u32);
+        // Without a material named, the project's earth material, or the
+        // template's (by its name, in the earth class).
+        let material = match text("Material").filter(|m| !m.trim().is_empty()) {
+            Some(m) => self.material(&m, Some(EARTH_COLOR)),
+            None => match cc_core::topography::earth_material(&self.p) {
+                Some(m) => m.to_string(),
+                None => {
+                    let name = cc_core::template_default("tpl-mat-earth");
+                    let added = !self.p.materials.iter().any(|m| m.name == name);
+                    let name = self.material(name, Some(EARTH_COLOR));
+                    if added && let Some(m) = self.p.materials.iter_mut().find(|m| m.name == name) {
+                        cc_core::material::template_properties(m, cc_core::material::MaterialClass::Earth);
+                    }
+                    name
+                }
+            },
         };
         let (level, _) = self.level_for(id, 0.0);
         let name = self.type_name(id, e);
@@ -1725,7 +1743,7 @@ impl<'a> Importer<'a> {
         let type_id = self.find_or_add_type(
             Category::Topography,
             name,
-            "Terreno".to_string(),
+            cc_core::template_default("tpl-type-topography").to_string(),
             uid,
             |d| {
                 matches!(d, TypeData::Topography { material: m, contour_interval: c, major_every: k }
