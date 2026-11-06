@@ -229,6 +229,67 @@ Arguments and results are JSON: objects are tables with string keys, arrays are 
 
 **The sandbox.** Scripts run in a restricted Lua: the `table`, `string`, `math`, `utf8` and `coroutine` libraries and the base functions, without `io`, `os`, `debug`, `package`, `require`, `load`, `dofile` or `loadfile`. A script reaches the project only through commands, and files only through the commands that read or write them. A run has a budget of 500 million Lua instructions and 256 MB of memory; past them it stops with a `script` error (catching that error with `pcall` does not keep the script going). Each command a script runs is its own undo step.
 
+## Visual programming graphs
+
+A graph (`.ccgraph`, JSON) is a set of nodes joined by wires and run as a
+dataflow. **Every engine command is a node**: its parameters are the
+node's inputs and its result the `result` output (plus `element`, the id,
+for `*_create` commands). Built-in nodes give input values (`number`,
+`integer`, `slider`, `boolean`, `text`, `select_elements`,
+`elements_of_category`, `levels`), math, logic, lists, geometry as the values
+commands take (points `[x, y]`, `line`, `arc`, `circle`, `rectangle`,
+`rectangle_points`, `polygon_points`, `polyline_segments`, `divide_line`…),
+element parameters (`parameter_get`, `parameter_set`) and outputs (`watch`,
+`output`). A Lua node runs a function of its inputs in the sandbox (no
+access to the model); it returns its outputs in order, or one table with
+their names. `graph_nodes` lists every node with its ports and types.
+
+- **Lists map over nodes.** A node given a list where it takes one value runs
+  once per item and its outputs become lists (`lacing`: `shortest`,
+  `longest` or `cross`). A list of 4 start points and 4 end points into
+  `wall_create` makes 4 walls.
+- **Running again updates.** Each element a node creates is bound to the
+  node and the item that made it. The next run changes it in place (same id,
+  persistent id, mark and comments), makes the new ones and deletes the ones
+  no longer made; with nothing changed, nothing happens. A run is one undo
+  step. `graph_elements` lists a graph's elements, `graph_release` frees
+  them (the next run makes new ones).
+- **Order.** A node runs after the nodes wired into it; nodes that do not
+  depend on each other run in the order they were added (lowest id first).
+- **Errors are per node.** A failing node shows its message, the nodes after
+  it are skipped, the others run, and its elements stay as they were.
+- A graph never runs `project_new`, `project_open`, `undo`, `redo`,
+  `language_set` or graphs, and runs file commands only when its
+  `allow_files` is set (and never when a plugin runs it).
+
+```sh
+ccad --save-as house.ccad graph examples/graphs/house.ccgraph width=12 depth=8
+ccad run graph_check path=examples/graphs/house.ccgraph
+ccad run graph_nodes search=wall
+```
+
+Input nodes with a `name` are the graph's inputs (`key=value` above,
+`inputs` of `graph_run`); `output` nodes with a `name` are its results. A
+minimal graph:
+
+```json
+{
+  "uid": "6f1c2a0e9b3d4c8a8e2f5a7b1c3d9e02",
+  "nodes": [
+    { "id": 1, "kind": { "builtin": "range" }, "values": { "end": 15, "step": 5 } },
+    { "id": 2, "kind": { "builtin": "point" } },
+    { "id": 3, "kind": { "builtin": "point" }, "values": { "y": 4 } },
+    { "id": 4, "kind": { "command": "wall_create" }, "values": { "height": 2.8 } }
+  ],
+  "wires": [
+    { "from": [1, "list"], "to": [2, "x"] },
+    { "from": [1, "list"], "to": [3, "x"] },
+    { "from": [2, "point"], "to": [4, "start"] },
+    { "from": [3, "point"], "to": [4, "end"] }
+  ]
+}
+```
+
 ## Plugins
 
 A plugin is a folder with a `plugin.toml` manifest and Lua code that adds commands to the catalog. Its commands are listed and run like the built-in ones, by `ccad run`, scripts, Lua scripts and MCP agents, and are named `<plugin id>__<command>` (two underscores, which built-in names never contain).

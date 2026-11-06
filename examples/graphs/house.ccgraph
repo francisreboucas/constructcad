@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "uid": "6f1c2a0e9b3d4c8a8e2f5a7b1c3d9e01",
+  "name": "Parametric house",
+  "nodes": [
+    { "id": 1, "kind": { "builtin": "number" }, "name": "width", "pos": [0, 0], "values": { "value": 10 } },
+    { "id": 2, "kind": { "builtin": "number" }, "name": "depth", "pos": [0, 110], "values": { "value": 7 } },
+    { "id": 3, "kind": { "builtin": "number" }, "name": "height", "pos": [0, 220], "values": { "value": 2.8 } },
+    { "id": 4, "kind": { "builtin": "point" }, "pos": [260, 40] },
+    { "id": 5, "kind": { "builtin": "rectangle_points" }, "pos": [520, 40] },
+    { "id": 6, "kind": { "builtin": "polyline_segments" }, "pos": [780, 40], "values": { "closed": true } },
+    { "id": 7, "kind": { "command": "wall_create" }, "pos": [1040, 0] },
+    { "id": 8, "kind": { "command": "window_create" }, "pos": [1300, 0] },
+    { "id": 9, "kind": { "command": "floor_create" }, "pos": [1040, 200] },
+    { "id": 10, "kind": { "command": "roof_create" }, "pos": [1040, 330], "values": { "from_walls": true, "overhang": 0.6 } },
+    { "id": 11, "kind": { "builtin": "multiply" }, "pos": [260, 220] },
+    { "id": 12, "kind": { "builtin": "output" }, "name": "area", "pos": [520, 220] }
+  ],
+  "wires": [
+    { "from": [1, "value"], "to": [4, "x"] },
+    { "from": [2, "value"], "to": [4, "y"] },
+    { "from": [4, "point"], "to": [5, "opposite"] },
+    { "from": [5, "points"], "to": [6, "points"] },
+    { "from": [6, "starts"], "to": [7, "start"] },
+    { "from": [6, "ends"], "to": [7, "end"] },
+    { "from": [3, "value"], "to": [7, "height"] },
+    { "from": [7, "element"], "to": [8, "wall"] },
+    { "from": [5, "points"], "to": [9, "boundary"] },
+    { "from": [1, "value"], "to": [11, "a"] },
+    { "from": [2, "value"], "to": [11, "b"] },
+    { "from": [11, "result"], "to": [12, "value"] }
+  ]
+}

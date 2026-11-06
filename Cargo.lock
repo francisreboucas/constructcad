@@ -766,6 +766,7 @@ dependencies = [
  "cc_skp",
  "cc_views",
  "glam",
+ "mlua",
  "schemars",
  "serde",
  "serde_json",
