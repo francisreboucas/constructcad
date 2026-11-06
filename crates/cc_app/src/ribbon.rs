@@ -267,6 +267,20 @@ fn tab_font(active: bool) -> egui::FontId {
     egui::FontId::new(13.0, if active { theme::semibold() } else { egui::FontFamily::Proportional })
 }
 
+/// Room around each tab title's text: [`TAB_PAD`], shrunk evenly down to
+/// [`TAB_PAD_MIN`] when the titles (of `text_widths`) do not fit in `available`.
+fn tab_padding(text_widths: &[f32], available: f32) -> f32 {
+    let n = text_widths.len().max(1) as f32;
+    let text: f32 = text_widths.iter().sum();
+    let fit = (available - text) / n;
+    if fit.is_finite() { fit.clamp(TAB_PAD_MIN, TAB_PAD) } else { TAB_PAD }
+}
+
+/// Room around a ribbon tab title's text, pixels.
+const TAB_PAD: f32 = 28.0;
+/// The least room around a title in a narrow window.
+const TAB_PAD_MIN: f32 = 4.0;
+
 /// A tab title in a cell of `width`, its text centered.
 fn tab_title(ui: &mut Ui, label: &str, active: bool, width: f32) -> Response {
     let color = if active { PALETTE.accent_text } else { PALETTE.text_muted };
@@ -393,7 +407,8 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             command_icon(ui, state, command);
         }
     });
-    // Ribbon tab titles, all as wide as the widest (measured bold, as when active).
+    // Ribbon tab titles, each as wide as its own text (measured bold, as when
+    // active, so a tab keeps its width when picked) plus some room around it.
     let tabs = [
         (RibbonTab::File, t!("ribbon-file")),
         (RibbonTab::Architecture, t!("ribbon-architecture")),
@@ -406,17 +421,16 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
         (RibbonTab::View, t!("ribbon-view")),
         (RibbonTab::Manage, t!("ribbon-manage")),
     ];
-    let width = tabs
+    let text_widths: Vec<f32> = tabs
         .iter()
         .map(|(_, label)| ui.painter().layout_no_wrap(label.clone(), tab_font(true), PALETTE.text).size().x)
-        .fold(0.0, f32::max)
-        + 28.0;
-    // Narrow windows squeeze the titles, keeping room for the collapse button.
-    let width = width.min(((full_width - 40.0) / tabs.len() as f32).max(width - 24.0));
+        .collect();
+    let pad = tab_padding(&text_widths, full_width - 40.0);
     let collapsed = state.ribbon_collapsed;
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
-        for (tab, label) in tabs {
+        for ((tab, label), text_w) in tabs.into_iter().zip(text_widths) {
+            let width = text_w + pad;
             let active = state.ribbon_tab == tab && (!collapsed || state.ribbon_peek);
             let r = tab_title(ui, &label, active, width);
             // A double click collapses or expands; a click on a collapsed
@@ -613,9 +627,9 @@ fn architecture_tab(ui: &mut Ui, state: &mut AppState) {
     group(ui, t!("group-circulation"), |ui| command_buttons(ui, state, &buttons(&[Stair, Ramp, Railing])));
     group(ui, t!("group-room"), |ui| command_button(ui, state, place(Room)));
     group(ui, t!("group-model"), |ui| {
-        command_button(ui, state, place(Component));
         command_button(ui, state, place(Sweep));
-        // Making, editing and loading components: one column of small buttons.
+        // Components, next to making, editing and loading them (one column of small buttons).
+        command_button(ui, state, place(Component));
         stacks(ui, state, &[&[UiCommand::NewComponent, UiCommand::EditComponent, UiCommand::LoadComponent]]);
         command_button(ui, state, UiCommand::ComponentLibrary);
     });
@@ -1283,6 +1297,18 @@ pub fn status_bar(ui: &mut Ui, state: &mut AppState) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tab_titles_take_their_own_width_and_squeeze_evenly() {
+        let texts = [30.0, 80.0, 50.0];
+        // Room to spare: the full padding, so each tab is its text plus 28.
+        assert_eq!(tab_padding(&texts, 1000.0), TAB_PAD);
+        // A little short: the padding shrinks so the titles just fit.
+        assert_eq!(tab_padding(&texts, 160.0 + 3.0 * 10.0), 10.0);
+        // Far too narrow: never below the least padding.
+        assert_eq!(tab_padding(&texts, 50.0), TAB_PAD_MIN);
+        assert_eq!(tab_padding(&[], f32::NAN), TAB_PAD);
+    }
 
     #[test]
     fn long_labels_wrap_on_two_balanced_lines() {
