@@ -93,6 +93,9 @@ and the ground itself beyond the daylight line, where `T = C` or `T = L`.
   - the surface's existing vertices.
 
   Every vertex gets `z = F`.
+- **Only the region within reach** (the outline's box grown by the farthest
+  a slope can run) is re-triangulated; new points that fall a rounding error
+  off an old edge are moved off it (or onto a vertex), so no slivers form.
 - **Constraints:** a spade CDT takes the pad outline, the daylight polyline
   (chained, see `topography::chain`) and the terrain boundary. The existing
   surface's triangle edges are added with `add_constraint_and_split`.
@@ -115,7 +118,8 @@ and the ground itself beyond the daylight line, where `T = C` or `T = L`.
 ### Results
 
 - **`TopoGeom` changes:**
-  - `existing`: the surface before any pad;
+  - `existing`: the existing ground where pads changed it (triangles at its
+    original elevations; for the dashed contours and section lines);
   - `triangles`: the graded surface;
   - `min_z` and `max_z`: over both surfaces;
   - `base_z`: `min_z - base_depth`;
@@ -125,7 +129,7 @@ and the ground itself beyond the daylight line, where `T = C` or `T = L`.
     this pad) and the surface after it;
   - `area`, the pad's area in plan;
   - `daylight`, the polylines where the slopes meet the ground;
-  - `slopes`, the slope triangles, for the plan symbol;
+  - `rays`, the slope samples (origin, end, cut or fill), for the plan symbol;
   - `warnings`.
 - **Picking and solids:** a pad has no solid of its own; plans and the
   property palette select it by its outline. In 3D and sections, a click
@@ -216,9 +220,10 @@ The graded solid.
   - The terrain's body is the graded solid.
   - Its pads travel in `PADS_PSET` = `ConstructCAD_Pads` on the terrain:
     one text property per pad (`Pad1`, `Pad2`…) holding the outline,
-    elevation, slope overrides, type name and type ratios. The format is
-    `elevation;cut;fill;type;type_cut;type_fill|x y;x y;…`, with an empty
-    field for no override.
+    elevation, slope overrides, type name and type ratios, as separate
+    properties per pad `n`: `Pad<n>Outline` (a point list), `Pad<n>Elevation`,
+    `Pad<n>CutSlope` and `Pad<n>FillSlope` (only when overridden), `Pad<n>Type`,
+    `Pad<n>TypeCutSlope` and `Pad<n>TypeFillSlope`.
 - **Import:**
   - Import recreates the pads on the rebuilt terrain, matching or creating
     pad types by name and ratios.
