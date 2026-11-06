@@ -41,57 +41,53 @@ They're reused across projects and carried from one computer to another.
   no IFC class, no MEP data, no opening and no connectors. `repair` clears
   any of these on a title block definition.
 
-### 2D pieces (`ComponentShape`)
+### 2D pieces (`ComponentDef::sheet`)
 
-There are three new variants. Their coordinates are in **paper millimeters**,
-with the origin at the paper's bottom-left corner, x to the right and y up.
-Every number is a `cc_core::expr` expression, like the other pieces.
+The 2D pieces live in their own list, `ComponentDef::sheet: Vec<SheetItem>`
+(serde default, omitted when empty), not among the 3D `items`. The 3D code
+(geometry, plans, IFC, scripts) never sees them, and a title block has no
+3D `items`. Their coordinates are in **paper millimeters**, with the origin
+at the paper's bottom-left corner, x to the right and y up. Every number is
+a `cc_core::expr` expression, like the other pieces.
 
 ```rust
-/// Lines and arcs on the sheet: `points` run straight, along an arc
-/// (`radius`) or an ellipse to the next one, as in sketched profiles.
-Stroke {
-    points: Vec<ProfilePoint>,
-    closed: bool,
-    /// Pen width in millimeters (expression); "" = the thin default.
-    weight: String,
-    /// Fill of a closed stroke, `None` for none.
-    fill: Option<[u8; 3]>,
-    /// Color of the line; `None` = black.
-    color: Option<[u8; 3]>,
-}
-/// Text: fixed words and `{fields}` (see Fields).
-Text {
-    x: String,
-    y: String,
-    text: String,
-    /// Cap height in millimeters (expression).
-    size: String,
-    anchor: TextAnchor,      // 9 positions, LeftBottom by default
-    rotation: String,        // degrees, expression
-    bold: bool,
-    /// Wrapping width in millimeters; "" for a single line.
-    width: String,
-}
-/// A picture: the file's bytes, kept in the component (and its .ccomp).
-Image {
-    x: String,
-    y: String,
-    width: String,
-    height: String,
-    image: RasterImage,
+pub struct SheetItem { pub name: String, pub shape: SheetShape }
+pub enum SheetShape {
+    /// Lines and arcs: `points` run straight, or along an arc (`radius`)
+    /// to the next one, as in sketched profiles.
+    Stroke {
+        points: Vec<ProfilePoint>,
+        closed: bool,
+        /// Pen width in millimeters (expression); "" = 0.25 mm.
+        weight: String,
+        /// Color of the line; `None` = black.
+        color: Option<[u8; 3]>,
+        /// Fill of a closed stroke; `None` for none.
+        fill: Option<[u8; 3]>,
+    },
+    /// Text: fixed words and `{fields}`; line breaks start new lines.
+    Text {
+        x: String,
+        y: String,
+        text: String,
+        /// Text height in millimeters (expression).
+        size: String,
+        anchor: TextAnchor,  // Left (default), Center, Right: on the baseline; Middle: centered
+        /// Degrees counter-clockwise (expression); "" = 0.
+        rotation: String,
+    },
+    /// A picture: the file's bytes, kept in the component (and its .ccomp).
+    Image { x: String, y: String, width: String, height: String, image: RasterImage },
 }
 ```
 
-- Title blocks take only these three shapes. Other kinds refuse them:
-  `component_piece_add` errors, and `repair` drops mismatched pieces and
-  reports them.
-- Material, `in_plan`, `void`, `plan_only` and `detail` don't apply to
-  2D pieces. They're ignored, and they're omitted in serialization when
-  they hold their defaults.
-- Limits: at most `MAX_SHEET_PIECES` (2 000) pieces, a text of at most
-  4 000 characters, and images within the `raster` limits. A crafted file
-  over a limit loses the extra pieces through `repair`.
+- Only title blocks keep sheet pieces: `repair` drops them from other
+  kinds, and drops 3D `items` from title blocks, and reports both.
+- Limits: at most `MAX_SHEET_PIECES` (2 000) pieces and 2 000 points per
+  stroke, a text of at most 4 000 characters, and images within the
+  `raster` limits. A crafted file over a limit loses the extra pieces or
+  points through `repair`.
+- `ComponentDef::rename` also renames inside sheet piece expressions.
 
 ### Context parameters
 
@@ -108,13 +104,13 @@ Image {
 impl ComponentDef {
     /// The 2D pieces of a title block on a `size` (mm) sheet: lines, texts
     /// (unresolved fields), images, and per-piece errors.
-    pub fn resolve_sheet(&self, values: &ParamValues, size: DVec2) -> SheetPieces;
+    pub fn resolve_sheet(&self, size: DVec2) -> SheetPieces;
 }
 pub struct SheetPieces {
     pub strokes: Vec<SheetStroke>,  // polyline points (arcs flattened), closed, weight, fill, color
-    pub texts: Vec<SheetText>,      // position, raw text, size, anchor, rotation, bold, width
-    pub images: Vec<SheetImage>,    // corner, size, Arc<RasterImage>
-    pub errors: Vec<PieceError>,
+    pub texts: Vec<SheetText>,      // position, raw text, size, anchor, rotation
+    pub images: Vec<SheetImage>,    // item index, corner, size
+    pub errors: Vec<(usize, PartError)>,
 }
 ```
 
@@ -175,11 +171,12 @@ duplicates.
 - `FORMAT_VERSION` goes 20 → 21. On load, a file before 21 gets the
   standard type (unless the file already has a title block type), and
   every sheet points at it. The repair report says so.
-- cc_core has no i18n, so it writes English captions. After a load whose
-  report includes that migration, the engine's open paths (`project_open`
-  and the app's open) call `cc_engine::title_block::localize_migrated` to
-  rewrite those captions into the UI language. That happens inside the
-  load, not as an undo step.
+- Captions come from template keys (`tpl-tb-*`, Portuguese defaults in
+  `template_default`), as the rest of the template does.
+  `persist::from_ron_with_repairs_localized(text, translate)` takes the
+  same lookup as `Project::from_template_localized`. `Session::open` and
+  the app pass `i18n::try_tr`, so a migrated file gets captions in the UI
+  language. The other load functions keep the Portuguese defaults.
 - Repair resets a sheet's `title_block` that points at a missing type, or
   at a type that isn't a title block, to the project's first title block
   type (or `None`), and counts each reset.
@@ -203,9 +200,9 @@ translated names.
   otherwise the translated "As indicated". It's empty with no viewports.
 - `paper` is `A1` for ISO sizes, or `W × H mm` for custom ones.
 - `date` is the day the sheet is composed. `issue_date` is the sheet's
-  date. Both are formatted for the UI language: `dd/mm/yyyy` in pt-BR,
-  es, fr, it, de (with dots), pl and uk-UA, and `yyyy-mm-dd` in en, ja,
-  zh-CN, zh-TW and lo. The formats are a table in `cc_engine::i18n`.
+  date. Both are formatted for the UI language: `dd/mm/yyyy` in pt-BR, es,
+  fr, it and lo; `dd.mm.yyyy` in de, pl and uk-UA; `yyyy-mm-dd` in en, ja,
+  zh-CN and zh-TW. The formats are a table in `cc_engine::i18n`.
 - `param:<Name>` returns the sheet's value, else the type's text.
 - An empty value renders as nothing. An unknown key, or `{` with no
   match, stays as typed (`{xyz}`), so a mistake shows on screen and in
@@ -228,16 +225,14 @@ tests pin the date.
 
 - Strokes become `Drawing2D` polylines with a `Pen`: weight, color, solid.
   Closed strokes with a fill also get a fill.
-- Texts become anchored and rotated text. A text with a width wraps the
-  way multiline text notes wrap.
-- Text primitives have no bold yet, so `Prim::Text` gains a `bold` flag
-  with a serde default. The app paints it with Inter Semibold, which
-  already ships. SVG writes `font-weight="600"`, PDF uses Helvetica-Bold,
-  and PNG outlines the semibold face through `skrifa`.
+- Texts become anchored and rotated text, one `Prim::Text` per line,
+  1.5 × the height apart. `Anchor` gains `RightBottom` (paint, SVG/PDF/PNG
+  offsets, DXF alignment) for right-aligned text.
 - Images become `Prim::Image`.
 - Everything sits under the viewports, as the current border does. The
-  exporters (SVG, PDF, PNG, DXF) already write all these primitives. DXF
-  puts the title block on layer `TitleBlock`. IFC export ignores title
+  exporters (SVG, PDF, PNG, DXF) already write all these primitives. In
+  DXF they land on the layers of primitives with no element
+  (`dxf::default_layer`), as the old border did. IFC export ignores title
   blocks.
 
 ## Engine (cc_engine)
@@ -254,11 +249,15 @@ tests pin the date.
   rendering it.
 - **`project_info_set`** also takes `fields` (a merge patch by name), and
   `project_info` returns them.
-- **`component_create`** takes `kind: "title_block"`, whose definition
-  starts as a copy of the standard one. `component_piece_add` and
-  `component_piece_set` take the new shapes, and the JSON schema documents
-  them. Images come in as a file path (`image_path`) or base64 (`image`).
-  The command reads the file and checks it with the `raster` limits.
+- **`title_block_create`**: a new title block component, a copy of the
+  standard one (or empty with `empty: true`), named `name`.
+- **`component_sheet_piece_add`**, **`component_sheet_piece_set`**
+  (a merge patch over the piece) and **`component_sheet_piece_delete`**
+  edit the 2D pieces of a title block component, the way the
+  `component_piece_*` commands edit 3D pieces. Images come in as a file
+  path (`image_path`) or base64 (`image`), and are checked against the
+  `raster` limits. `component_create` with `kind: "TitleBlock"` takes
+  `def.sheet` too.
 - **`view_create`** with kind sheet gives the new sheet the first title
   block type.
 - Every parameter has a doc comment, and `docs/commands.md` is regenerated.
@@ -305,7 +304,7 @@ value; add, rename, remove), saved with `project_info_set`.
   loops become closed strokes. The properties palette edits weight, color
   and fill.
 - **Text tool**: a click places a text. The palette edits the text, size,
-  anchor, rotation, bold and width, and has an **Insert field** menu
+  anchor and rotation, and has an **Insert field** menu
   (grouped, translated, inserting `{key}`). The canvas shows fields
   resolved against the active sheet, or against sample values when the
   editor opened from the library. A toggle shows the raw `{keys}`.
@@ -384,5 +383,6 @@ Four PRs, each green on CI:
 - A revision table or revision list per sheet.
 - Free lines, texts and images placed directly on a sheet.
 - Script (Lua) pieces in title blocks.
+- Bold text and wrapping width in title block texts.
 - Per-user date formats.
 - Title block types in IFC.
