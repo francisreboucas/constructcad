@@ -463,7 +463,7 @@ mod tests {
     #[test]
     fn the_flattened_points_are_bounded() {
         let long = || {
-            let points = (0..MAX_STROKE_POINTS).map(|k| ProfilePoint::new(&k.to_string(), "0")).collect();
+            let points = (0..MAX_STROKE_POINTS).map(|k| ProfilePoint::new(k.to_string(), "0")).collect();
             let shape = SheetShape::Stroke { points, closed: false, weight: String::new(), color: None, fill: None };
             SheetItem { name: "L".into(), shape }
         };
