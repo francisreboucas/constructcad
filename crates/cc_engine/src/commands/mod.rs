@@ -31,6 +31,7 @@ pub mod sketch;
 pub mod stair;
 pub mod structure;
 pub mod sweep;
+pub mod topography;
 pub mod types;
 pub mod views;
 

@@ -28,11 +28,22 @@ pub struct ModifyOptions {
     pub angle: f64,
     /// Offset distance, meters.
     pub offset: f64,
+    /// Elevation of the next terrain point a sketch places, meters above
+    /// the level (kept from one sketch to the next).
+    pub point_elevation: f64,
 }
 
 impl Default for ModifyOptions {
     fn default() -> Self {
-        Self { multiple: true, rotate_copy: false, mirror_copy: true, count: 3, angle: 90.0, offset: 1.0 }
+        Self {
+            multiple: true,
+            rotate_copy: false,
+            mirror_copy: true,
+            count: 3,
+            angle: 90.0,
+            offset: 1.0,
+            point_elevation: 0.0,
+        }
     }
 }
 

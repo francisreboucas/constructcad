@@ -164,6 +164,14 @@ Pisos, forros, telhados, radiers e massas recebem o contorno como `curves` em ve
 {"command": "floor_create", "args": {"curves": [{"kind": "rectangle", "corner": [0, 0], "opposite": [10, 8]}, {"kind": "circle", "center": [5, 4], "radius": 1}]}}
 ```
 
+### Terreno
+
+`topography_create` cria uma superfície de terreno a partir de pontos medidos `[x, y, z]` (cotas acima do nível) dentro de um contorno `boundary` ou `curves`; sem nenhum dos dois, o contorno convexo dos pontos o limita. Os vértices do contorno recebem as cotas que os pontos lhes dão, e a terra fecha até uma base plana `base_depth` (2 m por padrão) abaixo do ponto mais baixo, então os cortes a cortam como um sólido. `element_get` mostra as cotas mínima e máxima, a base, a área, o volume e os avisos (`few-points`, `collinear`, `boundary-crossing`) em `derived.topography`. `topography_points_set` substitui os pontos ou altera, remove e adiciona pontos pelo índice; `sketch_set` redesenha o contorno e, com `points`, substitui os pontos no mesmo passo. Um tipo de terreno define o material da terra e o intervalo e as mestras das curvas de nível (`topography_type_create`, `type_set`).
+
+```text
+{"command": "topography_create", "args": {"points": [[0, 0, 0], [20, 0, 2], [20, 10, 2.5], [0, 10, 0.5], [10, 5, 1.2]]}}
+```
+
 ### Cortinas de vidro
 
 Uma cortina de vidro é uma parede cujo tipo tem uma grade de cortina em vez de camadas: linhas verticais ao longo da parede e horizontais a partir da base (a uma distância fixa, em um número de divisões ou com um espaçamento máximo, justificadas no início, no centro ou no fim), um painel em cada célula (vidro, cego, vazio ou um componente, como uma porta) e montantes nas linhas e em volta da borda. `curtain_type_create` cria o tipo e `wall_create` posiciona paredes dele, retas ou em arco (painéis planos ao longo do arco). Cada parede pode ajustar a sua grade: `curtain_grid_set` acrescenta, move e remove linhas e remove trechos delas (as células vizinhas viram um só painel), `curtain_panel_set` troca painéis e `curtain_get` lista linhas e painéis. Uma cortina desenhada dentro de outra parede abre essa parede onde está. Tabelas de paredes têm `PanelCount`, `GlazedArea` e `MullionLength`. A exportação IFC as grava como `IfcCurtainWall` feitas de `IfcPlate` e `IfcMember`, e a importação as traz de volta com a grade; uma cortina de outro programa volta como cortina quando os painéis formam uma grade simples, senão como objetos separados.

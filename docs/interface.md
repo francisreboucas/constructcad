@@ -153,13 +153,21 @@ A roof type sets its **covering** and its **framing**, in the type dialog's *Cov
 
 ## Conceptual masses
 
-*Architecture → Massing → Mass* (`MS`) sketches an outline in a plan, like a floor, and extrudes it up to the level above. Masses are for massing studies before walls and floors exist: see-through bodies in 3D views, elevations and sections, cut in the plans they cross.
+*Massing & Site → Massing → Mass* (`MS`) sketches an outline in a plan, like a floor, and extrudes it up to the level above. Masses are for massing studies before walls and floors exist: see-through bodies in 3D views, elevations and sections, cut in the plans they cross.
 
 - **Properties**: the base offset and the height, and whether the mass is an extrusion or a loft (a top outline different from the base, made with `mass_create` and `top` or `top_inset`).
 - **Mass floors**: one box per level the mass spans, with the area of the floor at that level. Plans draw the floor of their level with its area; the properties and the *Masses* schedule give the gross floor area (the sum of the floors), the number of floors and the volume.
 - **Push/Pull** (*Massing → Push/Pull*, `PP`, in a 3D view): click a face of a mass, then move the pointer along the arrow (or type the distance) and click or press Enter. The top changes the height, the bottom moves down or up, and a side of an extrusion moves out or in, the sides beside it keeping their directions (a loft's sides stay; push its top or bottom). A mass with a floor at every level it spans gets the floors of the levels it reaches. Esc lets go of the face.
 - **From the mass to the building**: with masses selected, *Massing → Walls by Face* puts a wall on each side of an extrusion (exterior face on the mass's face, as tall as the mass, joined at the corners), *Floors from Mass Floors* a floor on each mass floor (the mass's outline at that level, its top at the level) and *Roof by Face* a flat roof on the top. The walls, floors and roof are ordinary elements: change their types, heights and shapes as usual. A loft's slanted sides take no walls.
 - Moving, rotating, mirroring, copying and pasting work as for other elements. Deleting a level removes its mass floors. IFC export leaves masses out.
+
+## Terrain
+
+*Massing & Site → Site → Terrain* (`TS`) sketches the terrain's boundary in a plan, like a floor's outline, and places its measured points: *Points → Point* clicks a point at the elevation set in the options bar (above the level), and undo takes points back like curves. *Finish* triangulates the points with the boundary; the boundary takes the elevations the points give it, points beyond it included, and the earth closes down to a flat base. A project without a terrain type gets one, cut in an *Earth* material (a woven hatch).
+
+- **Plans** draw the terrain of their level: contour lines below the cut plane (every fifth a heavier major one) and, where the cut plane crosses the surface, the earth above it hatched and outlined as cut. Elevations, sections and 3D views show the solid, and sections cut the earth in its material.
+- **Properties**: the base depth, the lowest and highest elevations, the area and volume (also in *Terrain* schedules), any warning (too few points, points on one line, a boundary that crosses itself), and the points themselves, whose x, y and z are edited in place or removed. *Edit Boundary* reopens the sketch with its points to change the boundary or add points. The type sets the material, the contour interval and how often a major contour comes.
+- IFC export writes an `IfcGeographicElement` (`TERRAIN`); importing that file brings the terrain back with its points.
 
 ## Railings and their hosts
 

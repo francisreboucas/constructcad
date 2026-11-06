@@ -153,13 +153,21 @@ Um tipo de telhado define a **telha** e a **estrutura**, na seção *Cobertura e
 
 ## Massas conceituais
 
-*Arquitetura → Estudo de massa → Massa* (`MS`) desenha um contorno na planta, como uma laje, e o extruda até o nível de cima. As massas servem para estudos de volumetria antes de existirem paredes e lajes: corpos transparentes nas vistas 3D, elevações e cortes, cortados nas plantas que atravessam.
+*Massa e Terreno → Estudo de massa → Massa* (`MS`) desenha um contorno na planta, como uma laje, e o extruda até o nível de cima. As massas servem para estudos de volumetria antes de existirem paredes e lajes: corpos transparentes nas vistas 3D, elevações e cortes, cortados nas plantas que atravessam.
 
 - **Propriedades**: o deslocamento da base e a altura, e se a massa é uma extrusão ou uma transição (um contorno de topo diferente da base, feito com `mass_create` e `top` ou `top_inset`).
 - **Pisos de massa**: uma caixa por nível que a massa atravessa, com a área do piso naquele nível. As plantas desenham o piso do seu nível com a área; as propriedades e a tabela de *Massas* dão a área bruta de pisos (a soma dos pisos), o número de pisos e o volume.
 - **Empurrar/Puxar** (*Estudo de massa → Empurrar/Puxar*, `PP`, numa vista 3D): clique numa face da massa, mova o cursor ao longo da seta (ou digite a distância) e clique ou aperte Enter. O topo muda a altura, a base desce ou sobe, e um lado de uma extrusão se desloca para fora ou para dentro, os lados vizinhos mantendo a direção (os lados de uma transição ficam; empurre o topo ou a base). Uma massa com piso em todos os níveis que atravessa ganha os pisos dos níveis que passa a alcançar. Esc solta a face.
 - **Da massa ao edifício**: com massas selecionadas, *Estudo de massa → Paredes por face* põe uma parede em cada lado de uma extrusão (face externa na face da massa, com a altura dela, unidas nos cantos), *Lajes dos pisos de massa* uma laje em cada piso de massa (o contorno da massa naquele nível, com o topo no nível) e *Telhado por face* um telhado plano no topo. Paredes, lajes e telhado são elementos comuns: mude tipo, altura e forma como de costume. Os lados inclinados de uma transição não recebem paredes.
 - Mover, girar, espelhar, copiar e colar funcionam como nos outros elementos. Excluir um nível remove os pisos de massa dele. A exportação IFC deixa as massas de fora.
+
+## Terreno
+
+*Massa e Terreno → Terreno → Terreno* (`TS`) esboça o contorno do terreno numa planta, como o contorno de uma laje, e marca seus pontos medidos: *Pontos → Ponto* clica um ponto na cota definida na barra de opções (acima do nível), e desfazer retira pontos como retira curvas. *Concluir* triangula os pontos com o contorno; o contorno recebe as cotas que os pontos lhe dão, inclusive os que ficam além dele, e a terra fecha até uma base plana. Um projeto sem tipo de terreno ganha um, cortado num material *Terra* (hachura em trama).
+
+- **Plantas** desenham o terreno do seu nível: curvas de nível abaixo do plano de corte (a cada cinco, uma mestra mais grossa) e, onde o plano de corte atravessa a superfície, a terra acima dele hachurada e contornada como corte. Elevações, cortes e vistas 3D mostram o sólido, e os cortes cortam a terra no seu material.
+- **Propriedades**: a profundidade da base, as cotas mínima e máxima, a área e o volume (também nas tabelas de *Terrenos*), os avisos (poucos pontos, pontos alinhados, contorno que cruza a si mesmo) e os próprios pontos, com x, y e z editáveis ou removíveis. *Editar contorno* reabre o esboço com os pontos, para mudar o contorno ou acrescentar pontos. O tipo define o material, o intervalo das curvas e a frequência das mestras.
+- A exportação IFC grava um `IfcGeographicElement` (`TERRAIN`); importar esse arquivo traz o terreno de volta com seus pontos.
 
 ## Guarda-corpos e seus hospedeiros
 

@@ -498,6 +498,7 @@ fn element_props(ui: &mut Ui, state: &mut AppState, id: ElementId) {
 
     match &el.kind {
         ElementKind::Mass(m) => mass_props(ui, state, &el, m),
+        ElementKind::Topography(t) => topography_props(ui, state, &el, t),
         ElementKind::Component(c) => component_props(ui, state, &el, c),
         ElementKind::Wall(w) => {
             section(ui, "constraints", t!("section-constraints"), |ui| wall_constraints(ui, state, &el, w));
@@ -1385,6 +1386,85 @@ fn component_services(ui: &mut Ui, state: &mut AppState, el: &Element, c: &cc_co
                 readonly_row(ui, &t!("col-drain-units"), format::number(drain_units, 1));
                 readonly_row(ui, &t!("prop-supply-weight"), format::number(supply_weight, 2));
             }
+        }
+    });
+}
+
+/// Most points listed in a terrain's properties (scripts edit the rest).
+const MAX_POINT_ROWS: usize = 200;
+
+/// A terrain: its base, its figures and its measured points, each editable.
+fn topography_props(ui: &mut Ui, state: &mut AppState, el: &Element, t: &cc_core::topography::Topography) {
+    let id = el.id;
+    section(ui, "constraints", t!("section-constraints"), |ui| {
+        level_row(ui, state, el);
+        length_row(ui, state, &t!("prop-base-depth"), id, "base-depth", t.base_depth, |e, v| {
+            if let ElementKind::Topography(t) = &mut e.kind {
+                t.base_depth = v.max(0.01);
+            }
+        });
+    });
+    let geom = state.session.geom().topographies.get(&id).cloned();
+    section(ui, "dimensions", t!("section-dimensions"), |ui| {
+        let Some(g) = geom else { return };
+        readonly_row(ui, &t!("prop-lowest"), format::length(g.min_z));
+        readonly_row(ui, &t!("prop-highest"), format::length(g.max_z));
+        readonly_row(ui, &t!("col-area"), format::area(g.area));
+        readonly_row(ui, &t!("col-volume"), format::volume(g.volume));
+        for w in &g.warnings {
+            readonly_row(ui, &t!("prop-warning"), crate::i18n::tr(&format!("topo-warning-{}", w.code())));
+        }
+    });
+    let title = t!("section-points", "count" => t.points.len());
+    section(ui, "topo-points", title, |ui| {
+        let mut remove = None;
+        for (i, p) in t.points.iter().enumerate().take(MAX_POINT_ROWS) {
+            let mut v = *p;
+            let (changed, done, removed) = row(ui, &(i + 1).to_string(), |ui| {
+                ui.horizontal(|ui| {
+                    let rs = [
+                        ui.add(length_drag(&mut v.x).speed(0.01)),
+                        ui.add(length_drag(&mut v.y).speed(0.01)),
+                        ui.add(length_drag(&mut v.z).speed(0.01)),
+                    ];
+                    let removed = ui.small_button("×").on_hover_text(t!("action-remove-point")).clicked();
+                    (
+                        rs.iter().any(|r| r.changed()),
+                        rs.iter().find(|r| r.drag_stopped() || r.lost_focus()).cloned(),
+                        removed,
+                    )
+                })
+                .inner
+            });
+            if changed {
+                modify(state, id, &format!("point-{i}"), |e| {
+                    if let ElementKind::Topography(t) = &mut e.kind
+                        && let Some(slot) = t.points.get_mut(i)
+                    {
+                        *slot = v;
+                    }
+                });
+            }
+            if let Some(r) = done {
+                finish(state, &r);
+            }
+            if removed {
+                remove = Some(i);
+            }
+        }
+        if t.points.len() > MAX_POINT_ROWS {
+            readonly_row(ui, "", t!("points-more", "count" => t.points.len() - MAX_POINT_ROWS));
+        }
+        if let Some(i) = remove {
+            let command = cc_engine::commands::topography::TopographyPointsSet {
+                id: id.0,
+                remove: vec![i],
+                ..Default::default()
+            };
+            actions::run_command(state, command);
+        }
+        if row(ui, "", |ui| ui.button(t!("edit-boundary")).clicked()) {
+            crate::sketch_mode::edit_boundary(state);
         }
     });
 }

@@ -974,6 +974,30 @@ impl<'a> Exporter<'a> {
                     let items = self.pieces(e, vec![faces], level_z);
                     StructureProduct::new("IFCCOVERING", "MOLDING", items).brep()
                 }
+                (ElementKind::Topography(t), TypeData::Topography { material, contour_interval, major_every }) => {
+                    // The terrain's earth as a closed B-rep, and what it was made
+                    // from (points, boundary, base depth) for importers to restore.
+                    let Some(solid) = self.geom.body_of(e.id).next() else { continue };
+                    let faces: Vec<Vec<DVec3>> = solid.faces.iter().map(|f| f.verts.clone()).collect();
+                    let items = self.pieces(e, vec![faces], level_z);
+                    let text = |s: String| Value::Typed("IFCTEXT", Box::new(Value::Str(s)));
+                    let label = |s: &str| Value::Typed("IFCLABEL", Box::new(s.into()));
+                    let length = |v: f64| Value::Typed("IFCLENGTHMEASURE", Box::new(Value::Real(v)));
+                    let count = |k: u32| Value::Typed("IFCCOUNTMEASURE", Box::new(Value::Int(i64::from(k))));
+                    let props = vec![
+                        ("Points", text(crate::point_list::encode(t.points.iter().map(|p| p.to_array().to_vec())))),
+                        ("Boundary", text(crate::point_list::encode(t.boundary.iter().map(|p| p.to_array().to_vec())))),
+                        ("BaseDepth", length(t.base_depth)),
+                        ("Material", label(material)),
+                        ("ContourInterval", length(*contour_interval)),
+                        ("MajorEvery", count(*major_every)),
+                    ];
+                    StructureProduct {
+                        props: Some((TOPOGRAPHY_PSET, props)),
+                        ..StructureProduct::new("IFCGEOGRAPHICELEMENT", "TERRAIN", items)
+                    }
+                    .brep()
+                }
                 (ElementKind::Railing(r), TypeData::Railing { .. }) => {
                     let items = self.pieces(e, cc_geom::railing_pieces(project, e, r), level_z);
                     let q = vec![("Length", Quantity::Length(cc_geom::railing_length(project, e, r)))];
@@ -1462,6 +1486,7 @@ impl<'a> Exporter<'a> {
             TypeData::Ceiling { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("CEILING")]),
             TypeData::Sweep { .. } => ("IFCCOVERINGTYPE", args![Value::Enum("MOLDING")]),
             TypeData::Roof { .. } => ("IFCROOFTYPE", args![Value::Enum("NOTDEFINED")]),
+            TypeData::Topography { .. } => ("IFCGEOGRAPHICELEMENTTYPE", args![Value::Enum("TERRAIN")]),
             TypeData::Door { .. } => {
                 ("IFCDOORTYPE", args![Value::Enum("DOOR"), Value::Enum("NOTDEFINED"), Value::Null, Value::Null])
             }
@@ -1486,7 +1511,8 @@ impl<'a> Exporter<'a> {
             | TypeData::Foundation { material, .. }
             | TypeData::Pipe { material, .. }
             | TypeData::Conduit { material, .. }
-            | TypeData::Rebar { material, .. } => Some(self.material(material)),
+            | TypeData::Rebar { material, .. }
+            | TypeData::Topography { material, .. } => Some(self.material(material)),
             TypeData::Component { def, .. } if !def.main_material().is_empty() => {
                 Some(self.material(def.main_material()))
             }
@@ -2356,6 +2382,11 @@ pub const PHASING_PSET: &str = "ConstructCAD_Phasing";
 pub const CURTAIN_PSET: &str = "ConstructCAD_Curtain";
 /// Property set of a roof's covering and framing (see `write_roof_framing`).
 pub const ROOFING_PSET: &str = "ConstructCAD_Roofing";
+/// A terrain's points, boundary, base depth and type settings, for importers
+/// to rebuild it as terrain (points as `x y z` and the boundary as `x y`,
+/// separated by `;`).
+pub const TOPOGRAPHY_PSET: &str = "ConstructCAD_Topography";
+
 /// The framing's member sizes in [`ROOFING_PSET`]: member, width and height properties.
 pub const ROOFING_SIZES: [(&str, &str, &str); 4] = [
     ("Purlin", "PurlinWidth", "PurlinHeight"),

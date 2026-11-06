@@ -314,6 +314,7 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
     | TypeData::Pipe { material, .. }
     | TypeData::Conduit { material, .. }
     | TypeData::Railing { material, .. }
+    | TypeData::Topography { material, .. }
     | TypeData::Sweep { material, .. } = &ty.data
     {
         section(ui, "type-materials", t!("section-materials"), |ui| {
@@ -333,10 +334,31 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
                     | TypeData::Pipe { material, .. }
                     | TypeData::Conduit { material, .. }
                     | TypeData::Railing { material, .. }
+                    | TypeData::Topography { material, .. }
                     | TypeData::Sweep { material, .. } => *material = m,
                     _ => {}
                 });
             }
+        });
+    }
+
+    if let TypeData::Topography { contour_interval, major_every, .. } = ty.data {
+        section(ui, "type-contours", t!("section-contours"), |ui| {
+            length_row(ui, state, &t!("prop-contour-interval"), tid, "contour", contour_interval, |d, v| {
+                if let TypeData::Topography { contour_interval, .. } = d {
+                    *contour_interval = v.max(cc_core::topography::MIN_CONTOUR_INTERVAL);
+                }
+            });
+            let mut k = major_every;
+            let r = row(ui, &t!("prop-major-every"), |ui| ui.add(egui::DragValue::new(&mut k).range(1..=100)));
+            if r.changed() {
+                update(state, tid, "major", |t| {
+                    if let TypeData::Topography { major_every, .. } = &mut t.data {
+                        *major_every = k.max(1);
+                    }
+                });
+            }
+            finish(state, &r);
         });
     }
 

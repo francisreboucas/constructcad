@@ -97,6 +97,19 @@ fn pattern(kind: f32, uv: vec2<f32>, w: f32) -> f32 {
     } else if k == 11 {
         // Batts: a zig-zag across the layer.
         c = lines(uv.y + abs(fract(uv.x / 0.1) - 0.5) * 0.1, 0.1, w * 1.4);
+    } else if k == 12 {
+        // Earth: a basket weave turned 45°, blocks of 30 cm with three strokes each.
+        let t = vec2<f32>(uv.x + uv.y, uv.y - uv.x) * 0.70710678;
+        let b = floor(t / 0.3);
+        let f = t / 0.3 - b;
+        let odd = (b.x + b.y) - 2.0 * floor((b.x + b.y) * 0.5);
+        // Strokes across the block, kept off its edges.
+        let across = mix(t.y, t.x, odd);
+        let along = mix(f.x, f.y, odd);
+        let inside = step(0.12, along) * step(along, 0.88);
+        let fa = mix(f.y, f.x, odd);
+        let strokes = lines(across, 0.075, w) * step(0.1, fa) * step(fa, 0.9);
+        c = strokes * inside;
     }
     return c;
 }

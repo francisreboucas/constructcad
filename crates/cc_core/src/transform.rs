@@ -185,6 +185,14 @@ impl Element {
                 }
             }
             ElementKind::Shaft(s) => s.outline.iter_mut().for_each(p),
+            ElementKind::Topography(topo) => {
+                topo.boundary.iter_mut().for_each(p);
+                for q in &mut topo.points {
+                    let mut xy = q.truncate();
+                    p(&mut xy);
+                    *q = xy.extend(q.z);
+                }
+            }
             ElementKind::Sweep(s) => {
                 s.path.iter_mut().for_each(p);
                 // A mirror keeps the profile on the same side of the wall it follows.

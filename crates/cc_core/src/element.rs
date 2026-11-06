@@ -55,6 +55,8 @@ pub enum ElementKind {
     Sweep(crate::profile_sweep::Sweep),
     /// A vertical opening through floors, ceilings and roofs.
     Shaft(crate::shaft::Shaft),
+    /// A terrain surface from measured points inside a boundary.
+    Topography(crate::topography::Topography),
 }
 
 impl Element {
@@ -84,6 +86,7 @@ impl Element {
             ElementKind::Mass(_) => Category::Mass,
             ElementKind::Sweep(_) => Category::Sweep,
             ElementKind::Shaft(_) => Category::Shaft,
+            ElementKind::Topography(_) => Category::Topography,
         }
     }
 
@@ -152,6 +155,7 @@ impl Element {
             ElementKind::Roof(r) => Some(&mut r.sketch),
             ElementKind::Mass(m) => Some(&mut m.sketch),
             ElementKind::Shaft(s) => Some(&mut s.sketch),
+            ElementKind::Topography(t) => Some(&mut t.sketch),
             _ => None,
         }
     }
@@ -164,6 +168,7 @@ impl Element {
             ElementKind::Roof(r) => r.sketch.as_ref(),
             ElementKind::Mass(m) => m.sketch.as_ref(),
             ElementKind::Shaft(s) => s.sketch.as_ref(),
+            ElementKind::Topography(t) => t.sketch.as_ref(),
             _ => None,
         }
     }
@@ -177,6 +182,7 @@ impl Element {
             ElementKind::Roof(r) => Some((&r.footprint, &r.holes)),
             ElementKind::Mass(m) => Some((&m.outline, &[])),
             ElementKind::Shaft(s) => Some((&s.outline, &[])),
+            ElementKind::Topography(t) => Some((&t.boundary, &[])),
             _ => None,
         }
     }
@@ -253,6 +259,10 @@ impl Element {
             ElementKind::Railing(r) => r.path.iter_mut().for_each(|p| *p += delta),
             ElementKind::Sweep(s) => s.path.iter_mut().for_each(|p| *p += delta),
             ElementKind::Shaft(s) => s.outline.iter_mut().for_each(|p| *p += delta),
+            ElementKind::Topography(t) => {
+                t.boundary.iter_mut().for_each(|p| *p += delta);
+                t.points.iter_mut().for_each(|p| *p += delta.extend(0.0));
+            }
             ElementKind::Component(c) => c.position += delta,
             ElementKind::Pipe(s) | ElementKind::Conduit(s) => {
                 s.start += delta;

@@ -269,6 +269,7 @@ fn value(project: &Project, geom: &ModelGeometry, e: &Element, field: ScheduleFi
             ElementKind::Roof(r) => Value::Area(r.area()),
             ElementKind::Floor(f) => Value::Area(f.area()),
             ElementKind::Shaft(s) => Value::Area(polygon::area(&s.outline)),
+            ElementKind::Topography(_) => geom.topographies.get(&e.id).map_or(Value::Missing, |g| Value::Area(g.area)),
             _ => e.sketch().map_or(Value::Missing, |s| Value::Area(polygon::area(s))),
         },
         F::Perimeter => match &e.kind {

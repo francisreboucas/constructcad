@@ -27,6 +27,7 @@ pub mod sizing;
 pub mod skeleton;
 mod solid;
 pub mod stair;
+pub mod topography;
 mod wall;
 
 pub use beam::{BeamEnd, BeamGeom};

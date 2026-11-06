@@ -13,6 +13,7 @@ mod geometry;
 pub mod guid;
 mod import;
 pub mod parse;
+mod point_list;
 mod schema;
 pub mod step;
 
