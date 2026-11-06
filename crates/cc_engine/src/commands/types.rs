@@ -220,7 +220,9 @@ impl Command for TypeDuplicate {
     }
 }
 
-/// Delete a type that no element uses (the last type of a category is kept).
+/// Delete a type that no element uses (the last type of a category is kept,
+/// except a title block: sheets on a deleted title block move to the first
+/// other one, or to none).
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TypeDelete {
@@ -244,12 +246,27 @@ impl Command for TypeDelete {
         if curtains_use {
             return Err(EngineError::rejected("curtain walls use this type as a panel"));
         }
-        if p.types_of(category).count() <= 1 {
+        // Sheets may go without a title block, so the last one may go too.
+        let title_block = category == cc_core::Category::TitleBlock;
+        if p.types_of(category).count() <= 1 && !title_block {
             return Err(EngineError::rejected("the last type of a category cannot be deleted"));
         }
         let legends_use =
             p.views.values().any(|v| matches!(&v.kind, cc_core::ViewKind::Legend { types } if types.contains(&id)));
+        // Sheets on it move to the first other title block, as repair does.
+        let replacement = p.title_blocks().into_iter().find(|t| *t != id);
+        let sheets: Vec<_> = p
+            .views
+            .values()
+            .filter(|v| matches!(&v.kind, cc_core::ViewKind::Sheet { title_block: Some(t), .. } if *t == id))
+            .map(|v| v.id)
+            .collect();
         edit(s, t!("tx-delete-type"), |e| {
+            for v in &sheets {
+                if let Some(cc_core::ViewKind::Sheet { title_block, .. }) = e.view_mut(*v).map(|v| &mut v.kind) {
+                    *title_block = replacement;
+                }
+            }
             if legends_use {
                 let views: Vec<_> = e.project().views.keys().copied().collect();
                 for v in views {

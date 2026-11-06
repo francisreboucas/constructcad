@@ -272,3 +272,23 @@ fn title_block_create_refuses_names_in_use() {
     assert!(got["def"]["sheet"].as_array().is_none_or(Vec::is_empty));
     run(&mut s, "title_block_create", json!({"name": "Carimbo novo"}));
 }
+
+#[test]
+fn deleting_a_title_block_moves_its_sheets_to_another() {
+    let mut s = Session::default();
+    let standard = s.project().title_blocks()[0].0;
+    let other = run(&mut s, "title_block_create", json!({"name": "Carimbo B"}))["id"].as_u64().unwrap();
+    let sheet = first_sheet(&mut s);
+    run(&mut s, "sheet_set", json!({"sheet": sheet, "title_block": other}));
+    run(&mut s, "type_delete", json!({"type": other}));
+    let view = run(&mut s, "view_get", json!({"view": sheet}));
+    assert_eq!(view["params"]["title_block"], standard, "on the remaining title block");
+    // Without title block types left, sheets have none.
+    run(&mut s, "type_delete", json!({"type": standard}));
+    assert!(s.project().title_blocks().is_empty());
+    let view = run(&mut s, "view_get", json!({"view": sheet}));
+    assert!(view["params"]["title_block"].is_null());
+    run(&mut s, "undo", json!({}));
+    let view = run(&mut s, "view_get", json!({"view": sheet}));
+    assert_eq!(view["params"]["title_block"], standard, "one undo step");
+}

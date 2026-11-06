@@ -1592,7 +1592,7 @@ No parameters.
 
 ### `type_delete`
 
-*edit* — Delete a type that no element uses (the last type of a category is kept).
+*edit* — Delete a type that no element uses (the last type of a category is kept, except a title block: sheets on a deleted title block move to the first other one, or to none).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
