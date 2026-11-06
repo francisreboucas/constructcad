@@ -146,6 +146,7 @@ pub enum Icon {
     ResetTemporary,
     Phases,
     Demolish,
+    CurtainGrid,
     Image,
     Library,
     Settings,
@@ -160,7 +161,7 @@ pub enum Icon {
 
 impl Icon {
     #[cfg(test)]
-    pub const ALL: [Icon; 145] = [
+    pub const ALL: [Icon; 146] = [
         Icon::New,
         Icon::Open,
         Icon::Save,
@@ -296,6 +297,7 @@ impl Icon {
         Icon::ResetTemporary,
         Icon::Phases,
         Icon::Demolish,
+        Icon::CurtainGrid,
         Icon::Image,
         Icon::Library,
         Icon::Settings,
@@ -446,6 +448,7 @@ impl Icon {
             Icon::ResetTemporary => include_str!("../../../assets/icons/ui/reset-temporary.svg"),
             Icon::Phases => include_str!("../../../assets/icons/ui/phases.svg"),
             Icon::Demolish => include_str!("../../../assets/icons/ui/demolish.svg"),
+            Icon::CurtainGrid => include_str!("../../../assets/icons/ui/curtain-grid.svg"),
             Icon::Image => include_str!("../../../assets/icons/ui/image.svg"),
             Icon::CadImport => include_str!("../../../assets/icons/ui/cad-import.svg"),
             Icon::Plugin => include_str!("../../../assets/icons/ui/plugin.svg"),

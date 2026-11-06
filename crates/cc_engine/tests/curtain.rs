@@ -87,6 +87,19 @@ fn curtain_walls_lay_out_panels_and_mullions() {
     run(&mut s, "type_set", json!({"type": ty, "params": {"curtain": {"vertical": {"spacing": 2.0}}}}));
     let g = run(&mut s, "curtain_get", json!({"element": w}));
     assert_eq!(g["vertical"], json!([2.0]));
+    // Null takes mullions out (a merge patch drops the key: it must not come back as the default).
+    let pieces = g["mullions"].as_u64().unwrap();
+    run(&mut s, "type_set", json!({"type": ty, "params": {"curtain": {"border_mullion": null}}}));
+    let got = run(&mut s, "type_get", json!({"type": ty}));
+    assert_eq!(got["params"]["curtain"]["border_mullion"], Value::Null);
+    assert!(got["params"]["curtain"]["vertical_mullion"].is_object());
+    let g = run(&mut s, "curtain_get", json!({"element": w}));
+    assert!(g["mullions"].as_u64().unwrap() < pieces, "{g}");
+    let none = json!({"name": "Butt glazed", "curtain": {"vertical_mullion": null, "horizontal_mullion": null}});
+    let bare = id(&run(&mut s, "curtain_type_create", none));
+    let got = run(&mut s, "type_get", json!({"type": bare}));
+    assert_eq!(got["params"]["curtain"]["vertical_mullion"], Value::Null);
+    assert!(got["params"]["curtain"]["border_mullion"].is_object());
     // Bad values are refused.
     let bad = json!({"type": ty, "params": {"curtain": {"vertical": {"spacing": 0.0}}}});
     assert_eq!(fails(&mut s, "type_set", bad), ErrorCode::Rejected);
