@@ -137,7 +137,14 @@ impl Command for TypeSet {
                 .map(|t| t.id)
                 .collect();
         }
+        let renames: Vec<(String, String)> = self.renames.iter().map(|[a, b]| (a.clone(), b.clone())).collect();
+        let renamed_types: Vec<ElementTypeId> = if matches!(&data, Some(TypeData::Component { .. })) {
+            siblings.iter().copied().chain([id]).collect()
+        } else {
+            Vec::new()
+        };
         edit(s, t!("tx-modify-type"), |e| {
+            super::sheets::rename_sheet_fields(e, &renamed_types, &renames);
             let new_def = match &data {
                 Some(TypeData::Component { def, .. }) => Some(def.clone()),
                 _ => None,

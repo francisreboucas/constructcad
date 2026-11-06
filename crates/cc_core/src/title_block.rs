@@ -307,6 +307,65 @@ pub fn repair_def(def: &mut ComponentDef) -> usize {
     fixes
 }
 
+/// Most bytes a field key may have (a longer `{…}` is not a field).
+pub const MAX_FIELD_KEY: usize = 200;
+
+/// A run of a title block text, as [`field_parts`] splits it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FieldPart<'a> {
+    /// Words as written (`raw`) and as shown (`shown`: `{{` and `}}` as one brace).
+    Text { raw: &'a str, shown: &'a str },
+    /// `{key}`: the key between the braces and the whole field as written.
+    Field { key: &'a str, raw: &'a str },
+}
+
+/// Splits `text` into words and `{key}` fields, in order: `{{` and `}}`
+/// are literal braces, and a `{` closed by no `}` within [`MAX_FIELD_KEY`]
+/// bytes (before another `{`) is a brace like any other character.
+pub fn field_parts<'a>(text: &'a str, mut f: impl FnMut(FieldPart<'a>)) {
+    let mut rest = text;
+    // `find` lands on ASCII braces, so every slice below is on a char boundary.
+    while let Some(i) = rest.find(['{', '}']) {
+        let (before, tail) = rest.split_at(i);
+        if !before.is_empty() {
+            f(FieldPart::Text { raw: before, shown: before });
+        }
+        if tail.starts_with("{{") || tail.starts_with("}}") {
+            f(FieldPart::Text { raw: &tail[..2], shown: &tail[..1] });
+            rest = &tail[2..];
+            continue;
+        }
+        let body = &tail[1..];
+        match body.find(['{', '}']) {
+            Some(j) if tail.starts_with('{') && j <= MAX_FIELD_KEY && body[j..].starts_with('}') => {
+                f(FieldPart::Field { key: &body[..j], raw: &tail[..j + 2] });
+                rest = &body[j + 1..];
+            }
+            _ => {
+                f(FieldPart::Text { raw: &tail[..1], shown: &tail[..1] });
+                rest = body;
+            }
+        }
+    }
+    if !rest.is_empty() {
+        f(FieldPart::Text { raw: rest, shown: rest });
+    }
+}
+
+/// `text` with every `{param:old}` field reading `{param:new}`.
+pub fn rename_field_param(text: &str, old: &str, new: &str) -> String {
+    let mut out = String::with_capacity(text.len());
+    field_parts(text, |part| match part {
+        FieldPart::Field { key, .. } if key.trim().strip_prefix("param:").map(str::trim) == Some(old) => {
+            out.push_str("{param:");
+            out.push_str(new);
+            out.push('}');
+        }
+        FieldPart::Text { raw, .. } | FieldPart::Field { raw, .. } => out.push_str(raw),
+    });
+    out
+}
+
 /// Whether `s` is a real `YYYY-MM-DD` date.
 pub fn is_iso_date(s: &str) -> bool {
     parse_iso_date(s).is_some()
@@ -358,6 +417,28 @@ mod tests {
         let number = r.texts.iter().find(|t| t.text == "{sheet_number}").unwrap();
         assert_eq!(number.position, DVec2::new(paper.x - 48.0, 10.0 + 21.0 - 6.0));
         assert_eq!((number.size, number.anchor), (6.0, TextAnchor::Left));
+    }
+
+    #[test]
+    fn renames_follow_into_text_fields() {
+        let text = |t: &str| SheetItem {
+            name: "T".into(),
+            shape: SheetShape::Text {
+                x: "Old".into(),
+                y: "0".into(),
+                text: t.into(),
+                size: "2".into(),
+                anchor: TextAnchor::Left,
+                rotation: String::new(),
+            },
+        };
+        let mut def = block(vec![text("{param:Old} { param: Old } {{param:Old}} {param:Older} {Old} {param:Old")]);
+        def.params.push(ComponentParam::number("Old", 1.0, ParamKind::Text));
+        def.rename("Old", "New");
+        let SheetShape::Text { x, text, .. } = &def.sheet[0].shape else { panic!() };
+        assert_eq!(x, "New");
+        assert_eq!(text, "{param:New} {param:New} {{param:Old}} {param:Older} {Old} {param:Old");
+        assert_eq!(rename_field_param("é{param:A}ü", "A", "B"), "é{param:B}ü");
     }
 
     #[test]

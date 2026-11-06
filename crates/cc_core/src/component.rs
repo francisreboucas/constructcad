@@ -838,6 +838,9 @@ impl ComponentDef {
             for e in item.shape.expressions_mut() {
                 *e = replace_name(e, old, new);
             }
+            if let crate::title_block::SheetShape::Text { text, .. } = &mut item.shape {
+                *text = crate::title_block::rename_field_param(text, old, new);
+            }
         }
     }
 }

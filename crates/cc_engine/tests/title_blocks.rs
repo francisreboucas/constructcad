@@ -292,3 +292,28 @@ fn deleting_a_title_block_moves_its_sheets_to_another() {
     let view = run(&mut s, "view_get", json!({"view": sheet}));
     assert_eq!(view["params"]["title_block"], standard, "one undo step");
 }
+
+#[test]
+fn renaming_a_text_parameter_keeps_the_sheets_values() {
+    let mut s = Session::default();
+    let tb = run(&mut s, "title_block_create", json!({"name": "Carimbo R", "empty": true}))["id"].as_u64().unwrap();
+    run(&mut s, "component_param_add", json!({"type": tb, "name": "Drawn", "kind": "text", "instance": true}));
+    run(
+        &mut s,
+        "component_sheet_piece_add",
+        json!({"type": tb, "piece": {"kind": "text", "x": 20, "y": 20, "text": "{param:Drawn}"}}),
+    );
+    let sheet = first_sheet(&mut s);
+    run(&mut s, "sheet_set", json!({"sheet": sheet, "title_block": tb, "fields": {"Drawn": "Bia"}}));
+    run(&mut s, "component_param_set", json!({"type": tb, "name": "Drawn", "rename": "Author"}));
+    let got = run(&mut s, "component_get", json!({"type": tb}));
+    assert_eq!(got["def"]["sheet"][0]["shape"]["Text"]["text"], "{param:Author}");
+    let view = run(&mut s, "view_get", json!({"view": sheet}));
+    assert_eq!(view["params"]["fields"], json!({"Author": "Bia"}));
+    let f = run(&mut s, "sheet_fields", json!({"sheet": sheet}));
+    assert_eq!(f["params"][0]["value"], "Bia");
+    // One undo step brings both back.
+    run(&mut s, "undo", json!({}));
+    let view = run(&mut s, "view_get", json!({"view": sheet}));
+    assert_eq!(view["params"]["fields"], json!({"Drawn": "Bia"}));
+}

@@ -11,7 +11,9 @@ use crate::session::{Session, guard};
 use crate::t;
 use cc_core::raster::{MAX_IMAGE_BYTES, RasterImage};
 use cc_core::title_block::{self, SheetItem, SheetShape, TextAnchor};
-use cc_core::{ComponentDef, ComponentKind, ElementType, ElementTypeId, Project, SheetSize, TypeData, ViewKind};
+use cc_core::{
+    ComponentDef, ComponentKind, EditCtx, ElementType, ElementTypeId, Project, SheetSize, TypeData, ViewId, ViewKind,
+};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -65,6 +67,29 @@ impl SizeArg {
 fn title_block_type(p: &Project, r: &Ref) -> Result<ElementTypeId> {
     let id = refs::element_type(p, r)?;
     if p.title_blocks().contains(&id) { Ok(id) } else { Err(EngineError::invalid("not a title block type")) }
+}
+
+/// Sheets on any of the title block `types` keep their per-sheet values
+/// under the parameters' new names (`renames`, `[old, new]` in order).
+pub(crate) fn rename_sheet_fields(e: &mut EditCtx, types: &[ElementTypeId], renames: &[(String, String)]) {
+    if renames.is_empty() {
+        return;
+    }
+    let sheets: Vec<ViewId> = e
+        .project()
+        .views
+        .values()
+        .filter(|v| matches!(&v.kind, ViewKind::Sheet { title_block: Some(t), .. } if types.contains(t)))
+        .map(|v| v.id)
+        .collect();
+    for id in sheets {
+        let Some(ViewKind::Sheet { fields, .. }) = e.view_mut(id).map(|v| &mut v.kind) else { continue };
+        for (old, new) in renames {
+            if let Some(v) = fields.remove(old) {
+                fields.insert(new.clone(), v);
+            }
+        }
+    }
 }
 
 /// The title block definition of a type, if it is one.
@@ -277,7 +302,9 @@ impl Command for TitleBlockCreate {
         if p.types.values().any(|t| t.name.trim() == name) {
             return Err(EngineError::invalid(format!("a type is already named '{name}'")));
         }
-        if p.types.values().any(|t| matches!(&t.data, TypeData::Component { component, .. } if component.trim() == name))
+        if p.types
+            .values()
+            .any(|t| matches!(&t.data, TypeData::Component { component, .. } if component.trim() == name))
         {
             return Err(EngineError::invalid(format!("a component is already named '{name}'")));
         }

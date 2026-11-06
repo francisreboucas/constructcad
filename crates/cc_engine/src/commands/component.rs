@@ -50,7 +50,10 @@ pub(crate) fn edit_def<T>(
     let (id, _, mut def, siblings) = component_of(s, r)?;
     let out = change(&mut def)?;
     validate(&def)?;
+    let mut types = siblings.clone();
+    types.push(id);
     edit(s, t!("tx-modify-type"), |e| {
+        super::sheets::rename_sheet_fields(e, &types, renames);
         for sid in &siblings {
             let Some(TypeData::Component { def: theirs, .. }) = e.type_mut(*sid).map(|t| &mut t.data) else {
                 continue;
