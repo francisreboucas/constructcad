@@ -4,9 +4,11 @@
 //! value is dragged. Refusals (invalid values) go to the status bar.
 
 use crate::state::AppState;
-use cc_core::{Element, ElementId, ElementType, ElementTypeId, Level, LevelId, Material, View, ViewId};
+use cc_core::{
+    Element, ElementId, ElementType, ElementTypeId, Level, LevelId, Material, SheetSize, View, ViewId, ViewKind,
+};
 use cc_engine::Ref;
-use cc_engine::commands::{edit, levels, materials, project, types, views};
+use cc_engine::commands::{edit, levels, materials, project, sheets, types, views};
 
 fn run<C: cc_engine::Command + serde::Serialize>(state: &mut AppState, key: Option<u64>, command: C) -> bool {
     let result = match key {
@@ -123,6 +125,52 @@ pub fn view(state: &mut AppState, id: ViewId, key: Option<u64>, f: impl FnOnce(&
     run(state, key, command)
 }
 
+/// Change sheet `id` as `f` changes a copy of it (`sheet_set`): its
+/// number, paper, title block, per-sheet field values and issue date, in
+/// one undo step per `key`.
+#[cfg_attr(not(test), expect(dead_code, reason = "the sheet rows call it in the next commit"))]
+pub fn sheet(state: &mut AppState, id: ViewId, key: Option<u64>, f: impl FnOnce(&mut View)) -> bool {
+    let Some(old) = state.project().view(id).cloned() else { return false };
+    let mut new = old.clone();
+    f(&mut new);
+    let (
+        ViewKind::Sheet { number: n0, size: s0, portrait: p0, title_block: t0, fields: f0, issue_date: d0, .. },
+        ViewKind::Sheet { number: n1, size: s1, portrait: p1, title_block: t1, fields: f1, issue_date: d1, .. },
+    ) = (&old.kind, &new.kind)
+    else {
+        return false;
+    };
+    let mut fields = serde_json::Map::new();
+    for (name, value) in f1 {
+        if f0.get(name) != Some(value) {
+            fields.insert(name.clone(), serde_json::Value::String(value.clone()));
+        }
+    }
+    for name in f0.keys().filter(|n| !f1.contains_key(*n)) {
+        fields.insert(name.clone(), serde_json::Value::Null);
+    }
+    let size = (s1 != s0).then(|| match *s1 {
+        SheetSize::Custom { width, height } => sheets::SizeArg::Custom { width, height },
+        iso => sheets::SizeArg::Iso(iso.label()),
+    });
+    let command = sheets::SheetSet {
+        sheet: Ref::Id(id.0),
+        number: (n1 != n0).then(|| n1.clone()),
+        size,
+        portrait: (p1 != p0).then_some(*p1),
+        title_block: (t1 != t0).then(|| t1.map(|t| Ref::Id(t.0))),
+        fields: (!fields.is_empty()).then_some(fields),
+        issue_date: (d1 != d0).then(|| d1.clone()),
+    };
+    let nothing = command.number.is_none()
+        && command.size.is_none()
+        && command.portrait.is_none()
+        && command.title_block.is_none()
+        && command.fields.is_none()
+        && command.issue_date.is_none();
+    !nothing && run(state, key, command)
+}
+
 /// Change material `name` as `f` changes a copy of it (`material_set`; renaming has its own command).
 pub fn material(state: &mut AppState, name: &str, key: Option<u64>, f: impl FnOnce(&mut Material)) -> bool {
     let Some(old) = state.project().material(name).cloned() else { return false };
@@ -220,4 +268,68 @@ fn field_changes(
         }
     }
     (!map.is_empty()).then_some(map)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cc_core::{Document, SheetSize, ViewKind};
+
+    fn sheet_state() -> (AppState, ViewId) {
+        let state = AppState::new(Document::new(crate::actions::new_project()));
+        let id =
+            state.project().views.values().find(|v| matches!(v.kind, ViewKind::Sheet { .. })).map(|v| v.id).unwrap();
+        (state, id)
+    }
+
+    fn kind(state: &AppState, id: ViewId) -> ViewKind {
+        state.project().view(id).unwrap().kind.clone()
+    }
+
+    #[test]
+    fn sheet_changes_run_one_sheet_set() {
+        let (mut state, id) = sheet_state();
+        let depth = state.session.doc.undo_depth();
+        let changed = sheet(&mut state, id, None, |v| {
+            if let ViewKind::Sheet { size, portrait, issue_date, fields, number, .. } = &mut v.kind {
+                *size = SheetSize::Custom { width: 1000.0, height: 594.0 };
+                *portrait = true;
+                *issue_date = "2026-11-06".into();
+                *number = "B7".into();
+                fields.insert("Drawn".into(), "Ana".into());
+            }
+        });
+        assert!(changed, "{}", state.message);
+        assert_eq!(state.session.doc.undo_depth(), depth + 1, "one undo step");
+        let ViewKind::Sheet { size, portrait, issue_date, fields, number, title_block, .. } = kind(&state, id) else {
+            panic!()
+        };
+        assert_eq!(size, SheetSize::Custom { width: 1000.0, height: 594.0 });
+        assert!(portrait);
+        assert_eq!((issue_date.as_str(), number.as_str()), ("2026-11-06", "B7"));
+        assert_eq!(fields.get("Drawn").map(String::as_str), Some("Ana"));
+        assert!(title_block.is_some(), "the template's sheet has the standard title block");
+
+        // Clearing a field and the title block; ISO sizes go back as their names.
+        assert!(sheet(&mut state, id, None, |v| {
+            if let ViewKind::Sheet { fields, title_block, size, .. } = &mut v.kind {
+                fields.clear();
+                *title_block = None;
+                *size = SheetSize::A1;
+            }
+        }));
+        let ViewKind::Sheet { fields, title_block, size, .. } = kind(&state, id) else { panic!() };
+        assert!(fields.is_empty() && title_block.is_none());
+        assert_eq!(size, SheetSize::A1);
+
+        // Nothing changed: no command. A refused value: false, and a message.
+        assert!(!sheet(&mut state, id, None, |_| {}));
+        state.message.clear();
+        assert!(!sheet(&mut state, id, None, |v| {
+            if let ViewKind::Sheet { issue_date, .. } = &mut v.kind {
+                *issue_date = "31/02/2026".into();
+            }
+        }));
+        assert!(!state.message.is_empty());
+    }
 }
