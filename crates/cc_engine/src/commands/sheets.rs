@@ -426,35 +426,72 @@ impl SheetPieceArg {
                     rotation: opt(rotation)?,
                 }
             }
-            SheetPieceArg::Image { x, y, width, height, image_path, image } => {
-                let bytes = match (image_path, image) {
-                    (Some(path), None) => {
-                        if std::fs::metadata(path)?.len() > MAX_IMAGE_BYTES as u64 {
-                            return Err(EngineError::invalid(t!("err-image-too-large")));
-                        }
-                        std::fs::read(path)?
-                    }
-                    (None, Some(text)) => {
-                        if text.len() > MAX_IMAGE_BYTES / 3 * 4 + 8 {
-                            return Err(EngineError::invalid(t!("err-image-too-large")));
-                        }
-                        cc_core::raster::base64_decode(text.trim())
-                            .ok_or_else(|| EngineError::invalid("the picture is not valid base64"))?
-                    }
-                    _ => return Err(EngineError::invalid("give the picture as `image_path` or `image`, one of them")),
-                };
-                let raster: RasterImage = guard(|| cc_views::raster::probe(bytes))?
-                    .ok_or_else(|| EngineError::invalid(t!("err-image-unreadable")))?;
-                SheetShape::Image {
-                    x: x.text()?,
-                    y: y.text()?,
-                    width: width.text()?,
-                    height: height.text()?,
-                    image: Arc::new(raster),
-                }
-            }
+            SheetPieceArg::Image { x, y, width, height, image_path, image } => SheetShape::Image {
+                x: x.text()?,
+                y: y.text()?,
+                width: width.text()?,
+                height: height.text()?,
+                image: read_picture(image_path.as_deref(), image.as_deref())?,
+            },
         })
     }
+}
+
+/// A picture from a file or base64 text (one of them), checked against the
+/// raster limits.
+fn read_picture(image_path: Option<&std::path::Path>, image: Option<&str>) -> Result<Arc<RasterImage>> {
+    let bytes = match (image_path, image) {
+        (Some(path), None) => {
+            if std::fs::metadata(path)?.len() > MAX_IMAGE_BYTES as u64 {
+                return Err(EngineError::invalid(t!("err-image-too-large")));
+            }
+            std::fs::read(path)?
+        }
+        (None, Some(text)) => {
+            if text.len() > MAX_IMAGE_BYTES / 3 * 4 + 8 {
+                return Err(EngineError::invalid(t!("err-image-too-large")));
+            }
+            cc_core::raster::base64_decode(text.trim())
+                .ok_or_else(|| EngineError::invalid("the picture is not valid base64"))?
+        }
+        _ => return Err(EngineError::invalid("give the picture as `image_path` or `image`, one of them")),
+    };
+    let raster: RasterImage =
+        guard(|| cc_views::raster::probe(bytes))?.ok_or_else(|| EngineError::invalid(t!("err-image-unreadable")))?;
+    Ok(Arc::new(raster))
+}
+
+/// The same picture without its bytes (for patches and summaries).
+fn without_bytes(image: &RasterImage) -> Arc<RasterImage> {
+    Arc::new(RasterImage { format: image.format, width: image.width, height: image.height, data: Vec::new() })
+}
+
+/// A definition as queries show it: each title block picture as its
+/// format, size in pixels and `bytes`, not the bytes themselves.
+pub(crate) fn def_json(def: &ComponentDef) -> Value {
+    if !def.sheet.iter().any(|i| matches!(i.shape, SheetShape::Image { .. })) {
+        return serde_json::to_value(def).unwrap_or(Value::Null);
+    }
+    let mut light = def.clone();
+    let mut sizes = Vec::new();
+    for item in &mut light.sheet {
+        if let SheetShape::Image { image, .. } = &mut item.shape {
+            sizes.push(image.data.len());
+            *image = without_bytes(image);
+        }
+    }
+    let mut out = serde_json::to_value(&light).unwrap_or(Value::Null);
+    let pictures = out
+        .get_mut("sheet")
+        .and_then(Value::as_array_mut)
+        .into_iter()
+        .flatten()
+        .filter_map(|item| item.pointer_mut("/shape/Image/image").and_then(Value::as_object_mut));
+    for (picture, bytes) in pictures.zip(sizes) {
+        picture.remove("data");
+        picture.insert("bytes".into(), json!(bytes));
+    }
+    out
 }
 
 fn title_block_def(def: &ComponentDef) -> Result<()> {
@@ -509,7 +546,9 @@ impl Command for ComponentSheetPieceAdd {
 }
 
 /// Change a 2D piece of a title block: `piece` is a merge patch over its
-/// form in `component_get` `def.sheet` (e.g. `{"Text": {"size": "4"}}`).
+/// form in `component_get` `def.sheet` (e.g. `{"Text": {"size": "4"}}`);
+/// an image piece's picture is replaced with `image_path` or `image`, not
+/// by the patch.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentSheetPieceSet {
@@ -518,24 +557,60 @@ pub struct ComponentSheetPieceSet {
     pub type_ref: Ref,
     /// The piece's index (in `component_get` `def.sheet`).
     pub index: usize,
-    /// Merge patch over the piece's shape.
+    /// Merge patch over the piece's shape (without a picture).
     #[serde(default)]
     pub piece: Option<Value>,
     /// New name.
     #[serde(default)]
     pub name: Option<String>,
+    /// A new picture for an image piece: its file (PNG, JPEG, GIF, BMP or WebP).
+    #[serde(default)]
+    pub image_path: Option<PathBuf>,
+    /// A new picture for an image piece: its bytes, base64.
+    #[serde(default)]
+    pub image: Option<String>,
 }
 
 impl Command for ComponentSheetPieceSet {
     const NAME: &'static str = "component_sheet_piece_set";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
+        if self.piece.as_ref().and_then(|p| p.get("Image")).and_then(|p| p.get("image")).is_some() {
+            return Err(EngineError::invalid("give a new picture as `image_path` or `image`, not in the patch"));
+        }
+        let picture = match (&self.image_path, &self.image) {
+            (None, None) => None,
+            (path, text) => Some(read_picture(path.as_deref(), text.as_deref())?),
+        };
         edit_def(s, &self.type_ref, &[], |def| {
             title_block_def(def)?;
             let item = def.sheet.get_mut(self.index).ok_or_else(|| EngineError::invalid("no such piece"))?;
             if let Some(patch) = &self.piece {
+                // The patch runs over the piece without its picture's bytes,
+                // and the piece keeps the same picture.
+                let kept = match &mut item.shape {
+                    SheetShape::Image { image, .. } => {
+                        let light = without_bytes(image);
+                        Some(std::mem::replace(image, light))
+                    }
+                    _ => None,
+                };
                 // `edit_def` refuses a piece the patch leaves out of bounds.
-                item.shape = super::patch_value(&item.shape, patch)?;
+                let mut shape = super::patch_value(&item.shape, patch)?;
+                match (&mut shape, kept) {
+                    (SheetShape::Image { image, .. }, Some(kept)) => *image = kept,
+                    (SheetShape::Image { .. }, None) => {
+                        return Err(EngineError::invalid("give the picture as `image_path` or `image`"));
+                    }
+                    _ => {}
+                }
+                item.shape = shape;
+            }
+            if let Some(new) = picture {
+                let SheetShape::Image { image, .. } = &mut item.shape else {
+                    return Err(EngineError::invalid("only an image piece takes a picture"));
+                };
+                *image = new;
             }
             if let Some(n) = self.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
                 item.name = n.to_string();

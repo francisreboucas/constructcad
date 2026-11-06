@@ -143,7 +143,8 @@ fn param_kind(name: &str) -> Result<ParamKind> {
 /// The component of a type, as the modeling environment shows it: the
 /// definition, the value of every parameter and reference plane, the value
 /// of each dimension, where each connector is, the problems found, and the
-/// component's types with their parameter values.
+/// component's types with their parameter values. A title block's pictures
+/// show as `format`, `width`, `height` (pixels) and `bytes`, not their bytes.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentGet {
@@ -201,7 +202,7 @@ impl Command for ComponentGet {
         Ok(json!({
             "type": id.0,
             "component": component,
-            "def": def,
+            "def": super::sheets::def_json(&def),
             "planes": planes,
             "dimensions": dimensions,
             "connectors": connectors,

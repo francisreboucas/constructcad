@@ -335,3 +335,52 @@ fn title_blocks_are_a_category_by_name() {
         ErrorCode::InvalidArguments
     );
 }
+
+/// The picture of piece `index` of title block type `tb`.
+fn picture(s: &Session, tb: u64, index: usize) -> std::sync::Arc<cc_core::raster::RasterImage> {
+    let t = s.project().element_type(cc_core::ElementTypeId(tb)).unwrap();
+    let cc_core::TypeData::Component { def, .. } = &t.data else { panic!("not a component") };
+    match &def.sheet[index].shape {
+        cc_core::title_block::SheetShape::Image { image, .. } => image.clone(),
+        other => panic!("not an image: {other:?}"),
+    }
+}
+
+#[test]
+fn image_pieces_are_patched_without_their_bytes() {
+    let mut s = Session::default();
+    let tb = run(&mut s, "title_block_create", json!({"name": "Logo", "empty": true}))["id"].as_u64().unwrap();
+    let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+    let image = json!({"kind": "image", "x": 30, "y": 30, "width": 20, "height": 20, "image": png});
+    run(&mut s, "component_sheet_piece_add", json!({"type": tb, "piece": image}));
+    run(
+        &mut s,
+        "component_sheet_piece_add",
+        json!({"type": tb, "piece": {"kind": "text", "x": 0, "y": 0, "text": "x"}}),
+    );
+    let before = picture(&s, tb, 0);
+    run(&mut s, "component_sheet_piece_set", json!({"type": tb, "index": 0, "piece": {"Image": {"x": "40"}}}));
+    let after = picture(&s, tb, 0);
+    assert!(std::sync::Arc::ptr_eq(&before, &after), "the same picture, not a copy");
+    let got = run(&mut s, "component_get", json!({"type": tb}));
+    assert_eq!(got["def"]["sheet"][0]["shape"]["Image"]["x"], "40");
+    // Queries summarize the picture instead of its bytes.
+    let summary = json!({"format": "Png", "width": 1, "height": 1, "bytes": before.data.len()});
+    assert_eq!(got["def"]["sheet"][0]["shape"]["Image"]["image"], summary);
+    let ty = run(&mut s, "type_get", json!({"type": tb}));
+    assert_eq!(ty["params"]["def"]["sheet"][0]["shape"]["Image"]["image"], summary);
+    // A patch does not carry a picture; `image` or `image_path` replaces it.
+    let raw = json!({"format": "Png", "width": 1, "height": 1, "data": png});
+    assert_eq!(
+        fails(&mut s, "component_sheet_piece_set", json!({"type": tb, "index": 0, "piece": {"Image": {"image": raw}}})),
+        ErrorCode::InvalidArguments
+    );
+    assert!(std::sync::Arc::ptr_eq(&before, &picture(&s, tb, 0)));
+    run(&mut s, "component_sheet_piece_set", json!({"type": tb, "index": 0, "image": png}));
+    assert!(!std::sync::Arc::ptr_eq(&before, &picture(&s, tb, 0)));
+    assert_eq!(*before, *picture(&s, tb, 0));
+    assert_eq!(
+        fails(&mut s, "component_sheet_piece_set", json!({"type": tb, "index": 1, "image": png})),
+        ErrorCode::InvalidArguments
+    );
+}

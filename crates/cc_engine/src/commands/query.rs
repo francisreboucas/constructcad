@@ -105,7 +105,13 @@ impl Command for TypesList {
 
 pub(crate) fn type_json(s: &Session, id: cc_core::ElementTypeId) -> Option<Value> {
     let t = s.project().element_type(id)?;
-    let (_, params) = variant(to_json(&t.data));
+    // A title block's pictures show as a summary, not their bytes.
+    let params = match &t.data {
+        cc_core::TypeData::Component { component, def } => {
+            json!({ "component": component, "def": super::sheets::def_json(def) })
+        }
+        data => variant(to_json(data)).1,
+    };
     Some(json!({
         "id": t.id.0,
         "name": t.name,
@@ -116,6 +122,8 @@ pub(crate) fn type_json(s: &Session, id: cc_core::ElementTypeId) -> Option<Value
 }
 
 /// A type with all its parameters (`params`, editable with `type_set`) and identity data (`info`).
+/// A title block's pictures show as `format`, `width`, `height` (pixels) and `bytes`, not their
+/// bytes; `component_sheet_piece_set` replaces them.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct TypeGet {

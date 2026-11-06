@@ -259,7 +259,7 @@ No parameters.
 
 ### `type_get`
 
-*query* — A type with all its parameters (`params`, editable with `type_set`) and identity data (`info`).
+*query* — A type with all its parameters (`params`, editable with `type_set`) and identity data (`info`). A title block's pictures show as `format`, `width`, `height` (pixels) and `bytes`, not their bytes; `component_sheet_piece_set` replaces them.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -1609,7 +1609,7 @@ No parameters.
 
 ### `component_get`
 
-*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, where each connector is, the problems found, and the component's types with their parameter values.
+*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, where each connector is, the problems found, and the component's types with their parameter values. A title block's pictures show as `format`, `width`, `height` (pixels) and `bytes`, not their bytes.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -2076,14 +2076,16 @@ No parameters.
 
 ### `component_sheet_piece_set`
 
-*edit* — Change a 2D piece of a title block: `piece` is a merge patch over its form in `component_get` `def.sheet` (e.g. `{"Text": {"size": "4"}}`).
+*edit* — Change a 2D piece of a title block: `piece` is a merge patch over its form in `component_get` `def.sheet` (e.g. `{"Text": {"size": "4"}}`); an image piece's picture is replaced with `image_path` or `image`, not by the patch.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
 | `index` | integer | required | The piece's index (in `component_get` `def.sheet`). |
 | `type` | id or name | required | A type of the title block: id or name. |
+| `image` | string | optional | A new picture for an image piece: its bytes, base64. |
+| `image_path` | string | optional | A new picture for an image piece: its file (PNG, JPEG, GIF, BMP or WebP). |
 | `name` | string | optional | New name. |
-| `piece` | JSON | optional | Merge patch over the piece's shape. |
+| `piece` | JSON | optional | Merge patch over the piece's shape (without a picture). |
 
 ### `component_sheet_piece_delete`
 
