@@ -278,6 +278,7 @@ fn parameters(ui: &mut Ui, state: &mut AppState, ty: &ElementType) {
         }
     });
 
+    crate::curtain_ui::type_sections(ui, state, ty);
     structure_parameters(ui, state, ty);
 
     if let TypeData::Door { width, height, .. } | TypeData::Window { width, height, .. } = ty.data {

@@ -96,6 +96,8 @@ pub struct AppState {
     pub truss: crate::tools::TrussOptions,
     /// Options of the pipe, conduit and device tools.
     pub mep: crate::tools::MepOptions,
+    /// Options of the Curtain Grid tool.
+    pub curtain: crate::curtain_ui::CurtainOptions,
     pub active_view: Option<ViewId>,
     pub view2d: HashMap<ViewId, View2DState>,
     pub view3d: HashMap<ViewId, View3DState>,
@@ -193,6 +195,7 @@ impl AppState {
             dim_continuous: false,
             truss: Default::default(),
             mep: Default::default(),
+            curtain: Default::default(),
             active_view: None,
             view2d: HashMap::new(),
             view3d: HashMap::new(),

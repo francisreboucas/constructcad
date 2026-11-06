@@ -1845,3 +1845,112 @@ fn available_plugins_say_what_they_need() {
     );
     assert!(harness.query_by_label(&t!("plug-install")).is_none());
 }
+
+/// A template project with a curtain wall selected (issue #155).
+fn curtain_state() -> (AppState, cc_core::ElementId, cc_core::ElementTypeId) {
+    let mut state = AppState::new(cc_core::Document::new(cc_core::Project::from_template()));
+    state.project_open = true;
+    state.show_home = false;
+    let ty = crate::curtain_ui::new_curtain_type(&mut state).unwrap();
+    let args = serde_json::json!({"start": [0.0, 0.0], "end": [6.0, 0.0], "type": ty.0});
+    let id = cc_core::ElementId(state.session.execute("wall_create", args).unwrap()["id"].as_u64().unwrap());
+    state.session.geometry();
+    state.selection.insert(id);
+    (state, id, ty)
+}
+
+/// The Curtain Grid tool's options bar picks what a click does, and the
+/// panel to put in.
+#[test]
+fn curtain_grid_tool_options() {
+    use crate::curtain_ui::GridMode;
+    let (mut state, _, _) = curtain_state();
+    state.tool = crate::tools::Tool::CurtainGrid;
+    let mut harness = themed_harness(state, egui::vec2(1600.0, 60.0), egui::Theme::Light, |ui, state| {
+        crate::ribbon::options_bar(ui, state)
+    });
+    assert_eq!(harness.state().curtain.mode, GridMode::AddLine);
+    harness.get_by_label(&t!("curtain-axis-horizontal")).click();
+    harness.run();
+    assert_eq!(harness.state().curtain.axis, cc_core::curtain::GridAxis::Horizontal);
+    harness.get_by_label(&t!("curtain-mode-panel")).click();
+    harness.run();
+    assert_eq!(harness.state().curtain.mode, GridMode::Panel);
+    assert!(harness.query_by_label(&t!("prop-panel")).is_some(), "the panel to put in");
+    assert!(harness.query_by_label(&t!("curtain-axis-horizontal")).is_none());
+}
+
+/// A selected curtain wall shows its grid in the properties palette; a
+/// wall with its own lines resets them to the type's.
+#[test]
+fn curtain_wall_properties_show_the_grid() {
+    let (mut state, id, _) = curtain_state();
+    let add = serde_json::json!({"element": id.0, "axis": "Vertical", "add": [2.2]});
+    state.session.execute("curtain_grid_set", add).unwrap();
+    state.session.geometry();
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1400.0), egui::Theme::Light, |ui, state| {
+        egui::ScrollArea::vertical().show(ui, |ui| crate::properties::show(ui, state));
+    });
+    assert!(harness.query_by_label(&t!("section-curtain-grid")).is_some());
+    assert!(harness.query_by_label(&t!("curtain-lines-own")).is_some());
+    let own = |s: &AppState| match &s.project().element(id).unwrap().kind {
+        cc_core::ElementKind::Wall(w) => w.curtain.vertical.is_some(),
+        _ => false,
+    };
+    assert!(own(harness.state()));
+    // Vertical lines first: theirs are the wall's own.
+    harness.query_all_by_label(&t!("curtain-reset")).next().unwrap().click();
+    harness.run();
+    assert!(!own(harness.state()));
+}
+
+/// The Type Properties of a curtain type edit its grids, panel and
+/// mullions; Cancel undoes the changes.
+#[test]
+fn curtain_type_properties_edit_the_grid() {
+    let (mut state, _, ty) = curtain_state();
+    state.dialogs.type_editor = Some(ty);
+    let depth = state.session.doc.undo_depth();
+    let mut harness = themed_harness(state, egui::vec2(900.0, 1400.0), egui::Theme::Light, |ui, state| {
+        crate::type_dialog::show(ui.ctx(), state)
+    });
+    for key in
+        ["section-curtain-vertical", "section-curtain-horizontal", "section-curtain-panel", "section-mullions-border"]
+    {
+        assert!(harness.query_by_label(&crate::i18n::tr(key)).is_some(), "{key}");
+    }
+    assert!(harness.query_by_label(&t!("prop-structure")).is_none(), "curtain types have no layers");
+    // Border mullions off, then Cancel.
+    let border = |s: &AppState| s.project().element_type(ty).unwrap().curtain().unwrap().border_mullion.is_some();
+    assert!(border(harness.state()));
+    let switch = format!("{}: {}", t!("section-mullions-border"), t!("prop-mullions-on"));
+    harness.get_by_label(&switch).click_accesskit();
+    harness.run();
+    harness.run();
+    assert!(!border(harness.state()));
+    harness.get_by_label(&t!("action-cancel")).click();
+    harness.run();
+    assert!(border(harness.state()));
+    assert_eq!(harness.state().session.doc.undo_depth(), depth);
+}
+
+/// The wall tool's type list offers a curtain type when the project has
+/// none; picking it makes one and draws with it.
+#[test]
+fn wall_tool_offers_a_curtain_type() {
+    let mut state = sample_state();
+    let wall_type = state.project().default_type(cc_core::Category::Wall).unwrap();
+    state.tool = crate::tools::Tool::Wall { type_id: wall_type };
+    let mut harness = themed_harness(state, egui::vec2(1600.0, 400.0), egui::Theme::Light, |ui, state| {
+        crate::ribbon::options_bar(ui, state)
+    });
+    let name = harness.state().project().type_name(wall_type).to_string();
+    harness.get_by_value(&name).click();
+    harness.run();
+    harness.get_by_label(&crate::curtain_ui::new_type_label()).click();
+    harness.run();
+    let state = harness.state();
+    let ty = state.tool.type_id().and_then(|id| state.project().element_type(id)).unwrap();
+    assert!(ty.curtain().is_some(), "the tool draws curtain walls");
+    assert_eq!(state.project().types_of(cc_core::Category::Wall).filter(|t| t.curtain().is_some()).count(), 1);
+}
