@@ -28,6 +28,7 @@ pub mod ramp;
 pub mod rebar;
 pub mod roofing;
 pub mod shaft;
+pub mod sheets;
 pub mod sketch;
 pub mod stair;
 pub mod structure;

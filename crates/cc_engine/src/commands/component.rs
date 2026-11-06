@@ -220,12 +220,16 @@ pub struct ComponentParamAdd {
     /// Value (meters for lengths, degrees for angles; default 0).
     #[serde(default)]
     pub value: Option<f64>,
-    /// `length` (default), `angle` or `number`.
+    /// `length` (default), `angle`, `number` or `text` (a title block's
+    /// per-sheet field, with `instance`).
     #[serde(default)]
     pub kind: Option<String>,
-    /// Elements may override the value.
+    /// Elements may override the value (sheets, for a title block's text parameter).
     #[serde(default)]
     pub instance: Option<bool>,
+    /// Value of a `text` parameter (default empty).
+    #[serde(default)]
+    pub text: Option<String>,
 }
 
 impl Command for ComponentParamAdd {
@@ -233,11 +237,22 @@ impl Command for ComponentParamAdd {
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
         let value = refs::finite(self.value.unwrap_or(0.0), "value")?;
-        let kind = self.kind.as_deref().map(param_kind).transpose()?.unwrap_or_default();
+        let kind = match self.kind.as_deref() {
+            Some(k) if k.trim().eq_ignore_ascii_case("text") => ParamKind::Text,
+            Some(k) => param_kind(k)?,
+            None => ParamKind::default(),
+        };
+        let text = self.text.unwrap_or_default();
+        if !text.is_empty() && kind != ParamKind::Text {
+            return Err(EngineError::invalid("only a text parameter takes a text"));
+        }
+        if text.chars().count() > cc_core::title_block::MAX_SHEET_TEXT {
+            return Err(EngineError::invalid("the text is too long"));
+        }
         let name = edit_def(s, &self.type_ref, &[], |def| {
             let name = check_name(def, &self.name)?;
             let instance = self.instance.unwrap_or(false);
-            def.params.push(ComponentParam { name: name.clone(), value, kind, instance, ..Default::default() });
+            def.params.push(ComponentParam { name: name.clone(), value, kind, instance, text, ..Default::default() });
             Ok(name)
         })?;
         Ok(json!({ "name": name }))

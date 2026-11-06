@@ -112,8 +112,16 @@ fn validate(file: &ComponentFile) -> Result<(), ComponentFileError> {
     if def.params.len() > MAX_PARAMS || def.items.len() > MAX_ITEMS || file.types.len() > MAX_TYPES {
         return bad("too many parameters, pieces or types");
     }
-    if def.items.is_empty() || file.types.is_empty() {
+    // A title block holds only 2D sheet pieces (possibly none), within their limits.
+    let title_block = def.kind == crate::ComponentKind::TitleBlock;
+    if (def.items.is_empty() && !title_block) || file.types.is_empty() {
         return bad("no pieces or no types");
+    }
+    if title_block && crate::title_block::repair_def(&mut def.clone()) > 0 {
+        return bad("invalid or too many sheet pieces");
+    }
+    if !title_block && !def.sheet.is_empty() {
+        return bad("sheet pieces in a component that is not a title block");
     }
     for (i, p) in def.params.iter().enumerate() {
         if !expr::is_valid_name(&p.name) || def.params[..i].iter().any(|q| q.name == p.name) {
@@ -331,5 +339,25 @@ mod tests {
         big.def.items = vec![big.def.items[0].clone(); MAX_ITEMS + 1];
         assert!(matches!(from_ron(&to_ron(&big).unwrap()), Err(ComponentFileError::Invalid(_))));
         assert!(from_ron("not ron").is_err());
+    }
+
+    #[test]
+    fn title_blocks_hold_only_sheet_pieces() {
+        let p = Project::from_template();
+        let tb = p.title_blocks()[0];
+        let name = p.types[&tb].name.clone();
+        let file = extract(&p, &name).unwrap();
+        // No 3D pieces, and an empty title block, are fine.
+        assert!(from_ron(&to_ron(&file).unwrap()).is_ok());
+        let mut empty = file.clone();
+        empty.def.sheet.clear();
+        assert!(from_ron(&to_ron(&empty).unwrap()).is_ok());
+        // Sheet pieces in another kind, or too many of them, are not.
+        let mut table = extract(&p, &table_component(&p)).unwrap();
+        table.def.sheet = file.def.sheet.clone();
+        assert!(matches!(from_ron(&to_ron(&table).unwrap()), Err(ComponentFileError::Invalid(_))));
+        let mut big = file.clone();
+        big.def.sheet = vec![file.def.sheet[0].clone(); crate::title_block::MAX_SHEET_PIECES + 1];
+        assert!(matches!(from_ron(&to_ron(&big).unwrap()), Err(ComponentFileError::Invalid(_))));
     }
 }

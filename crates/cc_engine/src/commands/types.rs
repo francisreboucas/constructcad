@@ -13,7 +13,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// Parameter names valid and unique, sound reference planes, lines and
-/// dimensions, at least one piece, every piece resolves.
+/// dimensions, at least one piece (a title block: sheet pieces only, within
+/// their limits), every piece resolves.
 pub(crate) fn validate(def: &ComponentDef) -> Result<()> {
     for (i, p) in def.params.iter().enumerate() {
         if !expr::is_valid_name(&p.name) {
@@ -23,8 +24,18 @@ pub(crate) fn validate(def: &ComponentDef) -> Result<()> {
             return Err(EngineError::invalid(format!("parameter '{}' is repeated", p.name)));
         }
     }
-    if def.items.is_empty() {
+    let title_block = def.kind == cc_core::ComponentKind::TitleBlock;
+    if def.items.is_empty() && !title_block {
         return Err(EngineError::invalid("the component has no pieces"));
+    }
+    if title_block && !def.items.is_empty() {
+        return Err(EngineError::invalid("a title block has only sheet pieces"));
+    }
+    if !title_block && !def.sheet.is_empty() {
+        return Err(EngineError::invalid("sheet pieces go into title blocks only"));
+    }
+    if title_block && cc_core::title_block::repair_def(&mut def.clone()) > 0 {
+        return Err(EngineError::invalid("a sheet piece is out of bounds (points, text length or picture)"));
     }
     if let Some(problem) = def.ref_problems().into_iter().next() {
         return Err(EngineError::invalid(problem));
@@ -48,7 +59,7 @@ pub(crate) fn validate(def: &ComponentDef) -> Result<()> {
     Ok(())
 }
 
-fn type_out(s: &Session, id: ElementTypeId) -> Value {
+pub(crate) fn type_out(s: &Session, id: ElementTypeId) -> Value {
     super::query::type_json(s, id).unwrap_or_else(|| json!({ "id": id.0 }))
 }
 

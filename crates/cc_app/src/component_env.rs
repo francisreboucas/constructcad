@@ -833,8 +833,14 @@ fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef) {
     }
     if ui.button(format!("+ {}", t!("comp-env-add-param"))).clicked() {
         let name = (1..).map(|i| format!("Param{i}")).find(|n| !def.name_taken(n)).unwrap_or_default();
-        let command =
-            cmd::ComponentParamAdd { type_ref: type_ref(state), name, value: Some(1.0), kind: None, instance: None };
+        let command = cmd::ComponentParamAdd {
+            type_ref: type_ref(state),
+            name,
+            value: Some(1.0),
+            kind: None,
+            instance: None,
+            text: None,
+        };
         crate::actions::run_command(state, command);
     }
 }

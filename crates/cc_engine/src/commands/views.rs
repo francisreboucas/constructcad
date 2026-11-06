@@ -12,7 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-fn view_out(s: &Session, id: ViewId) -> Value {
+pub(crate) fn view_out(s: &Session, id: ViewId) -> Value {
     view_json(s, id).unwrap_or(json!({ "id": id.0 }))
 }
 
@@ -25,7 +25,7 @@ fn view_out(s: &Session, id: ViewId) -> Value {
 /// view of the analytical model), `rebar` (a 3D view of the reinforcement), `legend` (all types),
 /// `schedule` (with `category`), `panel_diagram` (with `panel`: the
 /// single-line diagram and load schedule of a distribution board; default
-/// the only board) or `sheet` (A3, numbered after the others).
+/// the only board) or `sheet` (A3, numbered after the others, with the first title block type).
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ViewCreate {
@@ -202,7 +202,7 @@ impl Command for ViewCreate {
                     size: SheetSize::A3,
                     portrait: false,
                     viewports: Vec::new(),
-                    title_block: None,
+                    title_block: p.title_blocks().first().copied(),
                     fields: Default::default(),
                     issue_date: String::new(),
                 };
@@ -406,7 +406,7 @@ pub fn sheet_of(project: &Project, view: ViewId) -> Option<ViewId> {
     })
 }
 
-fn sheet(p: &Project, r: &Ref) -> Result<ViewId> {
+pub(crate) fn sheet(p: &Project, r: &Ref) -> Result<ViewId> {
     let id = refs::view(p, r)?;
     match p.view(id).map(|v| &v.kind) {
         Some(ViewKind::Sheet { .. }) => Ok(id),
