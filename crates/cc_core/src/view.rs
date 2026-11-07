@@ -207,6 +207,10 @@ pub enum ViewKind {
         start: DVec2,
         end: DVec2,
         depth: f64,
+        /// A split line: plans draw only this much of it, in meters, next to
+        /// the head at the start and at the end (`None`: the whole line).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        segments: Option<[f64; 2]>,
     },
     Legend {
         types: Vec<ElementTypeId>,
@@ -401,7 +405,21 @@ impl DetailLevel {
     }
 }
 
+/// Longest piece of a split section line kept next to a head, meters.
+pub const MAX_SECTION_SEGMENT: f64 = 1000.0;
+
 impl ViewKind {
+    /// Turn a section to look the other way: its ends swap, and the pieces
+    /// of a split line go with them. `false` for other views.
+    pub fn flip_section(&mut self) -> bool {
+        let ViewKind::Section { start, end, segments, .. } = self else { return false };
+        std::mem::swap(start, end);
+        if let Some(s) = segments {
+            s.swap(0, 1);
+        }
+        true
+    }
+
     /// Whether views of this kind show the model in a phase (plans,
     /// elevations, sections, 3D views and schedules).
     pub fn is_phased(&self) -> bool {

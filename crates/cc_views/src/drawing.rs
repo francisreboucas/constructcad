@@ -212,6 +212,41 @@ pub struct Drawing2D {
     /// under a plan ([`cc_core::Underlay`]): halftone, with no element, not
     /// picked or snapped to.
     pub underlay: usize,
+    /// The marks of sections in a plan: picked, moved and flipped there.
+    pub sections: Vec<SectionHandle>,
+}
+
+/// A section's mark in a plan, as drawn (meters on the plan).
+#[derive(Debug, Clone, PartialEq)]
+pub struct SectionHandle {
+    pub view: cc_core::ViewId,
+    pub start: DVec2,
+    pub end: DVec2,
+    /// The view's split line (see [`cc_core::ViewKind::Section`]).
+    pub segments: Option<[f64; 2]>,
+    /// The pieces of line drawn between the heads.
+    pub pieces: Vec<(DVec2, DVec2)>,
+    /// Radius of a head's circle.
+    pub radius: f64,
+    /// How far from each end the line starts (half the triangle's base).
+    pub head: f64,
+}
+
+impl SectionHandle {
+    /// Whether `p` lies on the mark: within `tol` of its line or in a head.
+    pub fn hits(&self, p: DVec2, tol: f64) -> bool {
+        let near = |a: DVec2, b: DVec2| cc_geom::polygon::closest_on_segment(a, b, p).0.distance(p) <= tol;
+        [self.start, self.end].iter().any(|c| c.distance(p) <= self.radius + tol)
+            || self.pieces.iter().any(|&(a, b)| near(a, b))
+    }
+
+    /// The inner ends of a split line's pieces, next to the start and to
+    /// the end: dragged closer to or away from their head.
+    pub fn segment_ends(&self) -> Option<[DVec2; 2]> {
+        let [s0, s1] = self.segments?;
+        let dir = (self.end - self.start).normalize_or_zero();
+        Some([self.start + dir * s0, self.end - dir * s1])
+    }
 }
 
 /// A tag of an element in a view, as drawn: picked within `half` of
@@ -233,6 +268,11 @@ impl Drawing2D {
     /// The drawing without its underlay (printed when the view says so).
     pub fn without_underlay(&self) -> Drawing2D {
         Drawing2D { prims: self.own_prims().to_vec(), underlay: 0, ..self.clone() }
+    }
+
+    /// The section mark at `p` (the last drawn on top), if any.
+    pub fn section_at(&self, p: DVec2, tol: f64) -> Option<&SectionHandle> {
+        self.sections.iter().rev().find(|s| s.hits(p, tol))
     }
 
     /// The tag at `p` (the last drawn on top), if any.

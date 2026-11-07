@@ -271,7 +271,9 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         (keys.0, keys.1, keys.2, i.key_pressed(Key::Space), i.events.clone())
     });
     // Space turns or flips the selection (tools use it for their own preview).
-    if space && state.tool == Tool::Select && crate::tools::rotate_selection(state) {
+    if space && state.tool == Tool::Select && state.selection.is_empty() && crate::section_mark::flip(state) {
+        // The selected section mark was flipped.
+    } else if space && state.tool == Tool::Select && crate::tools::rotate_selection(state) {
         state.message = t!("msg-rotated");
     }
     // An open sketch has its own picks and selection.
@@ -318,12 +320,21 @@ pub(crate) fn shortcuts(ctx: &egui::Context, state: &mut AppState) {
         } else {
             state.selection.clear();
             state.sheet_selection = None;
+            state.section_selection = None;
         }
         state.key_buffer.clear();
     }
     if delete {
         match state.sheet_selection {
             Some((sheet, index)) if state.active_view == Some(sheet) => actions::remove_viewport(state, sheet, index),
+            _ if state.selection.is_empty() && state.section_selection.is_some() => {
+                if let Some(view) = state.section_selection.take() {
+                    actions::run_command(
+                        state,
+                        cc_engine::commands::views::ViewDelete { view: cc_engine::Ref::Id(view.0) },
+                    );
+                }
+            }
             _ => state.delete_selection(),
         }
     }

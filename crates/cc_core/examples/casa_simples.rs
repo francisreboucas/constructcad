@@ -193,7 +193,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             section,
             "Corte 1",
             50,
-            ViewKind::Section { start: DVec2::new(3.0, -1.5), end: DVec2::new(3.0, 7.5), depth: 10.0 },
+            ViewKind::Section { start: DVec2::new(3.0, -1.5), end: DVec2::new(3.0, 7.5), depth: 10.0, segments: None },
         ));
         // Put the south elevation and section on a second sheet.
         let south =

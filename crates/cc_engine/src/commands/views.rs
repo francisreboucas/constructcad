@@ -119,7 +119,7 @@ impl Command for ViewCreate {
                 let depth = positive(self.depth.unwrap_or(8.0), "depth")?;
                 let n = count(p, ViewCategory::Section) + 1;
                 let name = t!("default-section-name", "n" => n);
-                (name, 50, ViewKind::Section { start, end, depth }, t!("tx-create-section"))
+                (name, 50, ViewKind::Section { start, end, depth, segments: None }, t!("tx-create-section"))
             }
             "elevation" => {
                 let d = self.direction.as_deref().unwrap_or("south");

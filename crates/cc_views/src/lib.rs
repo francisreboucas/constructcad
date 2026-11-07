@@ -30,9 +30,9 @@ mod topography;
 
 pub use annotate::{DimensionLayout, HIGHLIGHT_ONLY, dimension_layout};
 pub use component_view::{ComponentView, ComponentViewKind, ViewConnector, component_view};
-pub use drawing::{Anchor, Drawing2D, LineStyle, Pen, Prim, ResolvedPen, TagHandle, halftone};
+pub use drawing::{Anchor, Drawing2D, LineStyle, Pen, Prim, ResolvedPen, SectionHandle, TagHandle, halftone};
 pub use legend::legend;
-pub use plan::{is_structural, plan, plan_of};
+pub use plan::{is_structural, plan, plan_of, section_pieces};
 pub use projected::{Frame, Look, axonometric, elevation, section};
 pub use schedule::{Cell, Row, Table, field_value, schedule, schedule_where, to_csv};
 pub use sheet::{MARGIN, PlacedViewport, Sheet, SheetEnv, compose as compose_sheet, title_block_drawing};
@@ -90,6 +90,9 @@ pub fn generate_temporary(
                 fade(&mut d);
                 mep::services(&mut d, project, geom, *level, *cut_height, discipline, view.scale);
             }
+            if !ceiling {
+                plan::section_marks(&mut d, project, view.scale);
+            }
             annotate::plan_annotations(&mut d, project, geom, *level, ceiling, structural, view);
             if tags {
                 annotate::structure_tags(&mut d, project, geom, *level, view.scale, &view.tag_offsets);
@@ -97,7 +100,7 @@ pub fn generate_temporary(
             d
         }
         ViewKind::Elevation { direction } => elevation(project, geom, *direction, Look::of(view)),
-        ViewKind::Section { start, end, depth } => {
+        ViewKind::Section { start, end, depth, .. } => {
             let mut d = section(project, geom, (*start, *end), *depth, view.scale, Look::of(view));
             joins::merge(project, &mut d);
             d

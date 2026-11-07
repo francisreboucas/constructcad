@@ -38,6 +38,7 @@ mod properties;
 mod recovery;
 mod ribbon;
 mod schedule_ui;
+mod section_mark;
 mod sheet;
 mod sheet_props;
 mod sketch_mode;

@@ -373,6 +373,13 @@ pub enum Drag {
         tag: cc_views::TagHandle,
         start: DVec2,
     },
+    /// A section's mark in a plan: the whole mark, an end or a piece of
+    /// its split line, grabbed at `start`.
+    Section {
+        view: ViewId,
+        part: crate::section_mark::Part,
+        start: DVec2,
+    },
     /// A hotspot of a scripted component, at elevation `z` (absolute).
     Hotspot {
         id: ElementId,
@@ -733,7 +740,7 @@ fn cad_snap(state: &mut AppState, raw: DVec2, r: f64) -> cc_core::cad::CadSnap {
 }
 
 /// Increment for rounding free coordinates at the current zoom.
-fn round_step(scale: f64) -> f64 {
+pub(crate) fn round_step(scale: f64) -> f64 {
     [0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 5.0].into_iter().find(|s| s * scale >= 6.0).unwrap_or(10.0)
 }
 
@@ -3012,6 +3019,10 @@ fn select(
     xf: &Xf,
     drawing: &Drawing2D,
 ) {
+    // Section marks first: they lie over the model.
+    if movable && crate::section_mark::select(ui, resp, painter, state, xf, drawing) {
+        return;
+    }
     let raw = resp.hover_pos().map(|p| xf.to_world(p));
     let tol = 5.0 / xf.scale;
     let (ctrl, shift) = ui.input(|i| (i.modifiers.command, i.modifiers.shift));
@@ -3251,7 +3262,7 @@ fn select(
                 }
             }
             // Handled above while the pointer is over the view.
-            Some(Drag::Grip { .. } | Drag::Bend { .. } | Drag::Hotspot { .. }) => {}
+            Some(Drag::Grip { .. } | Drag::Bend { .. } | Drag::Hotspot { .. } | Drag::Section { .. }) => {}
             Some(Drag::Tag { tag, start }) => {
                 if let (Some(raw), Some(view)) = (raw.or(state.cursor), state.active_view)
                     && raw.distance(start) > 1e-6
