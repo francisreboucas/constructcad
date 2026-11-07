@@ -739,7 +739,7 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
     ui.label(theme::title(name.to_string()));
     types_row(ui, state);
     ui.add_space(6.0);
-    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def));
+    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def, false));
     let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
     match pick {
         Some(Pick::Plane(plane)) => {
@@ -777,6 +777,11 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
         }
         None => {}
     }
+    ref_problems(ui, def);
+}
+
+/// The planes and dimensions that do not resolve, in the danger color.
+pub(crate) fn ref_problems(ui: &mut Ui, def: &cc_core::ComponentDef) {
     let problems = def.ref_problems();
     if !problems.is_empty() {
         ui.add_space(6.0);
@@ -816,28 +821,50 @@ pub(crate) fn types_row(ui: &mut Ui, state: &mut AppState) {
     }
 }
 
-fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef) {
+/// The parameters: name, value, instance and delete per row, then *Add*.
+/// A title block's (`title_block`) numbers are plain millimeters, its texts
+/// are typed in, and a new parameter is a number starting at 0.
+pub(crate) fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef, title_block: bool) {
     for p in &def.params {
         let mut value = p.value;
         let mut instance = p.instance;
         let mut rename = None;
+        let mut text = None;
         let mut delete = false;
         let r = ui.horizontal(|ui| {
-            rename = draft_field(ui, state, &format!("param:{}", p.name), &p.name, 110.0);
-            let r = ui.add(crate::properties::param_value(&mut value, p.kind));
+            let width = if title_block { 100.0 } else { 110.0 };
+            rename = draft_field(ui, state, &format!("param:{}", p.name), &p.name, width);
+            let r = if title_block && p.kind.is_text() {
+                text = draft_field(ui, state, &format!("param-text:{}", p.name), &p.text, 120.0);
+                None
+            } else if title_block {
+                Some(ui.add(egui::DragValue::new(&mut value).speed(0.5)))
+            } else {
+                Some(ui.add(crate::properties::param_value(&mut value, p.kind)))
+            };
             ui.checkbox(&mut instance, "").on_hover_text(t!("comp-param-instance"));
             delete = ui.small_button("×").on_hover_text(t!("action-delete")).clicked();
             r
         });
         let t = type_ref(state);
-        if r.inner.changed() || instance != p.instance {
+        let changed = r.inner.as_ref().is_some_and(egui::Response::changed);
+        if changed || instance != p.instance {
             let command = cmd::ComponentParamSet {
                 type_ref: t.clone(),
                 name: p.name.clone(),
-                value: r.inner.changed().then_some(value),
+                value: changed.then_some(value),
                 kind: None,
                 instance: (instance != p.instance).then_some(instance),
                 rename: None,
+            };
+            crate::actions::run_command(state, command);
+        }
+        if let Some(text) = text {
+            let command = cc_engine::commands::component_script::ComponentParamsSet {
+                type_ref: Some(t.clone()),
+                elements: Vec::new(),
+                name: p.name.clone(),
+                value: serde_json::Value::String(text),
             };
             crate::actions::run_command(state, command);
         }
@@ -861,8 +888,8 @@ fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef) {
         let command = cmd::ComponentParamAdd {
             type_ref: type_ref(state),
             name,
-            value: Some(1.0),
-            kind: None,
+            value: Some(if title_block { 0.0 } else { 1.0 }),
+            kind: title_block.then(|| "number".to_string()),
             instance: None,
             text: None,
         };

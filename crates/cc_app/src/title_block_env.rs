@@ -248,7 +248,11 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
     if resp.double_clicked_by(egui::PointerButton::Middle) {
         (center, scale) = fit(paper_mm, rect);
     }
-    if let Some(e) = editor_mut(state) {
+    // A canvas with no area yet (the first layout pass) fits again next frame.
+    if rect.width() > 0.0
+        && rect.height() > 0.0
+        && let Some(e) = editor_mut(state)
+    {
         e.camera = Some((center, scale));
     }
     let xf = Xf { screen: rect.center(), origin: center, scale };
@@ -383,91 +387,26 @@ pub fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &Compon
     crate::component_env::types_row(ui, state);
     ui.add_space(6.0);
     crate::table::section(ui, "tb-params", t!("comp-params"), |ui| params(ui, state, def));
+    crate::component_env::ref_problems(ui, def);
 }
 
-/// The parameters: numbers (millimeters) and texts; *New per-sheet field*
-/// adds a text sheets set; the paper's width and height, read-only.
+/// The component environment's parameters (numbers in millimeters, texts
+/// typed in), then *New per-sheet field*, a text sheets set, and the
+/// paper's width and height, read-only.
 fn params(ui: &mut Ui, state: &mut AppState, def: &ComponentDef) {
-    use cc_engine::commands::component as cmd;
-    let t = crate::component_env::type_ref(state);
-    for p in &def.params {
-        let mut value = p.value;
-        let mut instance = p.instance;
-        let mut rename = None;
-        let mut text = None;
-        let mut delete = false;
-        let r = ui.horizontal(|ui| {
-            rename = crate::component_env::draft_field(ui, state, &format!("param:{}", p.name), &p.name, 100.0);
-            let r = if p.kind.is_text() {
-                text = crate::component_env::draft_field(ui, state, &format!("param-text:{}", p.name), &p.text, 120.0);
-                None
-            } else {
-                Some(ui.add(egui::DragValue::new(&mut value).speed(0.5)))
-            };
-            ui.checkbox(&mut instance, "").on_hover_text(t!("comp-param-instance"));
-            delete = ui.small_button("×").on_hover_text(t!("action-delete")).clicked();
-            r
-        });
-        if r.inner.as_ref().is_some_and(egui::Response::changed) || instance != p.instance {
-            let command = cmd::ComponentParamSet {
-                type_ref: t.clone(),
-                name: p.name.clone(),
-                value: r.inner.as_ref().is_some_and(egui::Response::changed).then_some(value),
-                kind: None,
-                instance: (instance != p.instance).then_some(instance),
-                rename: None,
-            };
-            crate::actions::run_command(state, command);
-        }
-        if let Some(text) = text {
-            let command = cc_engine::commands::component_script::ComponentParamsSet {
-                type_ref: Some(t.clone()),
-                elements: Vec::new(),
-                name: p.name.clone(),
-                value: serde_json::Value::String(text),
-            };
-            crate::actions::run_command(state, command);
-        }
-        if let Some(new) = rename {
-            let command = cmd::ComponentParamSet {
-                type_ref: t.clone(),
-                name: p.name.clone(),
-                value: None,
-                kind: None,
-                instance: None,
-                rename: Some(new),
-            };
-            crate::actions::run_command(state, command);
-        }
-        if delete {
-            crate::actions::run_command(state, cmd::ComponentParamDelete { type_ref: t.clone(), name: p.name.clone() });
-        }
+    crate::component_env::params(ui, state, def, true);
+    if ui.button(format!("+ {}", t!("tb-new-field"))).clicked() {
+        let name = (1..=10_000).map(|i| format!("Field{i}")).find(|n| !def.name_taken(n)).unwrap_or_default();
+        let command = cc_engine::commands::component::ComponentParamAdd {
+            type_ref: crate::component_env::type_ref(state),
+            name,
+            value: None,
+            kind: Some("text".into()),
+            instance: Some(true),
+            text: Some(String::new()),
+        };
+        crate::actions::run_command(state, command);
     }
-    let free = |base: &str| (1..=10_000).map(|i| format!("{base}{i}")).find(|n| !def.name_taken(n)).unwrap_or_default();
-    ui.horizontal(|ui| {
-        if ui.button(format!("+ {}", t!("comp-env-add-param"))).clicked() {
-            let command = cmd::ComponentParamAdd {
-                type_ref: t.clone(),
-                name: free("Param"),
-                value: Some(0.0),
-                kind: Some("number".into()),
-                instance: None,
-                text: None,
-            };
-            crate::actions::run_command(state, command);
-        }
-        if ui.button(format!("+ {}", t!("tb-new-field"))).clicked() {
-            let command = cmd::ComponentParamAdd {
-                type_ref: t.clone(),
-                name: free("Field"),
-                value: None,
-                kind: Some("text".into()),
-                instance: Some(true),
-                text: Some(String::new()),
-            };
-            crate::actions::run_command(state, command);
-        }
-    });
     let Some(ed) = editor(state) else { return };
     let paper = paper(state, ed.preview);
     crate::table::readonly_row(ui, &t!("tb-sheet-width"), format!("{} mm", paper.x));
