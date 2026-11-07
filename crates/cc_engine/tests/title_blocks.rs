@@ -389,3 +389,14 @@ fn image_pieces_are_patched_without_their_bytes() {
         ErrorCode::InvalidArguments
     );
 }
+
+#[test]
+fn title_block_planes_follow_the_paper() {
+    let mut s = Session::default();
+    let tb = run(&mut s, "title_block_create", json!({"name": "TB", "empty": true}))["id"].as_u64().unwrap();
+    run(&mut s, "component_ref_plane_add", json!({"type": tb, "axis": "x", "at": "SheetWidth - 10", "name": "Margin"}));
+    assert_eq!(
+        fails(&mut s, "component_param_add", json!({"type": tb, "name": "SheetWidth", "kind": "number"})),
+        ErrorCode::InvalidArguments
+    );
+}

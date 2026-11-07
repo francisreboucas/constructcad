@@ -39,10 +39,15 @@ pub struct FieldCtx<'a> {
 /// braces, and unknown keys and braces without a match stay as written
 /// (see [`field_parts`]).
 pub fn expand(text: &str, ctx: &FieldCtx) -> String {
+    expand_with(text, &|key| value(key, ctx))
+}
+
+/// [`expand`] with any lookup (the title block editor's sample values).
+pub fn expand_with(text: &str, lookup: &dyn Fn(&str) -> Option<String>) -> String {
     let mut out = String::with_capacity(text.len());
     field_parts(text, |part| match part {
         FieldPart::Text { shown, .. } => out.push_str(shown),
-        FieldPart::Field { key, raw } => match value(key, ctx) {
+        FieldPart::Field { key, raw } => match lookup(key) {
             Some(v) => out.push_str(&v),
             None => out.push_str(raw),
         },
@@ -112,6 +117,12 @@ fn sheet_scale(p: &Project, viewports: &[cc_core::Viewport], as_indicated: &str)
 mod tests {
     use super::*;
     use cc_core::{ComponentKind, ComponentParam, ParamKind, SheetSize, ViewId};
+
+    #[test]
+    fn any_lookup_fills_the_fields() {
+        let lookup = |k: &str| (k == "a").then(|| "1".to_string());
+        assert_eq!(expand_with("{a}-{b}-{{a}}", &lookup), "1-{b}-{a}");
+    }
 
     fn iso(y: i32, m: u32, d: u32) -> String {
         format!("{y:04}-{m:02}-{d:02}")

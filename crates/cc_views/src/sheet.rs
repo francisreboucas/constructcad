@@ -68,7 +68,7 @@ pub fn compose(
             as_indicated: &env.as_indicated,
             sheets: Default::default(),
         };
-        draw_title_block(&mut d, &def.resolve_sheet(paper), &ctx);
+        draw_title_block(&mut d, &def.resolve_sheet(paper), &|t| crate::sheet_fields::expand(t, &ctx));
     }
 
     let mut placed = Vec::new();
@@ -93,10 +93,18 @@ pub fn compose(
     Some(Sheet { paper, drawing: d, viewports: placed })
 }
 
+/// The drawing of a title block's resolved pieces (paper millimeters),
+/// each text passed through `expand` (the editor fills fields or shows them raw).
+pub fn title_block_drawing(pieces: &SheetPieces, expand: &dyn Fn(&str) -> String) -> Drawing2D {
+    let mut d = Drawing2D::default();
+    draw_title_block(&mut d, pieces, expand);
+    d
+}
+
 /// Draws the resolved pieces of a title block: pictures first, then the
 /// strokes (each fill under its own lines), then the texts with their
 /// fields filled in.
-fn draw_title_block(d: &mut Drawing2D, pieces: &SheetPieces, ctx: &crate::sheet_fields::FieldCtx) {
+fn draw_title_block(d: &mut Drawing2D, pieces: &SheetPieces, expand: &dyn Fn(&str) -> String) {
     for img in &pieces.images {
         d.prims.push(Prim::Image {
             origin: img.corner,
@@ -120,7 +128,7 @@ fn draw_title_block(d: &mut Drawing2D, pieces: &SheetPieces, ctx: &crate::sheet_
         }
     }
     for t in &pieces.texts {
-        let text = crate::sheet_fields::expand(&t.text, ctx);
+        let text = expand(&t.text);
         let angle = t.rotation_deg.to_radians();
         let (anchor, mid) = match t.anchor {
             TextAnchor::Left => (Anchor::LeftBottom, false),

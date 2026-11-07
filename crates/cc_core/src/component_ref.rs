@@ -174,9 +174,12 @@ impl Scope {
 }
 
 /// Whether `name` is one of the reserved names (the origin planes, a door's
-/// wall thickness).
+/// wall thickness, a title block's paper size).
 pub fn is_reserved(name: &str) -> bool {
-    ORIGIN_PLANES.iter().any(|(n, _)| *n == name) || name == crate::component::WALL_THICKNESS
+    ORIGIN_PLANES.iter().any(|(n, _)| *n == name)
+        || name == crate::component::WALL_THICKNESS
+        || name == crate::title_block::SHEET_WIDTH
+        || name == crate::title_block::SHEET_HEIGHT
 }
 
 impl ComponentDef {
@@ -297,7 +300,12 @@ impl ComponentDef {
         if self.ref_planes.len() + self.ref_lines.len() + self.dimensions.len() + self.equals.len() > MAX_REFS {
             out.push("too many reference planes, lines and dimensions".into());
         }
-        let scope = self.scope(&BTreeMap::new(), &[(crate::component::WALL_THICKNESS, 0.2)]);
+        let extra = [
+            (crate::component::WALL_THICKNESS, 0.2),
+            (crate::title_block::SHEET_WIDTH, 420.0),
+            (crate::title_block::SHEET_HEIGHT, 297.0),
+        ];
+        let scope = self.scope(&BTreeMap::new(), &extra);
         out.extend(scope.errors.iter().map(|e| e.to_string()));
         for (i, d) in self.dimensions.iter().enumerate() {
             if let Err(e) = self.dimension_value(&scope, i) {
@@ -317,6 +325,18 @@ impl ComponentDef {
 mod tests {
     use super::*;
     use crate::component::{ComponentItem, ComponentParam, ComponentShape, ParamKind};
+
+    #[test]
+    fn planes_may_read_the_paper_and_its_names_are_reserved() {
+        use crate::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
+        let def = ComponentDef {
+            kind: crate::component::ComponentKind::TitleBlock,
+            ref_planes: vec![RefPlane { name: "Margin".into(), axis: PlaneAxis::X, at: "SheetWidth - 10".into() }],
+            ..Default::default()
+        };
+        assert!(def.ref_problems().is_empty(), "{:?}", def.ref_problems());
+        assert!(is_reserved(SHEET_WIDTH) && is_reserved(SHEET_HEIGHT));
+    }
 
     fn param(name: &str, value: f64) -> ComponentParam {
         ComponentParam { name: name.into(), value, kind: ParamKind::Length, instance: false, ..Default::default() }
