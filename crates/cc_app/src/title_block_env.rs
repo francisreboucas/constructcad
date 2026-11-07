@@ -396,12 +396,45 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
         crate::component_env::EnvTool::Select => {
             let hover = raw.map(|p| p * MM);
             let reach = tol * MM;
-            // A window from where the drag started.
+            let lone = match picked(state).as_slice() {
+                [i] => Some(*i),
+                _ => None,
+            };
+            let lone_grips = lone.map(|i| (i, grips(&pieces, i))).unwrap_or_default();
+            for (_, at) in &lone_grips.1 {
+                painter.rect_filled(Rect::from_center_size(mm.to_screen(*at), vec2(8.0, 8.0)), 0.0, PALETTE.accent);
+            }
+            // A press on a grip drags it, elsewhere starts a window.
             if resp.drag_started_by(egui::PointerButton::Primary)
                 && let Some(origin) = ui.input(|i| i.pointer.press_origin())
-                && let Some(e) = editor_mut(state)
             {
-                e.drag_from = Some(mm.to_world(origin));
+                let from = mm.to_world(origin);
+                let grip = lone_grips
+                    .1
+                    .iter()
+                    .filter(|(_, at)| at.distance(from) <= reach * 1.5)
+                    .min_by(|a, b| a.1.distance(from).total_cmp(&b.1.distance(from)))
+                    .map(|(which, _)| (lone_grips.0, *which));
+                if let Some(e) = editor_mut(state) {
+                    match grip {
+                        Some(g) => e.grip = Some(g),
+                        None => e.drag_from = Some(from),
+                    }
+                }
+            }
+            if let (Some((index, which)), Some(r)) = (editor(state).and_then(|e| e.grip), raw)
+                && resp.dragged_by(egui::PointerButton::Primary)
+            {
+                let (at, _) = crate::component_sketch::snap(&plane_view(&planes, 1.0 / MM), r, tol);
+                let shift = ui.input(|i| i.modifiers.shift);
+                if resp.drag_delta() != egui::Vec2::ZERO {
+                    move_grip(state, &pieces, &planes, index, which, at * MM, shift);
+                }
+            }
+            if resp.drag_stopped_by(egui::PointerButton::Primary)
+                && editor_mut(state).and_then(|e| e.grip.take()).is_some()
+            {
+                state.session.doc.break_merge();
             }
             if let (Some(a), Some(b)) = (editor(state).and_then(|e| e.drag_from), hover)
                 && resp.dragged_by(egui::PointerButton::Primary)
@@ -438,6 +471,43 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
                 painter.circle_stroke(xf.to_screen(at), 4.0, Stroke::new(1.5, PALETTE.accent));
                 if clicked {
                     place_text(state, &planes, at * MM);
+                }
+            }
+        }
+        // A drag fills the picture's rectangle, its aspect kept unless Shift is held.
+        crate::component_env::EnvTool::SheetImage { picture, start } => {
+            let view = plane_view(&planes, 1.0 / MM);
+            let snapped = raw.map(|r| crate::component_sketch::snap(&view, r, tol).0 * MM);
+            let free = ui.input(|i| i.modifiers.shift);
+            if resp.drag_started_by(egui::PointerButton::Primary)
+                && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+            {
+                let p = crate::component_sketch::snap(&view, xf.to_world(origin), tol).0 * MM;
+                crate::component_env::set_tool(
+                    state,
+                    crate::component_env::EnvTool::SheetImage { picture: picture.clone(), start: Some(p) },
+                );
+                return;
+            }
+            if let Some(p) = snapped {
+                painter.circle_stroke(mm.to_screen(p), 4.0, Stroke::new(1.5, PALETTE.accent));
+            }
+            let Some(a) = start else { return };
+            let rect = snapped.map(|b| image_rect(a, b, picture.aspect, free));
+            if let Some((corner, size)) = rect {
+                let r = Rect::from_two_pos(mm.to_screen(corner), mm.to_screen(corner + size));
+                painter.rect_stroke(r, 0.0, Stroke::new(1.5, PALETTE.accent), egui::StrokeKind::Middle);
+            }
+            if resp.drag_stopped_by(egui::PointerButton::Primary) {
+                match rect {
+                    Some((corner, size)) => {
+                        add_image(state, &planes, corner, size, &picture);
+                        crate::component_env::set_tool(state, crate::component_env::EnvTool::Select);
+                    }
+                    None => crate::component_env::set_tool(
+                        state,
+                        crate::component_env::EnvTool::SheetImage { picture: picture.clone(), start: None },
+                    ),
                 }
             }
         }
@@ -624,6 +694,173 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
     }
     if let SheetShape::Text { x, y, text, size, anchor, rotation } = &item.shape {
         text_props(ui, state, def, index, [x, y, size, rotation], text, *anchor);
+    }
+    // A picture's place and size (its bytes are never patched).
+    if let SheetShape::Image { x, y, width, height, .. } = &item.shape {
+        let fields: [(&str, String, &str); 4] = [
+            ("x", t!("comp-field-x"), x),
+            ("y", t!("comp-field-y"), y),
+            ("width", t!("comp-field-width"), width),
+            ("height", t!("prop-height"), height),
+        ];
+        for (field, label, current) in fields {
+            let mut new = None;
+            crate::table::row(ui, &label, |ui| {
+                new = crate::component_env::draft_field(ui, state, &format!("tb-img-{field}:{index}"), current, 120.0)
+            });
+            if let Some(v) = new {
+                patch(state, index, None, serde_json::json!({ "Image": { field: v } }));
+            }
+        }
+    }
+}
+
+/// A picture for the Image tool: PNG, JPEG, GIF, BMP or WebP bytes (an SVG
+/// drawn into a PNG), and its width / height.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Picture {
+    pub bytes: Vec<u8>,
+    pub aspect: f64,
+}
+
+/// Longest side an SVG is drawn at, pixels.
+const SVG_PX: f32 = 2048.0;
+
+/// The picture in a file's bytes; an SVG is drawn into a PNG. `None` for
+/// anything else, or a file over the picture size limit.
+pub fn picture(bytes: Vec<u8>) -> Option<Picture> {
+    if bytes.len() > cc_core::raster::MAX_IMAGE_BYTES {
+        return None;
+    }
+    if let Some(img) = cc_views::raster::probe(bytes.clone()) {
+        let aspect = f64::from(img.width) / f64::from(img.height.max(1));
+        return Some(Picture { bytes: img.data, aspect });
+    }
+    let tree = resvg::usvg::Tree::from_data(&bytes, &resvg::usvg::Options::default()).ok()?;
+    let size = tree.size();
+    let k = SVG_PX / size.width().max(size.height()).max(1.0);
+    if !k.is_finite() {
+        return None;
+    }
+    let side = |v: f32| (v * k).round().clamp(1.0, SVG_PX) as u32;
+    let (w, h) = (side(size.width()), side(size.height()));
+    let mut pixmap = resvg::tiny_skia::Pixmap::new(w, h)?;
+    resvg::render(&tree, resvg::tiny_skia::Transform::from_scale(k, k), &mut pixmap.as_mut());
+    let rgba: Vec<u8> = pixmap
+        .pixels()
+        .iter()
+        .flat_map(|p| {
+            let c = p.demultiply();
+            [c.red(), c.green(), c.blue(), c.alpha()]
+        })
+        .collect();
+    let mut png = Vec::new();
+    {
+        let mut encoder = png::Encoder::new(&mut png, w, h);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header().ok()?.write_image_data(&rgba).ok()?;
+    }
+    Some(Picture { bytes: png, aspect: f64::from(w) / f64::from(h) })
+}
+
+/// The rectangle a picture dragged from `a` to `b` fills (millimeters):
+/// its bottom-left corner and size; the size keeps `aspect` (width /
+/// height) unless `free`, following the longer dragged side.
+pub fn image_rect(a: DVec2, b: DVec2, aspect: f64, free: bool) -> (DVec2, DVec2) {
+    let d = b - a;
+    let mut size = d.abs();
+    if !free && aspect.is_finite() && aspect > 0.0 {
+        if size.x / aspect >= size.y {
+            size.y = size.x / aspect;
+        } else {
+            size.x = size.y * aspect;
+        }
+    }
+    let x = if d.x < 0.0 { a.x - size.x } else { a.x };
+    let y = if d.y < 0.0 { a.y - size.y } else { a.y };
+    (DVec2::new(x, y), size)
+}
+
+/// File extensions the Image tool opens.
+const PICTURE_EXTENSIONS: [&str; 7] = ["png", "jpg", "jpeg", "gif", "bmp", "webp", "svg"];
+
+/// *Image*: pick a picture file, then drag its rectangle.
+pub fn pick_image(state: &mut AppState) {
+    let Some(path) = rfd::FileDialog::new().add_filter(t!("file-filter-image"), &PICTURE_EXTENSIONS).pick_file() else {
+        return;
+    };
+    match std::fs::read(&path).ok().and_then(picture) {
+        Some(p) => crate::component_env::set_tool(
+            state,
+            crate::component_env::EnvTool::SheetImage { picture: std::sync::Arc::new(p), start: None },
+        ),
+        None => state.message = t!("msg-image-unreadable"),
+    }
+}
+
+/// Add a picture filling `corner`–`corner + size` (millimeters) and pick it.
+fn add_image(state: &mut AppState, planes: &[SheetPlane], corner: DVec2, size: DVec2, p: &Picture) {
+    if size.min_element() < 0.5 {
+        return;
+    }
+    let piece = SheetPieceArg::Image {
+        x: ExprArg::Text(coordinate(planes, corner.x, true)),
+        y: ExprArg::Text(coordinate(planes, corner.y, false)),
+        width: ExprArg::Number((size.x * 100.0).round() / 100.0),
+        height: ExprArg::Number((size.y * 100.0).round() / 100.0),
+        image_path: None,
+        image: Some(cc_core::raster::base64_encode(&p.bytes)),
+    };
+    let command = ComponentSheetPieceAdd { type_ref: crate::component_env::type_ref(state), piece, name: None };
+    if let Some(i) = crate::actions::run_command(state, command)
+        .and_then(|o| o["index"].as_u64())
+        .and_then(|i| usize::try_from(i).ok())
+    {
+        set_pick(state, vec![i]);
+    }
+}
+
+/// The grips of a lone picked text (its point) or picture (corner,
+/// opposite corner), millimeters.
+fn grips(pieces: &SheetPieces, index: usize) -> Vec<(u8, DVec2)> {
+    if let Some(t) = pieces.texts.iter().find(|t| t.item == index) {
+        return vec![(0, t.position)];
+    }
+    if let Some(i) = pieces.images.iter().find(|i| i.item == index) {
+        return vec![(0, i.corner), (1, i.corner + i.size)];
+    }
+    Vec::new()
+}
+
+/// A grip dragged to `at` (millimeters): a text's or picture's point moves
+/// there, a picture's far corner sizes it (its aspect kept unless `free`).
+/// One undo step per grip until the drag ends; a picture's bytes are kept.
+fn move_grip(
+    state: &mut AppState,
+    pieces: &SheetPieces,
+    planes: &[SheetPlane],
+    index: usize,
+    which: u8,
+    at: DVec2,
+    free: bool,
+) {
+    let x = coordinate(planes, at.x, true);
+    let y = coordinate(planes, at.y, false);
+    let k = Some(key(("tb-grip", index, which)));
+    if pieces.texts.iter().any(|t| t.item == index) {
+        patch(state, index, k, serde_json::json!({ "Text": { "x": x, "y": y } }));
+    } else if let Some(img) = pieces.images.iter().find(|i| i.item == index) {
+        if which == 0 {
+            patch(state, index, k, serde_json::json!({ "Image": { "x": x, "y": y } }));
+        } else {
+            let aspect = img.size.x / img.size.y.max(1e-9);
+            let (_, size) = image_rect(img.corner, at, aspect, free);
+            let size = size.max(DVec2::splat(0.5));
+            let w = format!("{}", (size.x * 100.0).round() / 100.0);
+            let h = format!("{}", (size.y * 100.0).round() / 100.0);
+            patch(state, index, k, serde_json::json!({ "Image": { "width": w, "height": h } }));
+        }
     }
 }
 
@@ -1204,7 +1441,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         crate::ribbon::env_group(ui, state, t!("group-selection"), &[Select]);
-        crate::ribbon::env_group(ui, state, t!("group-draw"), &[TbLines, TbText]);
+        crate::ribbon::env_group(ui, state, t!("group-draw"), &[TbLines, TbText, TbImage]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-datum"), &[CompRefPlane]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-component"), &[CompSaveFile]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-editor"), &[CompFinish, CompCancel]);
@@ -1255,6 +1492,7 @@ fn hint(state: &AppState) -> String {
         Some(crate::component_env::EnvTool::RefPlane { .. }) => t!("tb-hint-plane"),
         Some(crate::component_env::EnvTool::Select) => t!("tb-hint-select"),
         Some(crate::component_env::EnvTool::SheetText) => t!("tb-hint-text"),
+        Some(crate::component_env::EnvTool::SheetImage { .. }) => t!("tb-hint-image"),
         _ => t!("tb-hint-view"),
     }
 }
@@ -1896,5 +2134,94 @@ mod tests {
         let SheetShape::Text { text, .. } = last_piece(&state).1 else { panic!() };
         assert_eq!(text, format!("{}{{sheet_number}}", t!("tb-tool-text")));
         assert_eq!(state.session.doc.undo_depth(), depth + 1);
+    }
+
+    #[test]
+    fn pictures_keep_their_aspect_unless_freed() {
+        let (corner, size) = image_rect(DVec2::new(10.0, 10.0), DVec2::new(50.0, 15.0), 2.0, false);
+        assert_eq!((corner, size), (DVec2::new(10.0, 10.0), DVec2::new(40.0, 20.0)));
+        let (corner, size) = image_rect(DVec2::new(10.0, 10.0), DVec2::new(0.0, 0.0), 1.0, true);
+        assert_eq!((corner, size), (DVec2::ZERO, DVec2::new(10.0, 10.0)));
+    }
+
+    /// A 2 × 1 SVG drawn into a PNG.
+    fn svg_picture() -> Picture {
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="40" height="20" fill="red"/></svg>"#;
+        picture(svg.to_vec()).expect("an SVG drawn into a PNG")
+    }
+
+    #[test]
+    fn pictures_and_svgs_are_read_and_placed() {
+        // A 1 × 1 PNG.
+        let png = cc_core::raster::base64_decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+        )
+        .unwrap();
+        let p = picture(png).expect("a PNG");
+        assert!(p.aspect > 0.0);
+        let s = svg_picture();
+        assert!((s.aspect - 2.0).abs() < 1e-3);
+        assert!(picture(b"not a picture".to_vec()).is_none());
+        let (mut state, _, _) = editor_state();
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let before = def.sheet.len();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &s);
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        assert!(matches!(def.sheet.get(before).map(|i| &i.shape), Some(SheetShape::Image { .. })), "{}", state.message);
+        assert_eq!(picked(&state), vec![before]);
+    }
+
+    #[test]
+    fn dragging_a_grip_moves_or_sizes_in_one_step_and_keeps_the_bytes() {
+        let (mut state, _, _) = editor_state();
+        let paper_mm = DVec2::new(420.0, 297.0);
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, paper_mm);
+        add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &svg_picture());
+        let (index, _) = last_piece(&state);
+        let image_of = |state: &AppState| {
+            let (_, def) = crate::component_env::component(state).unwrap();
+            match def.sheet.get(index).map(|i| i.shape.clone()) {
+                Some(SheetShape::Image { x, y, width, height, image }) => (x, y, width, height, image),
+                _ => panic!("a picture"),
+            }
+        };
+        let bytes = image_of(&state).4;
+        assert_eq!(grips(&def.resolve_sheet(paper_mm), index), Vec::new(), "not yet in the old definition");
+        let depth = state.session.doc.undo_depth();
+        // Move the corner over three frames: one step.
+        for at in [DVec2::new(20.0, 16.0), DVec2::new(25.0, 18.0), DVec2::new(30.0, 20.0)] {
+            let (_, def) = crate::component_env::component(&state).unwrap();
+            move_grip(&mut state, &def.resolve_sheet(paper_mm), &ps, index, 0, at, false);
+        }
+        state.session.doc.break_merge();
+        let (x, y, ..) = image_of(&state);
+        assert_eq!((x.as_str(), y.as_str()), ("30", "20"), "{}", state.message);
+        assert_eq!(state.session.doc.undo_depth(), depth + 1, "one drag, one step");
+        // Size by the far corner, the aspect kept: 50 wide makes 25 high.
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let pieces = def.resolve_sheet(paper_mm);
+        assert_eq!(grips(&pieces, index), vec![(0, DVec2::new(30.0, 20.0)), (1, DVec2::new(70.0, 40.0))]);
+        move_grip(&mut state, &pieces, &ps, index, 1, DVec2::new(80.0, 30.0), false);
+        state.session.doc.break_merge();
+        let (_, _, w, h, image) = image_of(&state);
+        assert_eq!((w.as_str(), h.as_str()), ("50", "25"));
+        assert!(std::sync::Arc::ptr_eq(&image, &bytes), "the picture is kept, not resent");
+        assert_eq!(state.session.doc.undo_depth(), depth + 2);
+    }
+
+    #[test]
+    fn escape_drops_a_started_picture_then_the_tool() {
+        use crate::component_env::EnvTool;
+        let (mut state, _, _) = editor_state();
+        let picture = std::sync::Arc::new(svg_picture());
+        let tool = |start| EnvTool::SheetImage { picture: picture.clone(), start };
+        crate::component_env::set_tool(&mut state, tool(Some(DVec2::new(1.0, 2.0))));
+        assert!(crate::commands::UiCommand::TbImage.selected(&state));
+        crate::component_env::escape(&mut state);
+        assert_eq!(state.component_env.as_ref().unwrap().tool, tool(None));
+        crate::component_env::escape(&mut state);
+        assert_eq!(state.component_env.as_ref().unwrap().tool, EnvTool::Select);
     }
 }

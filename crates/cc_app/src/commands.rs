@@ -103,6 +103,8 @@ pub enum UiCommand {
     TbLines,
     /// Place a text on a title block.
     TbText,
+    /// Place a picture on a title block.
+    TbImage,
     Select,
     SelectInstances,
     ColumnsAtGrids,
@@ -294,6 +296,7 @@ impl UiCommand {
             NewTitleBlock,
             TbLines,
             TbText,
+            TbImage,
         ]);
         all.extend([AlignGridEnds, ColumnsAtGrids, BeamsOnGrids, BeamsBetweenColumns, StructuralSchedules]);
         all.extend([FootingsUnderColumns, StripFootingsUnderWalls, FoundationSlab, SlabJoinSupports]);
@@ -436,6 +439,7 @@ impl UiCommand {
             EditTitleBlock | NewTitleBlock => Icon::TitleBlock,
             TbLines => Icon::DrawLine,
             TbText => Icon::Text,
+            TbImage => Icon::Image,
             ComponentLibrary => Icon::Library,
             Select => Icon::Select,
             SelectInstances => Icon::SelectInstances,
@@ -600,6 +604,7 @@ impl UiCommand {
             NewTitleBlock => t!("action-new-title-block"),
             TbLines => t!("tb-tool-lines"),
             TbText => t!("tb-tool-text"),
+            TbImage => t!("tb-tool-image"),
             LoadComponent => t!("action-load-component"),
             ComponentLibrary => t!("action-component-library"),
             Select => t!("tool-select"),
@@ -777,6 +782,7 @@ impl UiCommand {
             NewTitleBlock => t!("cmd-desc-new-title-block"),
             TbLines => t!("cmd-desc-tb-lines"),
             TbText => t!("cmd-desc-tb-text"),
+            TbImage => t!("cmd-desc-tb-image"),
             LoadComponent => t!("cmd-desc-load-component"),
             ComponentLibrary => t!("cmd-desc-component-library"),
             Select => t!("cmd-desc-select"),
@@ -1061,7 +1067,7 @@ impl UiCommand {
             EditProfile => "sweep_profile_set",
             EditTitleBlock => "component_sheet_piece_set",
             NewTitleBlock => "title_block_create",
-            TbLines | TbText => "component_sheet_piece_add",
+            TbLines | TbText | TbImage => "component_sheet_piece_add",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
             ComponentLibrary => "component_library_list",
@@ -1169,7 +1175,7 @@ impl UiCommand {
             }
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             EditProfile if crate::profile_sketch::target(state).is_none() => Some(t!("why-select-sweep")),
-            TbLines | TbText if !crate::title_block_env::is_open(state) => Some(t!("why-title-block-editor")),
+            TbLines | TbText | TbImage if !crate::title_block_env::is_open(state) => Some(t!("why-title-block-editor")),
             EditTitleBlock if crate::title_block_env::sheet_title_block(state).is_none() => {
                 Some(t!("why-sheet-title-block"))
             }
@@ -1298,6 +1304,10 @@ impl UiCommand {
             Select => *tool == Tool::Select,
             TbLines => crate::title_block_env::is_sheet_sketch(state),
             TbText => state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::SheetText),
+            TbImage => state
+                .component_env
+                .as_ref()
+                .is_some_and(|e| matches!(e.tool, crate::component_env::EnvTool::SheetImage { .. })),
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
             | SketchArcCenter | SketchArcTangent | SketchPoint => {
                 state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
@@ -1601,6 +1611,7 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         NewTitleBlock => crate::title_block_env::new_title_block(state),
         TbLines => crate::title_block_env::start_lines(state),
         TbText => crate::component_env::set_tool(state, crate::component_env::EnvTool::SheetText),
+        TbImage => crate::title_block_env::pick_image(state),
         SelectInstances => crate::actions::select_instances(state),
         Group => crate::actions::group_selection(state),
         ColumnsAtGrids => crate::actions::columns_at_grids(state),

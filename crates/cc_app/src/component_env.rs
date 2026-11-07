@@ -58,6 +58,8 @@ pub enum EnvTool {
     Connector,
     /// A click on a title block's Sheet view places a text.
     SheetText,
+    /// A drag on a title block's Sheet view places a picture.
+    SheetImage { picture: std::sync::Arc<crate::title_block_env::Picture>, start: Option<DVec2> },
 }
 
 /// Pan and zoom of one view.
@@ -356,6 +358,7 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         EnvTool::Equal { picked, .. } => t!("comp-env-hint-equal", "count" => picked.len() + 1),
         EnvTool::Connector => t!("comp-env-hint-connector"),
         EnvTool::SheetText => t!("tb-hint-text"),
+        EnvTool::SheetImage { .. } => t!("tb-hint-image"),
     };
     ui.label(theme::muted(hint));
 }
@@ -570,8 +573,8 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                 env.pick = out["index"].as_u64().map(|i| Pick::Connector(i as usize));
             }
         }
-        // Only the title block editor's Sheet view places texts.
-        EnvTool::SheetText => {}
+        // Only the title block editor's Sheet view places texts and pictures.
+        EnvTool::SheetText | EnvTool::SheetImage { .. } => {}
         EnvTool::RefPlane { first } => {
             let Some(p) = hover else { return };
             match first {
@@ -665,6 +668,9 @@ pub fn escape(state: &mut AppState) {
         EnvTool::RefPlane { first: Some(_) } => EnvTool::RefPlane { first: None },
         EnvTool::Dimension { first: Some(_) } => EnvTool::Dimension { first: None },
         EnvTool::Equal { picked, .. } if !picked.is_empty() => EnvTool::Equal { picked: Vec::new(), view: None },
+        EnvTool::SheetImage { picture, start: Some(_) } => {
+            EnvTool::SheetImage { picture: picture.clone(), start: None }
+        }
         EnvTool::Select => {
             env.pick = None;
             EnvTool::Select
