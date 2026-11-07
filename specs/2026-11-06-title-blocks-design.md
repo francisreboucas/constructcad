@@ -1,6 +1,6 @@
 # Title blocks as components — design
 
-Date: 2026-11-06. Status: approved in conversation; spec under review.
+Date: 2026-11-06. Status: implemented.
 
 ## Goal
 
@@ -168,7 +168,7 @@ duplicates.
   `{sheet_number}`, `{project_number}` and `{author}`.
 - The project template carries it, with captions in the template language.
   Sheets created by `view_create` take the project's first title block type.
-- `FORMAT_VERSION` goes 20 → 21. On load, a file before 21 gets the
+- `FORMAT_VERSION` goes 20 → 22 (main took 21 for graph bindings). On load, a file before 22 gets the
   standard type (unless the file already has a title block type), and
   every sheet points at it. The repair report says so.
 - Captions come from template keys (`tpl-tb-*`, Portuguese defaults in
@@ -337,7 +337,7 @@ value; add, rename, remove), saved with `project_info_set`.
   - Strokes with arcs are flattened.
   - Pieces past the limits are dropped by repair.
   - Wrong-kind pieces are dropped.
-  - Migration: a format-20 file gets the standard type; every sheet
+  - Migration: a file before format 22 gets the standard type; every sheet
     points at it; its pieces resolve to today's lines and text positions.
   - `ProjectInfo.fields` repair (duplicates, empty names).
 - **cc_views**:

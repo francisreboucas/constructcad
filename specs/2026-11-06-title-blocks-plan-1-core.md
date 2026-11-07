@@ -17,7 +17,7 @@ MCP and Lua can drive it. The app UI comes in deliveries 2 and 3.
   hard-coded one.
 - The engine provides `sheet_set`, `sheet_fields`, `title_block_create` and
   `component_sheet_piece_*`.
-- Old files migrate to a standard title block (format 21).
+- Old files migrate to a standard title block (format 22).
 
 **Tech Stack:** Rust 2024 workspace; serde/RON; schemars; egui only later.
 
@@ -53,7 +53,7 @@ plan implements its "Model", "Fields", "Engine", "Robustness" and
   paper `MIN_PAPER_MM = 50.0` to `MAX_PAPER_MM = 5000.0`.
 - Context names: `SheetWidth`, `SheetHeight` (constants
   `SHEET_WIDTH`/`SHEET_HEIGHT` in `cc_core::title_block`).
-- `FORMAT_VERSION` 20 → 21.
+- `FORMAT_VERSION` 20 → 22 (main took 21).
 
 ## File Structure
 
@@ -65,7 +65,7 @@ plan implements its "Model", "Fields", "Engine", "Robustness" and
 | `crates/cc_core/src/view.rs` | `SheetSize::Custom`, `ViewKind::Sheet` new fields, `View::paper_mm()` |
 | `crates/cc_core/src/project.rs` | `ProjectInfo::fields`, `ProjectField`, `sheets_in_order`, template title block |
 | `crates/cc_core/src/repair.rs` | sheet, project field and title block repairs; migration hook |
-| `crates/cc_core/src/persist.rs` | format 21, `from_ron_with_repairs_localized` |
+| `crates/cc_core/src/persist.rs` | format 22, `from_ron_with_repairs_localized` |
 | `crates/cc_views/src/sheet_fields.rs` (new) | `FieldCtx`, `expand`, `sheet_scale`, `paper_label` |
 | `crates/cc_views/src/sheet.rs` | `SheetEnv`, compose draws the title block |
 | `crates/cc_views/src/drawing.rs`, `export.rs`, `dxf.rs`, `crates/cc_app/src/paint.rs` | `Anchor::RightBottom` |
@@ -1737,12 +1737,12 @@ git add -A && git commit -s -m "Draw sheets' title block components with their f
 
 ---
 
-### Task 7: The standard title block, template and migration (format 21)
+### Task 7: The standard title block, template and migration (format 22)
 
 **Files:**
 - Modify: `crates/cc_core/src/title_block.rs` (`standard`, `TitleCaptions`)
 - Modify: `crates/cc_core/src/project.rs` (`from_template_localized` adds the type and points sheets at it; `template_default` keys)
-- Modify: `crates/cc_core/src/persist.rs` (format 21, `from_ron_with_repairs_localized`, `load_with_repairs_localized`)
+- Modify: `crates/cc_core/src/persist.rs` (format 22, `from_ron_with_repairs_localized`, `load_with_repairs_localized`)
 - Modify: `crates/cc_engine/src/session.rs` (`Session::open` uses the localized load); the app's open path (`grep -rn "load_with_repairs" crates/cc_app/src`)
 - Modify: `crates/cc_views/src/sheet.rs` (remove `TitleLabels`, `TITLE_W`, `TITLE_H` once unused), `assets/i18n/*.ftl` (`tpl-tb-*` keys)
 - Test: `crates/cc_core/src/persist.rs` tests, `title_block.rs` tests
@@ -1945,7 +1945,7 @@ checks the lines. Add a second assertion that the
 `persist.rs`:
 
 ```rust
-pub const FORMAT_VERSION: u32 = 21;
+pub const FORMAT_VERSION: u32 = 22;
 
 pub fn from_ron_with_repairs(text: &str) -> Result<(Project, usize), PersistError> {
     from_ron_with_repairs_localized(text, &|_| None)
@@ -1959,7 +1959,7 @@ pub fn from_ron_with_repairs_localized(
 ) -> Result<(Project, usize), PersistError> {
     // … the body of the old from_ron_with_repairs, plus, with the other
     // version-gated migrations:
-    //   if file.format_version < 21 && project.title_blocks().is_empty() {
+    //   if file.format_version < 22 && project.title_blocks().is_empty() {
     //       let n = |k: &str| translate(k).unwrap_or_else(|| crate::project::template_default(k).to_string());
     //       let id = project.add_standard_title_block(&n);
     //       repairs += 1 + project.give_sheets_title_block(id);
@@ -1969,7 +1969,7 @@ pub fn from_ron_with_repairs_localized(
 
 Add `load_with_repairs_localized(path, translate)` mirroring
 `load_with_repairs`. Extend the version comment block (persist.rs:50-58)
-with "version 21 makes title blocks components (older files: the standard
+with "version 22 makes title blocks components (older files: the standard
 title block on every sheet)."
 
 Engine: in `Session::open`, call
@@ -2669,7 +2669,7 @@ gh pr create --base main --title "Title blocks as components (core and engine)" 
 
 The PR body links `specs/2026-11-06-title-blocks-design.md`, says it is
 delivery 1 of 4 (app sheet properties, editor and docs follow), and lists
-the new commands and format 21.
+the new commands and format 22.
 
 ---
 
