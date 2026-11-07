@@ -365,7 +365,7 @@ ccad.command {
 - **O sandbox** é o dos [scripts Lua](#scripts-lua), com o limite contado por comando; cada plugin tem o seu próprio estado Lua, que guarda as variáveis entre um comando e outro. `require("a.b")` carrega `a/b.lua` da pasta do plugin (uma vez; arquivos fora da pasta são recusados), e `ccad.plugin` tem o `id`, o `name` e a `version` dele. `ccad.run` só funciona enquanto um comando roda, não enquanto o plugin carrega.
 - **As permissões** são concedidas por quem carrega o plugin: `ccad --plugins` concede o que o manifesto pede, já que você indicou a pasta.
 
-Os plugins são compartilhados pelo índice da comunidade, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): uma entrada por plugin, com de onde baixar cada versão e o checksum dela, enviada por pull request. No aplicativo, *Gerenciar → Plugins* instala, atualiza, desativa e remove plugins ([Plugins](interface.pt-BR.md#plugins)); sem ele, `ccad plugins install <arquivo.zip> <pasta>` instala um arquivo baixado (verificado do mesmo jeito: caminhos seguros, tamanhos e um plugin que carrega) e `ccad plugins remove <id> <pasta>` remove um.
+Os plugins são compartilhados pelo índice da comunidade, [constructcraft-plugins](https://github.com/francisreboucas/constructcraft-plugins): uma entrada por plugin, com de onde baixar cada versão e o checksum dela, enviada por pull request. No aplicativo, *Gerenciar → Plugins* instala, atualiza, desativa e remove plugins ([Plugins](interface.pt-BR.md#plugins)); sem ele, `ccad plugins install <arquivo.zip> <pasta>` instala um arquivo baixado (verificado do mesmo jeito: caminhos seguros, tamanhos e um plugin que carrega) e `ccad plugins remove <id> <pasta>` remove um.
 
 ## Componentes com script
 

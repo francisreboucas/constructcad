@@ -283,7 +283,7 @@ Plugins add commands to ConstructCraft (see [Plugins](automation.md#plugins) in 
 The Plugins window has two tabs:
 
 - **Installed**: the plugins of the plugins folder. Pick one to see its version, authors, license, page, commands and any error from loading it. *Turned on* loads it or leaves it out (a plugin turned off runs no code). A plugin that asks to work with files has *Allow it to read and write files*; without it, its commands that import, export or save are refused. *Remove* deletes it from the folder.
-- **Available**: the plugins of the [community index](https://github.com/francisreboucas/constructcad-plugins), read when the tab is first opened (*Refresh* reads it again). *Install* (or *Update to …*) downloads the newest version this build can run, checks it against the index's checksum, and installs it only if it loads; a plugin that asks for files gets the permission only when you tick the box first.
+- **Available**: the plugins of the [community index](https://github.com/francisreboucas/constructcraft-plugins), read when the tab is first opened (*Refresh* reads it again). *Install* (or *Update to …*) downloads the newest version this build can run, checks it against the index's checksum, and installs it only if it loads; a plugin that asks for files gets the permission only when you tick the box first.
 
 Only this tab reaches the network: it reads the index and the archives it lists, over HTTPS, when you ask. *Reload Plugins* reads the folder again, after you add or edit a plugin by hand. Plugins are loaded when the app starts and stay loaded when you open another project.
 

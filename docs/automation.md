@@ -364,7 +364,7 @@ ccad.command {
 - **The sandbox** is that of [Lua scripts](#lua-scripts), with the budget counted per command; each plugin has its own Lua state, which keeps its variables between commands. `require("a.b")` loads `a/b.lua` from the plugin's folder (once; files outside the folder are refused), and `ccad.plugin` holds its `id`, `name` and `version`. `ccad.run` works only while a command runs, not while the plugin loads.
 - **Permissions** are granted by whoever loads the plugin: `ccad --plugins` grants what the manifest asks for, since you named the folder.
 
-Plugins are shared through the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. In the app, *Manage → Plugins* installs, updates, turns off and removes plugins ([Plugins](interface.md#plugins)); without it, `ccad plugins install <file.zip> <folder>` installs a downloaded archive (checked the same way: safe paths, sizes, and a plugin that loads) and `ccad plugins remove <id> <folder>` removes one.
+Plugins are shared through the community index, [constructcraft-plugins](https://github.com/francisreboucas/constructcraft-plugins): one entry per plugin, with where to download each version and its checksum, submitted by pull request. In the app, *Manage → Plugins* installs, updates, turns off and removes plugins ([Plugins](interface.md#plugins)); without it, `ccad plugins install <file.zip> <folder>` installs a downloaded archive (checked the same way: safe paths, sizes, and a plugin that loads) and `ccad plugins remove <id> <folder>` removes one.
 
 
 ## Scripted components
