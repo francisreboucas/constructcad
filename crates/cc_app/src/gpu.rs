@@ -99,7 +99,7 @@ pub fn required_limits(backend: wgpu::Backend, adapter: &wgpu::Limits) -> wgpu::
 /// integrated GPU has).
 fn device_descriptor(adapter: &wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> {
     wgpu::DeviceDescriptor {
-        label: Some("ConstructCAD device"),
+        label: Some("ConstructCraft device"),
         required_limits: required_limits(adapter.get_info().backend, &adapter.limits()),
         memory_hints: wgpu::MemoryHints::MemoryUsage,
         ..Default::default()

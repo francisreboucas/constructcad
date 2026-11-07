@@ -25,7 +25,7 @@ impl Command for ProjectNew {
     }
 }
 
-/// Open a ConstructCAD project (.ccad), replacing the session's project.
+/// Open a ConstructCraft project (.ccad), replacing the session's project.
 /// Damaged files are repaired and the number of repairs reported.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]

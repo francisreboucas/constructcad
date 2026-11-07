@@ -2,7 +2,7 @@
 
 *English version: [interface.md](interface.md).*
 
-A janela do ConstructCAD segue a disposição que usuários de CAD e BIM de desktop esperam. A **barra de acesso rápido** fica no canto superior esquerdo. Abaixo dela está o **ribbon**, uma fileira de abas com grupos de botões. Em seguida vem a **barra de opções** da ferramenta ativa. O **navegador de projeto** e as **propriedades** ficam encaixados à esquerda, as **vistas** ocupam as abas no centro e a **barra de status** fica embaixo. Com muitas vistas abertas, **Fechar vistas inativas** (na barra de acesso rápido e em *Vista → Janelas*) fecha todas as abas menos a ativa, e o clique direito numa aba oferece *Fechar as outras vistas*.
+A janela do ConstructCraft segue a disposição que usuários de CAD e BIM de desktop esperam. A **barra de acesso rápido** fica no canto superior esquerdo. Abaixo dela está o **ribbon**, uma fileira de abas com grupos de botões. Em seguida vem a **barra de opções** da ferramenta ativa. O **navegador de projeto** e as **propriedades** ficam encaixados à esquerda, as **vistas** ocupam as abas no centro e a **barra de status** fica embaixo. Com muitas vistas abertas, **Fechar vistas inativas** (na barra de acesso rápido e em *Vista → Janelas*) fecha todas as abas menos a ativa, e o clique direito numa aba oferece *Fechar as outras vistas*.
 
 ## Comandos e suas dicas
 
@@ -266,7 +266,7 @@ O carimbo desenha a folha inteira: borda, margens, o próprio carimbo, logotipos
 
 ## Programação visual
 
-*Gerenciar → Macros → Programação visual* abre o editor de grafos num painel abaixo das vistas, para ver o modelo e o grafo juntos (`constructcad projeto.ccad --graph arquivo.ccgraph` abre um ao iniciar). Um grafo é um conjunto de nós ligados por fios (veja [Grafos de programação visual](automacao.md#grafos-de-programação-visual) para o que os nós fazem e como rodar de novo atualiza o modelo).
+*Gerenciar → Macros → Programação visual* abre o editor de grafos num painel abaixo das vistas, para ver o modelo e o grafo juntos (`constructcraft projeto.ccad --graph arquivo.ccgraph` abre um ao iniciar). Um grafo é um conjunto de nós ligados por fios (veja [Grafos de programação visual](automacao.md#grafos-de-programação-visual) para o que os nós fazem e como rodar de novo atualiza o modelo).
 
 - **Adicionar nós**: clique duas vezes ou com o botão direito no fundo para abrir a busca de nós; digite palavras do nome, do grupo ou da descrição do nó e tecle Enter (ou clique num resultado). Todo comando do motor é um nó, ao lado dos nós internos (entradas, matemática, lógica, listas, geometria, parâmetros, saídas) e do nó Lua.
 - **Ligar**: arraste de uma saída (lado direito) para uma entrada (lado esquerdo), ou ao contrário. Arrastar de uma entrada ligada pega o fio dela. As portas têm a cor do tipo; um fio entre tipos que não combinam é recusado, com uma mensagem na barra de status.
@@ -278,7 +278,7 @@ O carimbo desenha a folha inteira: borda, margens, o próprio carimbo, logotipos
 
 ## Plugins
 
-Plugins acrescentam comandos ao ConstructCAD (veja [Plugins](automacao.md#plugins) no guia de automação). *Gerenciar → Plugins* tem dois botões: *Plugins…* abre a janela Plugins, e *Comandos de plugins* é um menu dos comandos dos plugins instalados, por plugin; escolher um abre o formulário dele na [paleta de comandos](#executar-comandos-do-motor), onde **Executar** o roda como um passo de desfazer e mostra o que o plugin imprimiu. A paleta também encontra os comandos de plugins pelo nome.
+Plugins acrescentam comandos ao ConstructCraft (veja [Plugins](automacao.md#plugins) no guia de automação). *Gerenciar → Plugins* tem dois botões: *Plugins…* abre a janela Plugins, e *Comandos de plugins* é um menu dos comandos dos plugins instalados, por plugin; escolher um abre o formulário dele na [paleta de comandos](#executar-comandos-do-motor), onde **Executar** o roda como um passo de desfazer e mostra o que o plugin imprimiu. A paleta também encontra os comandos de plugins pelo nome.
 
 A janela Plugins tem duas abas:
 
@@ -289,43 +289,43 @@ Só essa aba usa a rede: ela lê o índice e os arquivos que ele lista, por HTTP
 
 ## Aviso de atualização
 
-O ConstructCAD avisa quando uma versão mais nova é publicada; ele nunca baixa nem instala nada por conta própria, só quando você escolhe **Atualizar agora**.
+O ConstructCraft avisa quando uma versão mais nova é publicada; ele nunca baixa nem instala nada por conta própria, só quando você escolhe **Atualizar agora**.
 
 - **Quando**: ao iniciar, no máximo uma vez por dia, em segundo plano (a janela nunca espera por isso). *Arquivo → Verificar atualizações* (também no diálogo *Sobre*) verifica na hora e informa "está atualizado", a nova versão ou que não foi possível verificar.
-- **O que é contatado**: uma requisição HTTPS à API do GitHub, `https://api.github.com/repos/francisreboucas/constructcad/releases/latest`, que devolve a última versão publicada. A requisição envia os dados usuais de conexão (seu endereço IP) e o agente `ConstructCAD/<versão>`; nenhum dado de projeto, identificador ou informação de uso. Vale para ela a declaração de privacidade do GitHub.
+- **O que é contatado**: uma requisição HTTPS à API do GitHub, `https://api.github.com/repos/francisreboucas/constructcraft/releases/latest`, que devolve a última versão publicada. A requisição envia os dados usuais de conexão (seu endereço IP) e o agente `ConstructCraft/<versão>`; nenhum dado de projeto, identificador ou informação de uso. Vale para ela a declaração de privacidade do GitHub.
 - **O que aparece**: quando a versão publicada é mais nova que a em uso (pré-lançamentos são ignorados), um aviso aparece na barra de status e na tela inicial: *Baixar* abre a página da versão no navegador, *Ignorar esta versão* esconde o aviso até sair uma versão posterior, e × o esconde até a próxima verificação. Qualquer falha (sem conexão, tempo esgotado, proxy, limite de requisições) é silenciosa.
-- **Atualizar agora**: onde o ConstructCAD pode se substituir com segurança, o aviso e o diálogo da verificação oferecem *Atualizar agora*. Ele baixa o pacote que corresponde à forma como esta cópia foi instalada e confere o SHA-256 com o `SHA256SUMS.txt` da versão (os dois pelos links de download da própria versão no GitHub) antes de mudar qualquer coisa; um download que não confere é apagado e a cópia instalada fica como estava.
+- **Atualizar agora**: onde o ConstructCraft pode se substituir com segurança, o aviso e o diálogo da verificação oferecem *Atualizar agora*. Ele baixa o pacote que corresponde à forma como esta cópia foi instalada e confere o SHA-256 com o `SHA256SUMS.txt` da versão (os dois pelos links de download da própria versão no GitHub) antes de mudar qualquer coisa; um download que não confere é apagado e a cópia instalada fica como estava.
 
   | Instalado como | Atualizar agora faz |
   |---|---|
   | AppImage | Baixa o novo AppImage ao lado do antigo, confere, renomeia por cima do arquivo antigo e oferece *Reiniciar agora* |
-  | Instalador do Windows (`.msi`, em Arquivos de Programas) | Baixa e confere o instalador; ele roda quando o ConstructCAD fecha (*Instalar agora* fecha, perguntando antes sobre alterações não salvas; *Ao sair* espera), e o ConstructCAD abre de novo ao terminar |
-  | `.zip` do Windows | Baixa e confere o arquivo, coloca o novo `constructcad.exe` e o `ccad.exe` no lugar (os antigos ficam como `.old` e são apagados na próxima abertura) e oferece *Reiniciar agora* |
-  | App do macOS | Baixa e confere a imagem de disco e a abre: arraste o ConstructCAD para Aplicativos |
+  | Instalador do Windows (`.msi`, em Arquivos de Programas) | Baixa e confere o instalador; ele roda quando o ConstructCraft fecha (*Instalar agora* fecha, perguntando antes sobre alterações não salvas; *Ao sair* espera), e o ConstructCraft abre de novo ao terminar |
+  | `.zip` do Windows | Baixa e confere o arquivo, coloca o novo `constructcraft.exe` e o `ccad.exe` no lugar (os antigos ficam como `.old` e são apagados na próxima abertura) e oferece *Reiniciar agora* |
+  | App do macOS | Baixa e confere a imagem de disco e a abre: arraste o ConstructCraft para Aplicativos |
   | `.deb` | Nada: o diálogo mostra o comando do `apt`, com Copiar, e *Baixar* pega o pacote |
   | `.tar.gz`, compilação própria | Nada: *Baixar* abre a página da versão |
 
   Atualizar agora precisa de permissão de escrita nos arquivos instalados: um AppImage numa pasta sem permissão falha com uma mensagem, e *Baixar* é o caminho para atualizá-lo.
-- **Como desligar**: desmarque *Verificar atualizações automaticamente* em *Preferências → Geral*. A variável de ambiente `CONSTRUCTCAD_NO_UPDATE_CHECK=1` desliga toda verificação, automática ou pedida (útil em CI, quiosques e instalações sem rede). O ConstructCAD guarda a hora da última verificação, a versão ignorada e a opção junto com as outras preferências.
+- **Como desligar**: desmarque *Verificar atualizações automaticamente* em *Preferências → Geral*. A variável de ambiente `CONSTRUCTCAD_NO_UPDATE_CHECK=1` desliga toda verificação, automática ou pedida (útil em CI, quiosques e instalações sem rede). O ConstructCraft guarda a hora da última verificação, a versão ignorada e a opção junto com as outras preferências.
 
 ## Salvamento automático e recuperação
 
-Um minuto depois que um projeto passa a ter alterações não salvas (também um projeto novo, nunca salvo; *Preferências → Salvamento* define outro intervalo ou desliga o salvamento automático), o ConstructCAD grava uma cópia dele, em segundo plano, na pasta `recovery` da sua pasta de dados (`%APPDATA%\ConstructCAD\data` no Windows, `~/Library/Application Support/ConstructCAD` no macOS, `~/.local/share/constructcad` no Linux). Ele só grava de novo depois que o modelo muda, e nunca sobre o arquivo do projeto. Salvar, fechar o projeto ou sair remove a cópia.
+Um minuto depois que um projeto passa a ter alterações não salvas (também um projeto novo, nunca salvo; *Preferências → Salvamento* define outro intervalo ou desliga o salvamento automático), o ConstructCraft grava uma cópia dele, em segundo plano, na pasta `recovery` da sua pasta de dados (`%APPDATA%\ConstructCraft\data` no Windows, `~/Library/Application Support/ConstructCraft` no macOS, `~/.local/share/constructcraft` no Linux). Ele só grava de novo depois que o modelo muda, e nunca sobre o arquivo do projeto. Salvar, fechar o projeto ou sair remove a cópia.
 
-Se o ConstructCAD travar ou for encerrado à força, a próxima abertura mostra *Recuperar trabalho não salvo* com as cópias deixadas: *Restaurar* abre o projeto escolhido com as alterações não salvas (salvá-lo grava no arquivo original, ou pergunta onde, para um projeto nunca salvo), *Descartar* apaga a cópia e *Cancelar* guarda as cópias para a próxima abertura. Uma falha na interface também grava uma última cópia antes de o programa fechar, e toda falha é acrescentada a `crash.log` na pasta de dados; anexe-o ao relatar uma falha.
+Se o ConstructCraft travar ou for encerrado à força, a próxima abertura mostra *Recuperar trabalho não salvo* com as cópias deixadas: *Restaurar* abre o projeto escolhido com as alterações não salvas (salvá-lo grava no arquivo original, ou pergunta onde, para um projeto nunca salvo), *Descartar* apaga a cópia e *Cancelar* guarda as cópias para a próxima abertura. Uma falha na interface também grava uma última cópia antes de o programa fechar, e toda falha é acrescentada a `crash.log` na pasta de dados; anexe-o ao relatar uma falha.
 
 ## Inicialização gráfica
 
-O ConstructCAD desenha com a API gráfica nativa do sistema (DirectX 12 ou Vulkan no Windows, Metal no macOS, Vulkan no Linux) e passa sozinho para o OpenGL quando ela falha, o que algumas GPUs integradas antigas ou pequenas exigem:
+O ConstructCraft desenha com a API gráfica nativa do sistema (DirectX 12 ou Vulkan no Windows, Metal no macOS, Vulkan no Linux) e passa sozinho para o OpenGL quando ela falha, o que algumas GPUs integradas antigas ou pequenas exigem:
 
-- Se a API nativa informar um erro, a mesma abertura tenta o OpenGL. Se ela travar antes de a janela aparecer, o ConstructCAD abre de novo uma vez com o OpenGL; se o processo inteiro morrer (uma falha do driver), a próxima abertura tenta o OpenGL primeiro.
+- Se a API nativa informar um erro, a mesma abertura tenta o OpenGL. Se ela travar antes de a janela aparecer, o ConstructCraft abre de novo uma vez com o OpenGL; se o processo inteiro morrer (uma falha do driver), a próxima abertura tenta o OpenGL primeiro.
 - Depois que o OpenGL foi necessário, ele continua em primeiro: a escolha fica no arquivo `gpu-backend` da pasta de dados. Apague esse arquivo (depois de atualizar o driver de vídeo, por exemplo) para tentar a API nativa de novo.
 - Toda abertura que falha é registrada em `crash.log` na pasta de dados. Quando nenhuma API funciona, uma mensagem avisa e indica esse arquivo.
-- A variável de ambiente `WGPU_BACKEND` escolhe a API e desliga a troca automática: `gl` para OpenGL, `dx12`, `vulkan` ou `metal`, ou várias separadas por vírgulas (no Windows, por exemplo, `set WGPU_BACKEND=gl` num prompt de comando antes de abrir `constructcad.exe`, ou como variável de ambiente do usuário). `WGPU_POWER_PREF=low` prefere a GPU integrada em computadores com duas.
+- A variável de ambiente `WGPU_BACKEND` escolhe a API e desliga a troca automática: `gl` para OpenGL, `dx12`, `vulkan` ou `metal`, ou várias separadas por vírgulas (no Windows, por exemplo, `set WGPU_BACKEND=gl` num prompt de comando antes de abrir `constructcraft.exe`, ou como variável de ambiente do usuário). `WGPU_POWER_PREF=low` prefere a GPU integrada em computadores com duas.
 
 ## Acessibilidade
 
-Os botões do ribbon, os títulos das abas, as setas de rolagem, os itens da paleta, as linhas do navegador, os cartões da tela inicial, os botões de fechar dos diálogos, as seções de propriedades e o botão de início do cubo de vista são desenhados pelo próprio ConstructCAD. Eles informam à interface de acessibilidade do sistema seu papel (botão, item selecionável, cabeçalho recolhível), seu nome e seu estado (habilitado, selecionado, expandido), para que leitores de tela possam anunciá-los.
+Os botões do ribbon, os títulos das abas, as setas de rolagem, os itens da paleta, as linhas do navegador, os cartões da tela inicial, os botões de fechar dos diálogos, as seções de propriedades e o botão de início do cubo de vista são desenhados pelo próprio ConstructCraft. Eles informam à interface de acessibilidade do sistema seu papel (botão, item selecionável, cabeçalho recolhível), seu nome e seu estado (habilitado, selecionado, expandido), para que leitores de tela possam anunciá-los.
 
 ## Para desenvolvedores
 

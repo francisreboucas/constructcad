@@ -352,7 +352,7 @@ pub fn to_pdf(drawing: &Drawing2D, paper: DVec2) -> Vec<u8> {
             None => b"<< >>".to_vec(),
         });
     }
-    objects.push(b"<< /Producer (ConstructCAD) >>".to_vec());
+    objects.push(b"<< /Producer (ConstructCraft) >>".to_vec());
 
     let mut out: Vec<u8> = b"%PDF-1.4\n%\xe2\xe3\xcf\xd3\n".to_vec();
     let mut offsets = Vec::new();

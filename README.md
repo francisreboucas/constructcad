@@ -1,6 +1,6 @@
-# ConstructCAD
+# ConstructCraft
 
-[![CI](https://github.com/francisreboucas/constructcad/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/francisreboucas/constructcad/actions/workflows/ci.yml)
+[![CI](https://github.com/francisreboucas/constructcraft/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/francisreboucas/constructcraft/actions/workflows/ci.yml)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
 [![Rust 2024](https://img.shields.io/badge/rust-2024_edition-orange.svg?logo=rust)](https://www.rust-lang.org/)
 [![IFC4](https://img.shields.io/badge/IFC-IFC4_export_%C2%B7_IFC2X3%2FIFC4_import-0a7bbb.svg)](https://technical.buildingsmart.org/standards/ifc/)
@@ -17,7 +17,7 @@ A single parametric model is the source of truth. Floor plans, ceiling plans, se
 
 The menus, shortcuts, panels and tools your hands already know. Productive on day one, no retraining.
 
-ConstructCAD follows the conventions shared by desktop CAD and BIM tools: the quick access toolbar at the top left, a ribbon of tabs, the properties palette and project browser docked at the side, and standard and two-letter keyboard shortcuts. These are general conventions; ConstructCAD does not copy any product's icons, artwork or wording (see [Independence](#independence)).
+ConstructCraft follows the conventions shared by desktop CAD and BIM tools: the quick access toolbar at the top left, a ribbon of tabs, the properties palette and project browser docked at the side, and standard and two-letter keyboard shortcuts. These are general conventions; ConstructCraft does not copy any product's icons, artwork or wording (see [Independence](#independence)).
 
 Every button's tooltip shows its shortcut, what it does, why it is unavailable when it is greyed out, and the engine command behind it. **Ctrl+Shift+P** opens a command palette that finds any command, view or engine command by name; **Ctrl+F1** collapses the ribbon to its tabs. See the [interface guide](docs/interface.md).
 
@@ -40,13 +40,13 @@ The showcase house, built by [`examples/showcase.ccmacro`](examples/showcase.ccm
 
 ## Installing
 
-Each [release](https://github.com/francisreboucas/constructcad/releases) has installers, plain archives and a `SHA256SUMS.txt` to check them against:
+Each [release](https://github.com/francisreboucas/constructcraft/releases) has installers, plain archives and a `SHA256SUMS.txt` to check them against:
 
 | System | Installer | Archive |
 |---|---|---|
-| Windows (x64) | `constructcad-vX.Y.Z-x86_64.msi`: installs under Program Files with a Start menu shortcut, opens `.ccad` files, and optionally adds `ccad` to the PATH. Newer versions upgrade it in place. | `…-x86_64-pc-windows-msvc.zip` |
-| Linux (x86_64, arm64) | `constructcad_X.Y.Z_amd64.deb` or `…_arm64.deb` (Debian, Ubuntu: `sudo apt install ./constructcad_X.Y.Z_amd64.deb`) or `constructcad-vX.Y.Z-x86_64.AppImage` or `…-aarch64.AppImage` (`chmod +x` it and run it). Both register the desktop entry and icon; the `.deb` also the `.ccad` file type and `ccad` in `/usr/bin`. | `…-x86_64-unknown-linux-gnu.tar.gz`, `…-aarch64-unknown-linux-gnu.tar.gz` |
-| macOS | `constructcad-vX.Y.Z-aarch64-apple-darwin.dmg` (Apple silicon) or `…-x86_64-apple-darwin.dmg` (Intel): drag *ConstructCAD* to *Applications*. | `…-apple-darwin.tar.gz` (also has `ccad`) |
+| Windows (x64) | `constructcraft-vX.Y.Z-x86_64.msi`: installs under Program Files with a Start menu shortcut, opens `.ccad` files, and optionally adds `ccad` to the PATH. Newer versions upgrade it in place. | `…-x86_64-pc-windows-msvc.zip` |
+| Linux (x86_64, arm64) | `constructcraft_X.Y.Z_amd64.deb` or `…_arm64.deb` (Debian, Ubuntu: `sudo apt install ./constructcraft_X.Y.Z_amd64.deb`) or `constructcraft-vX.Y.Z-x86_64.AppImage` or `…-aarch64.AppImage` (`chmod +x` it and run it). Both register the desktop entry and icon; the `.deb` also the `.ccad` file type and `ccad` in `/usr/bin`. | `…-x86_64-unknown-linux-gnu.tar.gz`, `…-aarch64-unknown-linux-gnu.tar.gz` |
+| macOS | `constructcraft-vX.Y.Z-aarch64-apple-darwin.dmg` (Apple silicon) or `…-x86_64-apple-darwin.dmg` (Intel): drag *ConstructCraft* to *Applications*. | `…-apple-darwin.tar.gz` (also has `ccad`) |
 
 The builds are not code-signed yet. On Windows, SmartScreen may warn about an unknown publisher: choose *More info → Run anyway*. On macOS, Gatekeeper blocks the first launch: right-click (Control-click) the app and choose *Open*, or, on macOS 15 and later, open it once and then click *Open Anyway* in *System Settings → Privacy & Security*. The Linux builds need glibc 2.35 or later (Ubuntu 22.04, Debian 12 and newer) and a Vulkan or OpenGL driver.
 
@@ -105,12 +105,12 @@ Translations live in `assets/i18n/*.ftl`. A test ensures every language has the 
 - **Construction phases** (renovation): elements are built and demolished in ordered phases; each view shows a phase through a phase filter (existing, demolished, new and temporary work by category, overridden or hidden). *Manage → Phases* edits phases, filters and their graphics; *Modify → Demolish* (DE) demolishes elements in the view's phase.
 - **Manage**: project information, levels (each new level creates its plans) and materials.
 - **`.ccad` files**: versioned, human-readable RON; saving is atomic.
-- **IFC4 export** (*File → Export IFC…*): storeys, walls with openings, doors, windows, floors, ceilings, roofs, structure and components as swept solids (imported objects as polygonal face sets in their original class), with types, material layers, colors and base quantities. Written by ConstructCAD's own STEP writer, with no third-party IFC library.
-- **SketchUp import** (*Insert → Import SketchUp…*, SketchUp 3 to the current format): components and groups come in as component elements with their geometry as fixed meshes, one piece per material, copies of a component sharing one type; *Load component* also takes a `.skp` file as one component to place. Read by ConstructCAD's own `cc_skp` crate.
-- **IFC import** (*Insert → Import IFC…*, IFC2X3 and IFC4) with no class left behind: storeys become levels and grids grid lines; walls, doors, windows, slabs, ceilings, roofs, spaces, columns and beams become native elements with matching or new types, materials and colors whenever a native element can hold their geometry exactly. Every other physical object — stairs, railings, members, plates, curtain walls, MEP segments and fittings, terrain, classes from other schemas — comes in as a generic component that keeps its IFC class, predefined type, property and quantity sets (its own and its type's, converted to SI units) and exact geometry, and is exported back as the same class; the openings that void it are cut from its geometry. Geometry is read by ConstructCAD's own engine: extrusions (with voids), revolutions, swept disks and profiles, CSG primitives and booleans (union, difference, intersection), half-space clipping, faceted and advanced B-reps, face sets, mapped items, every parametric profile and curves with arcs, conics and B-splines.
-- **DWG and DXF underlays** (*Insert → Import CAD…*, or drop the file on the window): a drawing placed in a plan, elevation, section or legend as grey background linework to trace over, with its layers, blocks, arcs and texts; snapping to its endpoints, midpoints and centers; units, scale, rotation, colors and layer visibility in its properties. DXF is read by ConstructCAD's own reader; DWG through the open-source acadrust library.
+- **IFC4 export** (*File → Export IFC…*): storeys, walls with openings, doors, windows, floors, ceilings, roofs, structure and components as swept solids (imported objects as polygonal face sets in their original class), with types, material layers, colors and base quantities. Written by ConstructCraft's own STEP writer, with no third-party IFC library.
+- **SketchUp import** (*Insert → Import SketchUp…*, SketchUp 3 to the current format): components and groups come in as component elements with their geometry as fixed meshes, one piece per material, copies of a component sharing one type; *Load component* also takes a `.skp` file as one component to place. Read by ConstructCraft's own `cc_skp` crate.
+- **IFC import** (*Insert → Import IFC…*, IFC2X3 and IFC4) with no class left behind: storeys become levels and grids grid lines; walls, doors, windows, slabs, ceilings, roofs, spaces, columns and beams become native elements with matching or new types, materials and colors whenever a native element can hold their geometry exactly. Every other physical object — stairs, railings, members, plates, curtain walls, MEP segments and fittings, terrain, classes from other schemas — comes in as a generic component that keeps its IFC class, predefined type, property and quantity sets (its own and its type's, converted to SI units) and exact geometry, and is exported back as the same class; the openings that void it are cut from its geometry. Geometry is read by ConstructCraft's own engine: extrusions (with voids), revolutions, swept disks and profiles, CSG primitives and booleans (union, difference, intersection), half-space clipping, faceted and advanced B-reps, face sets, mapped items, every parametric profile and curves with arcs, conics and B-splines.
+- **DWG and DXF underlays** (*Insert → Import CAD…*, or drop the file on the window): a drawing placed in a plan, elevation, section or legend as grey background linework to trace over, with its layers, blocks, arcs and texts; snapping to its endpoints, midpoints and centers; units, scale, rotation, colors and layer visibility in its properties. DXF is read by ConstructCraft's own reader; DWG through the open-source acadrust library.
 - **Pictures and SVG drawings** (*Insert → Import Image…*, or drop the file on the window): a PNG, JPEG, GIF, BMP or WebP picture (a scanned plan, a site photo) or an SVG drawing placed in a plan, elevation, section or legend under the model, sized by the file's resolution and scaled, turned and moved like a CAD underlay; it prints on sheets and in PDF, SVG and PNG exports, and the project keeps the file's bytes.
-- **DXF export** (*File → Export DXF…* or *Insert → Export DXF…*, or `view_export` to a `.dxf`): any view at full size in millimeters, or a sheet in paper millimeters, each category on its own layer, written by ConstructCAD's own DXF R12 writer.
+- **DXF export** (*File → Export DXF…* or *Insert → Export DXF…*, or `view_export` to a `.dxf`): any view at full size in millimeters, or a sheet in paper millimeters, each category on its own layer, written by ConstructCraft's own DXF R12 writer.
 
 ## Component library
 
@@ -118,9 +118,9 @@ Translations live in `assets/i18n/*.ftl`. A test ensures every language has the 
 
 ## Coming from Revit?
 
-ConstructCAD does not read `.rvt` files. To bring a Revit model in, export it to IFC from Revit (*File → Export → IFC*, IFC4 or IFC2x3) and open the file with *Insert → Import IFC…*. Storeys, walls, doors, windows, slabs, ceilings, roofs, spaces, columns and beams come across as native, editable elements with their types and materials; everything else comes across as generic objects with their IFC class and geometry, and the import message reports how many.
+ConstructCraft does not read `.rvt` files. To bring a Revit model in, export it to IFC from Revit (*File → Export → IFC*, IFC4 or IFC2x3) and open the file with *Insert → Import IFC…*. Storeys, walls, doors, windows, slabs, ceilings, roofs, spaces, columns and beams come across as native, editable elements with their types and materials; everything else comes across as generic objects with their IFC class and geometry, and the import message reports how many.
 
-If you do not have Revit, independent third-party tools can convert `.rvt` files to IFC; check their coverage and license terms yourself. ConstructCAD neither bundles nor endorses them.
+If you do not have Revit, independent third-party tools can convert `.rvt` files to IFC; check their coverage and license terms yourself. ConstructCraft neither bundles nor endorses them.
 
 ## Shortcuts
 
@@ -155,7 +155,7 @@ If you do not have Revit, independent third-party tools can convert `.rvt` files
 
 ## Automation (command line and MCP)
 
-Everything ConstructCAD does is meant to be reachable without the interface. The engine (`cc_engine`) exposes the operations as named commands with JSON parameters and a JSON Schema each; the `ccad` tool runs them from the command line, from scripts, or for AI agents as an [MCP](https://modelcontextprotocol.io/) server. The same catalog serves all three. The [automation guide](docs/automation.md) explains it in full and the [command reference](docs/commands.md) lists every command with its parameters. Lua 5.4 scripts call the same commands with variables and loops, and plugins (a folder with a `plugin.toml` and Lua code) add their own commands to the catalog, each one undo step; see [Lua scripts](docs/automation.md#lua-scripts) and [Plugins](docs/automation.md#plugins).
+Everything ConstructCraft does is meant to be reachable without the interface. The engine (`cc_engine`) exposes the operations as named commands with JSON parameters and a JSON Schema each; the `ccad` tool runs them from the command line, from scripts, or for AI agents as an [MCP](https://modelcontextprotocol.io/) server. The same catalog serves all three. The [automation guide](docs/automation.md) explains it in full and the [command reference](docs/commands.md) lists every command with its parameters. Lua 5.4 scripts call the same commands with variables and loops, and plugins (a folder with a `plugin.toml` and Lua code) add their own commands to the catalog, each one undo step; see [Lua scripts](docs/automation.md#lua-scripts) and [Plugins](docs/automation.md#plugins).
 
 ```sh
 ccad commands                                   # list the commands
@@ -225,12 +225,12 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow and project rules.
 
 ## Independence
 
-ConstructCAD is independent. Behaviour is designed from public documentation, general CAD conventions and user feedback. Reference tests use analytic values and open-source tools. ConstructCAD is not affiliated with, sponsored by or endorsed by Autodesk. Autodesk and Revit are trademarks of Autodesk, Inc.
+ConstructCraft is independent. Behaviour is designed from public documentation, general CAD conventions and user feedback. Reference tests use analytic values and open-source tools. ConstructCraft is not affiliated with, sponsored by or endorsed by Autodesk. Autodesk and Revit are trademarks of Autodesk, Inc.
 
 ## License
 
 Copyright © Francis Rebouças <francisreboucas@gmail.com>.
 
-ConstructCAD is licensed under the [GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later).
+ConstructCraft is licensed under the [GNU General Public License v3.0 or later](LICENSE) (GPL-3.0-or-later).
 
 The application icon is by [Magnific – Flaticon](https://www.flaticon.com/) (see `assets/icons/FLATICON.txt`). The bundled [Inter](https://rsms.me/inter/) typeface is © The Inter Project Authors and licensed under the [SIL Open Font License 1.1](assets/fonts/OFL-Inter.txt). The `cc_skp` crate is derived from OpenSKP, © 2024-2026 Ahsan Mehmood, and keeps its [MIT License](crates/cc_skp/LICENSE).

@@ -1,4 +1,4 @@
-//! The ConstructCAD engine: every user-facing operation as a named command
+//! The ConstructCraft engine: every user-facing operation as a named command
 //! that runs on a [`Session`] without a GUI.
 //!
 //! A command is a struct of typed parameters (deserialized from JSON, with a

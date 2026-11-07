@@ -279,7 +279,7 @@ fn write_crash_entry(path: &Path, what: &str, with_backtrace: bool) {
     let backtrace = if with_backtrace { std::backtrace::Backtrace::force_capture().to_string() } else { String::new() };
     let _ = writeln!(
         file,
-        "--- ConstructCAD {} ({} {}), {} s after the Unix epoch\n{what}\n{backtrace}\n",
+        "--- ConstructCraft {} ({} {}), {} s after the Unix epoch\n{what}\n{backtrace}\n",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH,

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- ConstructCAD is now ConstructCraft. The application, its window, installers, packages and documentation carry the new name, and the desktop program is `constructcraft` (the repository moves to `francisreboucas/constructcraft`). Nothing else changes: the `ccad` command line, the Lua `ccad` table, the MCP server, the `.ccad`, `.ccomp`, `.ccmacro` and `.ccgraph` files and the `ConstructCAD_*` IFC property sets keep their names, preferences and recovery copies stay where they were, and installing the new version replaces the old one (the Windows installer upgrades it in place, the Debian package replaces `constructcad`). Copies older than this one find the update but cannot install it themselves; download it from the release page once.
+
 ### Added
 
 - Lua scripts and plugins (#72, first part). `ccad lua script.lua` runs a Lua 5.4 script that calls the engine's commands with `ccad.run` and keeps their results in variables, which JSON scripts cannot do (`examples/small_house.lua`). A plugin is a folder with a `plugin.toml` manifest and Lua code that registers commands with `ccad.command`. Its commands join the catalog as `<plugin>__<command>`, so `ccad run`, scripts and MCP agents call them like the built-in ones; `ccad --plugins <folder>` loads them and `ccad plugins` lists them (`examples/plugins/quick_rooms`). Each plugin command is one undo step, and a failed one leaves nothing behind. Lua runs sandboxed: no files, no loading of code, an instruction and a memory limit. Plugins query and edit the model, and they need the `files` permission to import, export or save. The new error code `script` reports a failed script or plugin. Plugins are listed in the community index, [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins); the app's plugin manager comes next.

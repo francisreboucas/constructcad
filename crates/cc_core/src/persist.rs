@@ -29,7 +29,7 @@ struct ProjectFile {
 pub fn to_ron(project: &Project) -> Result<String, PersistError> {
     let file = ProjectFile {
         format_version: FORMAT_VERSION,
-        generator: format!("ConstructCAD {}", env!("CARGO_PKG_VERSION")),
+        generator: format!("ConstructCraft {}", env!("CARGO_PKG_VERSION")),
         project: project.clone(),
     };
     let config = ron::ser::PrettyConfig::new().depth_limit(8).indentor("  ".to_string());

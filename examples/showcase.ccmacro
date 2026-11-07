@@ -2,7 +2,7 @@
 // ccad --lang en --save-as examples/showcase.ccad script examples/showcase.ccmacro
 // Scripts have no variables: later steps name elements, types and views by id,
 // which a fresh session assigns in order (tests/commands.rs runs this script).
-{"command": "project_info_set", "args": {"name": "Showcase house", "author": "ConstructCAD"}}
+{"command": "project_info_set", "args": {"name": "Showcase house", "author": "ConstructCraft"}}
 // Existing house (walls 90-94): 9 x 5 m, with an old partition to demolish.
 {"command": "wall_create", "args": {"start": [0, 0], "end": [9, 0], "type": 3, "height": 2.6}}
 {"command": "wall_create", "args": {"start": [9, 0], "end": [9, 5], "type": 3, "height": 2.6}}

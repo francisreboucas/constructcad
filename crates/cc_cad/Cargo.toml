@@ -1,6 +1,6 @@
 [package]
 name = "cc_cad"
-description = "ConstructCAD DWG/DXF import: an in-house DXF reader and DWG through acadrust, into the neutral CAD drawing"
+description = "ConstructCraft DWG/DXF import: an in-house DXF reader and DWG through acadrust, into the neutral CAD drawing"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

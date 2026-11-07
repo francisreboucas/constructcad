@@ -1,4 +1,4 @@
--- Quick rooms: an example ConstructCAD plugin.
+-- Quick rooms: an example ConstructCraft plugin.
 local rect = require("lib.rect")
 
 ccad.command {

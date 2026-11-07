@@ -1,5 +1,5 @@
 //! IFC import: maps the spatial structure and building elements of an IFC
-//! file (IFC2X3 or IFC4) onto a ConstructCAD project.
+//! file (IFC2X3 or IFC4) onto a ConstructCraft project.
 //!
 //! Geometry is read from extruded area solids (the usual representation of
 //! walls, slabs, columns and beams), with faceted B-reps, face sets and
@@ -2357,7 +2357,7 @@ impl<'a> Importer<'a> {
             ..Default::default()
         };
         let Some((lo, hi)) = def_bounds(&def, &Default::default()) else { return false };
-        // Instance parameter values written by ConstructCAD.
+        // Instance parameter values written by ConstructCraft.
         let overrides: std::collections::BTreeMap<String, f64> = self
             .numeric_properties(id, crate::export::COMPONENT_PSET)
             .into_iter()

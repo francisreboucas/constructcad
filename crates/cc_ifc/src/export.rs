@@ -1,4 +1,4 @@
-//! Mapping of the ConstructCAD model to IFC4 entities.
+//! Mapping of the ConstructCraft model to IFC4 entities.
 
 use crate::args;
 use crate::guid::{encode, guid};
@@ -25,7 +25,7 @@ pub fn export(project: &Project, options: &ExportOptions) -> String {
     let geom = ModelGeometry::build(project);
     let mut x = Exporter::new(project, &geom);
     x.write_all();
-    let generator = format!("ConstructCAD {}", env!("CARGO_PKG_VERSION"));
+    let generator = format!("ConstructCraft {}", env!("CARGO_PKG_VERSION"));
     let header = Header {
         description: vec!["ViewDefinition [DesignTransferView_V1.0]".into()],
         name: options.file_name.clone(),
@@ -347,7 +347,7 @@ impl<'a> Exporter<'a> {
         self.body_ctx = sub(w, "Body", "MODEL_VIEW");
         self.axis_ctx = sub(w, "Axis", "GRAPH_VIEW");
         let info = &self.project.info;
-        let name = if info.name.is_empty() { "ConstructCAD" } else { info.name.as_str() };
+        let name = if info.name.is_empty() { "ConstructCraft" } else { info.name.as_str() };
         let gid = self.guid_of(self.project.info.uid, "project");
         self.w.add(
             "IFCPROJECT",

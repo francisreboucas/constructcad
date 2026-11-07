@@ -1,6 +1,6 @@
 [package]
 name = "cc_core"
-description = "ConstructCAD BIM data model, transactions and persistence"
+description = "ConstructCraft BIM data model, transactions and persistence"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

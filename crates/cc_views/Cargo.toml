@@ -1,6 +1,6 @@
 [package]
 name = "cc_views"
-description = "ConstructCAD view generation: plans, sections, elevations, legends, schedules"
+description = "ConstructCraft view generation: plans, sections, elevations, legends, schedules"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

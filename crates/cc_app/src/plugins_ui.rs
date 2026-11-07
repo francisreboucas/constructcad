@@ -187,7 +187,7 @@ pub fn open(state: &mut AppState) {
 fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
-        .user_agent(format!("ConstructCAD/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("ConstructCraft/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .into()
 }

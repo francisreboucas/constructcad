@@ -1,6 +1,6 @@
 [package]
 name = "cc_render"
-description = "ConstructCAD wgpu 3D renderer"
+description = "ConstructCraft wgpu 3D renderer"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
