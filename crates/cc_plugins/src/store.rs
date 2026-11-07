@@ -1,5 +1,5 @@
 //! Installing plugins: the community index (`index.json` of
-//! [constructcad-plugins](https://github.com/francisreboucas/constructcad-plugins)),
+//! [constructcraft-plugins](https://github.com/francisreboucas/constructcraft-plugins)),
 //! the version to offer, and checked installs from a downloaded archive.
 //!
 //! Nothing here reaches the network: callers download the index and the
@@ -17,7 +17,7 @@ use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
 
 /// Where the app reads the index.
-pub const INDEX_URL: &str = "https://raw.githubusercontent.com/francisreboucas/constructcad-plugins/main/index.json";
+pub const INDEX_URL: &str = "https://raw.githubusercontent.com/francisreboucas/constructcraft-plugins/main/index.json";
 /// The index format this build reads.
 pub const INDEX_FORMAT: u32 = 1;
 /// Largest index, archive, unpacked plugin and number of files accepted.

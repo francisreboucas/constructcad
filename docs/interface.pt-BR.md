@@ -283,7 +283,7 @@ Plugins acrescentam comandos ao ConstructCraft (veja [Plugins](automacao.md#plug
 A janela Plugins tem duas abas:
 
 - **Instalados**: os plugins da pasta de plugins. Escolha um para ver a versão, os autores, a licença, a página, os comandos e algum erro ao carregá-lo. *Ativado* o carrega ou o deixa de fora (um plugin desativado não roda nenhum código). Um plugin que pede para trabalhar com arquivos tem *Permitir que leia e grave arquivos*; sem isso, os comandos dele que importam, exportam ou salvam são recusados. *Remover* o apaga da pasta.
-- **Disponíveis**: os plugins do [índice da comunidade](https://github.com/francisreboucas/constructcad-plugins), lido quando a aba é aberta pela primeira vez (*Atualizar* o lê de novo). *Instalar* (ou *Atualizar para …*) baixa a versão mais nova que esta versão do programa consegue rodar, confere o checksum do índice e só instala se o plugin carregar; um plugin que pede arquivos só recebe a permissão se você marcar a caixa antes.
+- **Disponíveis**: os plugins do [índice da comunidade](https://github.com/francisreboucas/constructcraft-plugins), lido quando a aba é aberta pela primeira vez (*Atualizar* o lê de novo). *Instalar* (ou *Atualizar para …*) baixa a versão mais nova que esta versão do programa consegue rodar, confere o checksum do índice e só instala se o plugin carregar; um plugin que pede arquivos só recebe a permissão se você marcar a caixa antes.
 
 Só essa aba usa a rede: ela lê o índice e os arquivos que ele lista, por HTTPS, quando você pede. *Recarregar plugins* lê a pasta de novo, depois que você acrescenta ou edita um plugin à mão. Os plugins são carregados quando o aplicativo abre e continuam carregados quando você abre outro projeto.
 

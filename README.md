@@ -114,7 +114,7 @@ Translations live in `assets/i18n/*.ftl`. A test ensures every language has the 
 
 ## Component library
 
-[ConstructCAD Components](https://github.com/francisreboucas/constructcad-components) is a free library of ready-made `.ccomp` components: furniture, casework, plumbing fixtures, electrical devices and lighting, each with several sizes as types. Plumbing fixtures carry their drainage fixture units and supply weights, and electrical devices their kind and load, so pipes and circuits are sized with them. Load a file with `component_load` (or `ccad -p house.ccad --save run component_load path=…`) and place it with the *Component* tool (CM). Every file is built and checked by `ccad` itself; see the [catalog](https://github.com/francisreboucas/constructcad-components/blob/main/CATALOG.md) and how to [contribute a component](https://github.com/francisreboucas/constructcad-components/blob/main/CONTRIBUTING.md).
+[ConstructCraft Components](https://github.com/francisreboucas/constructcraft-components) is a free library of ready-made `.ccomp` components: furniture, casework, plumbing fixtures, electrical devices and lighting, each with several sizes as types. Plumbing fixtures carry their drainage fixture units and supply weights, and electrical devices their kind and load, so pipes and circuits are sized with them. Load a file with `component_load` (or `ccad -p house.ccad --save run component_load path=…`) and place it with the *Component* tool (CM). Every file is built and checked by `ccad` itself; see the [catalog](https://github.com/francisreboucas/constructcraft-components/blob/main/CATALOG.md) and how to [contribute a component](https://github.com/francisreboucas/constructcraft-components/blob/main/CONTRIBUTING.md).
 
 ## Coming from Revit?
 

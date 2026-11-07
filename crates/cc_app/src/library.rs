@@ -1,5 +1,5 @@
 //! Component library: browse the component files (`.ccomp`) of the folders
-//! the user adds (such as a copy of the ConstructCAD Components library),
+//! the user adds (such as a copy of the ConstructCraft Components library),
 //! search them, see a component's types, parameters, connectors and plan,
 //! load it into the project, and save the project's components into a
 //! library folder. Listing, loading and saving are engine commands.
