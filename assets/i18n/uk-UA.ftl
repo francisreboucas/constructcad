@@ -2485,6 +2485,7 @@ tb-tool-image = Зображення
 cmd-desc-tb-image = Виберіть зображення PNG, JPG або SVG і протягніть його прямокутник.
 tb-hint-image = Протягніть прямокутник зображення · Shift знімає пропорції · Esc завершує
 msg-image-unreadable = Не вдалося прочитати зображення (PNG, JPG або SVG).
+tb-image-too-small = Протягніть більший прямокутник для зображення.
 tb-text-size = Висота тексту
 tb-anchor = Вирівнювання
 tb-anchor-left = Ліворуч

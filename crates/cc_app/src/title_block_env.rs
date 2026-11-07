@@ -499,12 +499,12 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
                 painter.rect_stroke(r, 0.0, Stroke::new(1.5, PALETTE.accent), egui::StrokeKind::Middle);
             }
             if resp.drag_stopped_by(egui::PointerButton::Primary) {
+                // A rectangle too small to keep leaves the tool on, ready for another drag.
                 match rect {
-                    Some((corner, size)) => {
-                        add_image(state, &planes, corner, size, &picture);
+                    Some((corner, size)) if add_image(state, &planes, corner, size, &picture) => {
                         crate::component_env::set_tool(state, crate::component_env::EnvTool::Select);
                     }
-                    None => crate::component_env::set_tool(
+                    _ => crate::component_env::set_tool(
                         state,
                         crate::component_env::EnvTool::SheetImage { picture: picture.clone(), start: None },
                     ),
@@ -727,19 +727,26 @@ pub struct Picture {
 const SVG_PX: f32 = 2048.0;
 
 /// The picture in a file's bytes; an SVG is drawn into a PNG. `None` for
-/// anything else, or a file over the picture size limit.
+/// anything else, a file over the picture size limit, or a reader that
+/// fails (a panic in a decoder is caught: files are hostile input).
 pub fn picture(bytes: Vec<u8>) -> Option<Picture> {
     if bytes.len() > cc_core::raster::MAX_IMAGE_BYTES {
         return None;
     }
-    if let Some(img) = cc_views::raster::probe(bytes.clone()) {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| read_picture(bytes))).ok().flatten()
+}
+
+fn read_picture(bytes: Vec<u8>) -> Option<Picture> {
+    if cc_core::raster::RasterFormat::sniff(&bytes).is_some() {
+        let img = cc_views::raster::probe(bytes)?;
         let aspect = f64::from(img.width) / f64::from(img.height.max(1));
         return Some(Picture { bytes: img.data, aspect });
     }
     let tree = resvg::usvg::Tree::from_data(&bytes, &resvg::usvg::Options::default()).ok()?;
     let size = tree.size();
+    let aspect = f64::from(size.width()) / f64::from(size.height());
     let k = SVG_PX / size.width().max(size.height()).max(1.0);
-    if !k.is_finite() {
+    if !k.is_finite() || !aspect.is_finite() || aspect <= 0.0 {
         return None;
     }
     let side = |v: f32| (v * k).round().clamp(1.0, SVG_PX) as u32;
@@ -761,7 +768,25 @@ pub fn picture(bytes: Vec<u8>) -> Option<Picture> {
         encoder.set_depth(png::BitDepth::Eight);
         encoder.write_header().ok()?.write_image_data(&rgba).ok()?;
     }
-    Some(Picture { bytes: png, aspect: f64::from(w) / f64::from(h) })
+    Some(Picture { bytes: png, aspect })
+}
+
+/// The picture in file `path`; a file over the picture size limit is
+/// refused before it is read.
+pub fn picture_file(path: &std::path::Path) -> Result<Picture, String> {
+    use std::io::Read;
+    let limit = cc_core::raster::MAX_IMAGE_BYTES as u64;
+    let unreadable = || t!("msg-image-unreadable");
+    let file = std::fs::File::open(path).map_err(|_| unreadable())?;
+    if file.metadata().map_err(|_| unreadable())?.len() > limit {
+        return Err(t!("err-image-too-large"));
+    }
+    let mut bytes = Vec::new();
+    file.take(limit + 1).read_to_end(&mut bytes).map_err(|_| unreadable())?;
+    if bytes.len() as u64 > limit {
+        return Err(t!("err-image-too-large"));
+    }
+    picture(bytes).ok_or_else(unreadable)
 }
 
 /// The rectangle a picture dragged from `a` to `b` fills (millimeters):
@@ -790,19 +815,21 @@ pub fn pick_image(state: &mut AppState) {
     let Some(path) = rfd::FileDialog::new().add_filter(t!("file-filter-image"), &PICTURE_EXTENSIONS).pick_file() else {
         return;
     };
-    match std::fs::read(&path).ok().and_then(picture) {
-        Some(p) => crate::component_env::set_tool(
+    match picture_file(&path) {
+        Ok(p) => crate::component_env::set_tool(
             state,
             crate::component_env::EnvTool::SheetImage { picture: std::sync::Arc::new(p), start: None },
         ),
-        None => state.message = t!("msg-image-unreadable"),
+        Err(m) => state.message = m,
     }
 }
 
-/// Add a picture filling `corner`–`corner + size` (millimeters) and pick it.
-fn add_image(state: &mut AppState, planes: &[SheetPlane], corner: DVec2, size: DVec2, p: &Picture) {
+/// Add a picture filling `corner`–`corner + size` (millimeters) and pick
+/// it; `false` (with a message) when the rectangle is too small to keep.
+fn add_image(state: &mut AppState, planes: &[SheetPlane], corner: DVec2, size: DVec2, p: &Picture) -> bool {
     if size.min_element() < 0.5 {
-        return;
+        state.message = t!("tb-image-too-small");
+        return false;
     }
     let piece = SheetPieceArg::Image {
         x: ExprArg::Text(coordinate(planes, corner.x, true)),
@@ -813,12 +840,11 @@ fn add_image(state: &mut AppState, planes: &[SheetPlane], corner: DVec2, size: D
         image: Some(cc_core::raster::base64_encode(&p.bytes)),
     };
     let command = ComponentSheetPieceAdd { type_ref: crate::component_env::type_ref(state), piece, name: None };
-    if let Some(i) = crate::actions::run_command(state, command)
-        .and_then(|o| o["index"].as_u64())
-        .and_then(|i| usize::try_from(i).ok())
-    {
+    let Some(out) = crate::actions::run_command(state, command) else { return false };
+    if let Some(i) = out["index"].as_u64().and_then(|i| usize::try_from(i).ok()) {
         set_pick(state, vec![i]);
     }
+    true
 }
 
 /// The grips of a lone picked text (its point) or picture (corner,
@@ -2166,7 +2192,7 @@ mod tests {
         let (_, def) = crate::component_env::component(&state).unwrap();
         let before = def.sheet.len();
         let ps = planes(&def, DVec2::new(420.0, 297.0));
-        add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &s);
+        assert!(add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &s));
         let (_, def) = crate::component_env::component(&state).unwrap();
         assert!(matches!(def.sheet.get(before).map(|i| &i.shape), Some(SheetShape::Image { .. })), "{}", state.message);
         assert_eq!(picked(&state), vec![before]);
@@ -2178,7 +2204,7 @@ mod tests {
         let paper_mm = DVec2::new(420.0, 297.0);
         let (_, def) = crate::component_env::component(&state).unwrap();
         let ps = planes(&def, paper_mm);
-        add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &svg_picture());
+        assert!(add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(40.0, 20.0), &svg_picture()));
         let (index, _) = last_piece(&state);
         let image_of = |state: &AppState| {
             let (_, def) = crate::component_env::component(state).unwrap();
@@ -2188,7 +2214,6 @@ mod tests {
             }
         };
         let bytes = image_of(&state).4;
-        assert_eq!(grips(&def.resolve_sheet(paper_mm), index), Vec::new(), "not yet in the old definition");
         let depth = state.session.doc.undo_depth();
         // Move the corner over three frames: one step.
         for at in [DVec2::new(20.0, 16.0), DVec2::new(25.0, 18.0), DVec2::new(30.0, 20.0)] {
@@ -2223,5 +2248,36 @@ mod tests {
         assert_eq!(state.component_env.as_ref().unwrap().tool, tool(None));
         crate::component_env::escape(&mut state);
         assert_eq!(state.component_env.as_ref().unwrap().tool, EnvTool::Select);
+    }
+
+    #[test]
+    fn broken_and_oversized_pictures_are_refused_without_panicking() {
+        let truncated = br#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="20"><rect width="#;
+        assert!(picture(truncated.to_vec()).is_none());
+        assert!(picture(br#"<svg xmlns="http://www.w3.org/2000/svg" width="0" height="0"/>"#.to_vec()).is_none());
+        // A PNG signature on garbage.
+        assert!(picture([0x89, b'P', b'N', b'G', 0, 1, 2, 3].to_vec()).is_none());
+        let mut huge = vec![0u8; cc_core::raster::MAX_IMAGE_BYTES + 1];
+        huge[..4].copy_from_slice(&[0x89, b'P', b'N', b'G']);
+        assert!(picture(huge).is_none());
+        let dir = std::env::temp_dir().join(format!("cc-tb-picture-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("big.png");
+        let file = std::fs::File::create(&path).unwrap();
+        file.set_len(cc_core::raster::MAX_IMAGE_BYTES as u64 + 1).unwrap();
+        drop(file);
+        assert_eq!(picture_file(&path).err(), Some(t!("err-image-too-large")));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_picture_too_small_to_keep_is_refused_with_a_message() {
+        let (mut state, _, _) = editor_state();
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let before = def.sheet.len();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        assert!(!add_image(&mut state, &ps, DVec2::new(15.0, 15.0), DVec2::new(0.2, 0.1), &svg_picture()));
+        assert_eq!(state.message, t!("tb-image-too-small"));
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
     }
 }

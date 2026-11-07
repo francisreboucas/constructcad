@@ -2484,6 +2484,7 @@ tb-tool-image = Imagen
 cmd-desc-tb-image = Elija una imagen PNG, JPG o SVG y arrastre su rectángulo.
 tb-hint-image = Arrastre el rectángulo de la imagen · Mayús libera la proporción · Esc termina
 msg-image-unreadable = No se pudo leer la imagen (PNG, JPG o SVG).
+tb-image-too-small = Arrastre un rectángulo más grande para la imagen.
 tb-text-size = Altura del texto
 tb-anchor = Alineación
 tb-anchor-left = Izquierda

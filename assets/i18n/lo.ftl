@@ -2486,6 +2486,7 @@ tb-tool-image = ຮູບ
 cmd-desc-tb-image = ເລືອກຮູບ PNG, JPG ຫຼື SVG ແລ້ວລາກສີ່ລ່ຽມຂອງມັນ.
 tb-hint-image = ລາກສີ່ລ່ຽມຂອງຮູບ · Shift ປົດອັດຕາສ່ວນ · Esc ສິ້ນສຸດ
 msg-image-unreadable = ອ່ານຮູບບໍ່ໄດ້ (PNG, JPG ຫຼື SVG).
+tb-image-too-small = ລາກສີ່ລ່ຽມທີ່ໃຫຍ່ກວ່ານີ້ສຳລັບຮູບ.
 tb-text-size = ຄວາມສູງຂໍ້ຄວາມ
 tb-anchor = ການຈັດວາງ
 tb-anchor-left = ຊ້າຍ

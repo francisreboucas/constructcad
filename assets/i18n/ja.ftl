@@ -2484,6 +2484,7 @@ tb-tool-image = 画像
 cmd-desc-tb-image = PNG、JPG、SVG の画像を選び、その矩形をドラッグします。
 tb-hint-image = 画像の矩形をドラッグ · Shift で縦横比を解除 · Esc で終了
 msg-image-unreadable = 画像を読み込めませんでした (PNG、JPG、SVG)。
+tb-image-too-small = 画像にはもっと大きな矩形をドラッグしてください。
 tb-text-size = 文字の高さ
 tb-anchor = 配置
 tb-anchor-left = 左

@@ -2484,6 +2484,7 @@ tb-tool-image = 圖像
 cmd-desc-tb-image = 選擇 PNG、JPG 或 SVG 圖片，然後拖曳出其矩形。
 tb-hint-image = 拖曳圖片的矩形 · Shift 不維持比例 · Esc 結束
 msg-image-unreadable = 無法讀取圖片（PNG、JPG 或 SVG）。
+tb-image-too-small = 請為圖片拖曳出更大的矩形。
 tb-text-size = 文字高度
 tb-anchor = 對齊
 tb-anchor-left = 左

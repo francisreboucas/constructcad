@@ -2484,6 +2484,7 @@ tb-tool-image = Image
 cmd-desc-tb-image = Choisissez une image PNG, JPG ou SVG, puis tracez son rectangle.
 tb-hint-image = Tracez le rectangle de l'image · Maj libère les proportions · Échap termine
 msg-image-unreadable = Impossible de lire l'image (PNG, JPG ou SVG).
+tb-image-too-small = Tracez un rectangle plus grand pour l'image.
 tb-text-size = Hauteur du texte
 tb-anchor = Alignement
 tb-anchor-left = Gauche

@@ -2484,6 +2484,7 @@ tb-tool-image = Image
 cmd-desc-tb-image = Pick a PNG, JPG or SVG picture, then drag its rectangle.
 tb-hint-image = Drag the picture's rectangle · Shift frees the aspect · Esc ends
 msg-image-unreadable = The picture could not be read (PNG, JPG or SVG).
+tb-image-too-small = Drag a larger rectangle for the picture.
 tb-text-size = Text height
 tb-anchor = Alignment
 tb-anchor-left = Left

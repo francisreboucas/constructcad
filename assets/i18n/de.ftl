@@ -2484,6 +2484,7 @@ tb-tool-image = Bild
 cmd-desc-tb-image = Wählen Sie ein PNG-, JPG- oder SVG-Bild und ziehen Sie sein Rechteck auf.
 tb-hint-image = Ziehen Sie das Rechteck des Bildes auf · Umschalt löst das Seitenverhältnis · Esc beendet
 msg-image-unreadable = Das Bild konnte nicht gelesen werden (PNG, JPG oder SVG).
+tb-image-too-small = Ziehen Sie ein größeres Rechteck für das Bild auf.
 tb-text-size = Texthöhe
 tb-anchor = Ausrichtung
 tb-anchor-left = Links

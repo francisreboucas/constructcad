@@ -2484,6 +2484,7 @@ tb-tool-image = Obraz
 cmd-desc-tb-image = Wybierz obraz PNG, JPG lub SVG, a następnie przeciągnij jego prostokąt.
 tb-hint-image = Przeciągnij prostokąt obrazu · Shift zwalnia proporcje · Esc kończy
 msg-image-unreadable = Nie udało się odczytać obrazu (PNG, JPG lub SVG).
+tb-image-too-small = Przeciągnij większy prostokąt dla obrazu.
 tb-text-size = Wysokość tekstu
 tb-anchor = Wyrównanie
 tb-anchor-left = Do lewej
