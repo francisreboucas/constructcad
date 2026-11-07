@@ -206,7 +206,7 @@ impl Command for ViewGraphicsSet {
         let p = s.project();
         let target = target(p, self.view.as_ref(), self.template.as_ref())?;
         check_free(p, target, false)?;
-        let category = refs::category(&self.category)?;
+        let category = refs::view_category(&self.category)?;
         let mut g = graphics_of(p, target)?;
         let mut cg = g.category(category);
         cg.overrides = patched(&cg.overrides, self.overrides.as_ref(), self.reset)?;
@@ -416,7 +416,7 @@ fn check_rules(f: &ViewFilter) -> Result<()> {
 }
 
 fn categories(names: &[String]) -> Result<BTreeSet<Category>> {
-    names.iter().map(|n| refs::category(n)).collect()
+    names.iter().map(|n| refs::view_category(n)).collect()
 }
 
 fn filter_name(p: &Project, name: &str, except: Option<FilterId>) -> Result<String> {

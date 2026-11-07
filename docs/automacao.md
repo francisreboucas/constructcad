@@ -187,6 +187,22 @@ Uma cortina de vidro é uma parede cujo tipo tem uma grade de cortina em vez de 
 {"command": "wall_create", "args": {"start": [2, 0], "end": [6, 0], "type": "Vitrine", "height": 2.8}}
 ```
 
+### Folhas e carimbos
+
+`sheet_set` altera uma folha: `number`, `size` (`"A0"`…`"A4"`, ou `{"width": …, "height": …}` em milímetros), `portrait`, `title_block` (um tipo de carimbo, ou `null` para nenhum), `fields` (os valores da folha para os campos por folha do carimbo; `null` limpa um) e `issue_date` (`AAAA-MM-DD`, ou `""`). `sheet_fields` mostra o que o carimbo da folha vai ler: cada campo com seu valor, os campos por folha com o valor desta folha e o padrão, e as peças que não se resolvem. `project_info_set` aceita `fields` (campos do projeto por nome, lidos como `{project:Nome}`).
+
+Um carimbo é um componente cujas peças 2D desenham a folha inteira, em milímetros a partir do canto inferior esquerdo do papel. `title_block_create` copia o padrão (ou começa vazio com `empty`); `component_sheet_piece_add`, `component_sheet_piece_set` (um merge patch sobre a peça como `component_get` a mostra em `def.sheet`) e `component_sheet_piece_delete` editam seus traços, textos e imagens; várias peças são adicionadas (`pieces`), excluídas (`indices`) ou alteradas e adicionadas (`add`) em um só passo. Uma imagem não é alterada por patch: `component_sheet_piece_set` a substitui com `image_path` (um arquivo) ou `image` (base64), e `component_get` e `type_get` a mostram apenas como resumo (`format`, `width`, `height`, `bytes`), nunca em base64. `title_block_create` recusa um nome já usado por um tipo ou por um componente. A categoria é `titleblock` (`types_list`, `categories_list`). `type_delete` pode excluir o último tipo de carimbo: suas folhas ficam então sem carimbo, e uma folha sem carimbo é desenhada como papel em branco. As expressões leem os parâmetros e `SheetWidth`/`SheetHeight`, então um carimbo serve para qualquer papel; os textos têm `{campos}` (`sheet_number`, `sheet_name`, `sheet_count`, `sheet_index`, `sheet_scale`, `paper`, `project_name`, `project_number`, `client`, `address`, `author`, `date`, `issue_date`, `project:<Nome>`, `param:<Nome>`). Um campo por folha é um parâmetro de texto com `instance`.
+
+```text
+{"command": "title_block_create", "args": {"name": "Escritório"}}
+{"command": "component_param_add", "args": {"type": "Escritório", "name": "Desenho", "kind": "text", "instance": true, "text": "Equipe"}}
+{"command": "component_sheet_piece_add", "args": {"type": "Escritório", "piece": {"kind": "text", "x": "SheetWidth - 60", "y": 8, "text": "{param:Desenho} · {sheet_index}/{sheet_count}", "size": 2.5}}}
+{"command": "component_sheet_piece_add", "args": {"type": "Escritório", "piece": {"kind": "image", "x": 15, "y": 15, "width": 30, "height": 12, "image_path": "logo.png"}}}
+{"command": "view_create", "args": {"kind": "sheet", "name": "Plantas gerais"}}
+{"command": "sheet_set", "args": {"sheet": "Plantas gerais", "title_block": "Escritório", "size": "A1", "issue_date": "2026-11-06", "fields": {"Desenho": "Ana"}}}
+{"command": "sheet_fields", "args": {"sheet": "Plantas gerais"}}
+```
+
 Scripts não têm variáveis: um passo não usa o id criado por um passo anterior. Os comandos ajudam aceitando posições onde isso importa (`door_create` e `window_create` encontram a parede mais próxima de `point`; pisos, forros e telhados acompanham as paredes com `from_walls`). Para lógica entre passos, escreva um [script Lua](#scripts-lua), chame `ccad run` a partir de um script de shell ou use um agente via MCP.
 
 ## Scripts Lua

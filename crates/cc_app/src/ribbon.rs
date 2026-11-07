@@ -39,7 +39,7 @@ pub fn category_icon(category: Category) -> Icon {
         Category::Ramp => Icon::Ramp,
         Category::Railing => Icon::Railing,
         Category::Component => Icon::Component,
-        Category::Text => Icon::Text,
+        Category::Text | Category::TitleBlock => Icon::Text,
         Category::CadImport => Icon::CadImport,
         Category::Mass => Icon::Mass,
         Category::Shaft => Icon::Shaft,
@@ -737,6 +737,7 @@ fn modify_tab(ui: &mut Ui, state: &mut AppState) {
         command_buttons(ui, state, &[JoinGeometry, UnjoinGeometry, AttachTop, DetachTop])
     });
     group(ui, t!("group-sketch"), |ui| command_buttons(ui, state, &[EditBoundary, EditProfile]));
+    group(ui, t!("prop-title-block"), |ui| command_button(ui, state, EditTitleBlock));
     group(ui, t!("group-group"), |ui| command_buttons(ui, state, &[Group, Ungroup]));
     group(ui, t!("group-phasing"), |ui| command_button(ui, state, Demolish));
 }
@@ -795,6 +796,7 @@ fn view_tab(ui: &mut Ui, state: &mut AppState) {
             }
         });
         command_button(ui, state, UiCommand::Sheet);
+        command_button(ui, state, UiCommand::NewTitleBlock);
     });
     group(ui, t!("group-graphics"), |ui| {
         command_buttons(ui, state, &[UiCommand::VisibilityGraphics, UiCommand::ViewFilters, UiCommand::ViewTemplates]);
@@ -1277,6 +1279,20 @@ pub fn status_bar(ui: &mut Ui, state: &mut AppState) {
             ui.separator();
         }
         ui.label(theme::muted(&state.message));
+        let rev = (state.active_view, state.session.doc.revision());
+        let cache = egui::Id::new("title-block-error");
+        let error = match ui.data(|d| d.get_temp::<((Option<cc_core::ViewId>, u64), Option<String>)>(cache)) {
+            Some((r, e)) if r == rev => e,
+            _ => {
+                let e = crate::sheet_props::title_block_error(state);
+                ui.data_mut(|d| d.insert_temp(cache, (rev, e.clone())));
+                e
+            }
+        };
+        if let Some(e) = error {
+            ui.separator();
+            ui.label(RichText::new(e).color(PALETTE.warning));
+        }
         if state.updates.available.is_some() {
             ui.separator();
             crate::update::notice(ui, &mut state.updates);

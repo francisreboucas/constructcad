@@ -38,6 +38,8 @@ pub enum Category {
     Topography,
     /// Building pads graded into terrain.
     Pad,
+    /// Title blocks: sheet layouts (components drawn on sheets).
+    TitleBlock,
 }
 
 impl Category {
@@ -69,6 +71,18 @@ impl Category {
         Category::Topography,
         Category::Pad,
     ];
+
+    /// Every category by name: [`Category::ALL`] (the ones views draw and
+    /// filter) and title blocks, whose types sheets use.
+    pub const NAMED: [Category; Category::ALL.len() + 1] = {
+        let mut out = [Category::TitleBlock; Category::ALL.len() + 1];
+        let mut i = 0;
+        while i < Category::ALL.len() {
+            out[i] = Category::ALL[i];
+            i += 1;
+        }
+        out
+    };
 
     /// Categories with physical elements (shown in legends and 3D).
     pub const MODEL: [Category; 18] = [
@@ -134,6 +148,7 @@ impl Category {
             Category::Grid => "category-grid",
             Category::Dimension => "category-dimension",
             Category::Text => "category-text",
+            Category::TitleBlock => "category-title-block",
             Category::Column => "category-column",
             Category::Beam => "category-beam",
             Category::Stair => "category-stair",

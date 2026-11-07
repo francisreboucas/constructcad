@@ -95,6 +95,16 @@ pub enum UiCommand {
     EditBoundary,
     /// Open the profile of the selected sweep's type in a sketch.
     EditProfile,
+    /// Open the active sheet's title block in the editor.
+    EditTitleBlock,
+    /// Create a title block from the standard layout and open it.
+    NewTitleBlock,
+    /// Sketch lines and arcs of a title block.
+    TbLines,
+    /// Place a text on a title block.
+    TbText,
+    /// Place a picture on a title block.
+    TbImage,
     Select,
     SelectInstances,
     ColumnsAtGrids,
@@ -282,6 +292,11 @@ impl UiCommand {
             SketchCancel,
             EditBoundary,
             EditProfile,
+            EditTitleBlock,
+            NewTitleBlock,
+            TbLines,
+            TbText,
+            TbImage,
         ]);
         all.extend([AlignGridEnds, ColumnsAtGrids, BeamsOnGrids, BeamsBetweenColumns, StructuralSchedules]);
         all.extend([FootingsUnderColumns, StripFootingsUnderWalls, FoundationSlab, SlabJoinSupports]);
@@ -421,6 +436,10 @@ impl UiCommand {
             SketchCancel => Icon::Close,
             EditBoundary => Icon::EditBoundary,
             EditProfile => Icon::EditProfile,
+            EditTitleBlock | NewTitleBlock => Icon::TitleBlock,
+            TbLines => Icon::DrawLine,
+            TbText => Icon::Text,
+            TbImage => Icon::Image,
             ComponentLibrary => Icon::Library,
             Select => Icon::Select,
             SelectInstances => Icon::SelectInstances,
@@ -518,9 +537,8 @@ impl UiCommand {
         use UiCommand::*;
         match self {
             NewComponent | FloorPlan | CeilingPlan | New3D | Legend | Schedule | StructuralSchedules | Sheet
-            | SteelSchedule | StructuralPlan | PlumbingPlan | ElectricalPlan | MepSchedules | PanelDiagram => {
-                Some(Badge::New)
-            }
+            | SteelSchedule | StructuralPlan | PlumbingPlan | ElectricalPlan | MepSchedules | PanelDiagram
+            | NewTitleBlock => Some(Badge::New),
             ImportIfc | ImportCad | ImportImage | ImportSkp | LoadComponent => Some(Badge::Import),
             ExportPdf | ExportSvg | ExportImage | ExportDxf | AnalyticalExport => Some(Badge::Export),
             Delete | DetachTop => Some(Badge::Remove),
@@ -582,6 +600,11 @@ impl UiCommand {
             SketchCancel => t!("sketch-cancel-mode"),
             EditBoundary => t!("edit-boundary"),
             EditProfile => t!("edit-profile"),
+            EditTitleBlock => t!("action-edit-title-block"),
+            NewTitleBlock => t!("action-new-title-block"),
+            TbLines => t!("tb-tool-lines"),
+            TbText => t!("tb-tool-text"),
+            TbImage => t!("tb-tool-image"),
             LoadComponent => t!("action-load-component"),
             ComponentLibrary => t!("action-component-library"),
             Select => t!("tool-select"),
@@ -755,6 +778,11 @@ impl UiCommand {
             SketchCancel => t!("cmd-desc-sketch-cancel-mode"),
             EditBoundary => t!("cmd-desc-edit-boundary"),
             EditProfile => t!("cmd-desc-edit-profile"),
+            EditTitleBlock => t!("cmd-desc-edit-title-block"),
+            NewTitleBlock => t!("cmd-desc-new-title-block"),
+            TbLines => t!("cmd-desc-tb-lines"),
+            TbText => t!("cmd-desc-tb-text"),
+            TbImage => t!("cmd-desc-tb-image"),
             LoadComponent => t!("cmd-desc-load-component"),
             ComponentLibrary => t!("cmd-desc-component-library"),
             Select => t!("cmd-desc-select"),
@@ -1037,6 +1065,9 @@ impl UiCommand {
             CompConnector => "component_connector_add",
             SketchFinish | EditBoundary => "sketch_set",
             EditProfile => "sweep_profile_set",
+            EditTitleBlock => "component_get",
+            NewTitleBlock => "title_block_create",
+            TbLines | TbText | TbImage => "component_sheet_piece_add",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
             ComponentLibrary => "component_library_list",
@@ -1121,7 +1152,11 @@ impl UiCommand {
                 Some(t!("why-no-sketch"))
             }
             SketchPoint if !crate::sketch_mode::takes_points(state) => Some(t!("why-sketch-points")),
-            SketchPickWalls if state.active_level().is_none() || crate::component_sketch::piece(state).is_some() => {
+            SketchPickWalls
+                if state.active_level().is_none()
+                    || crate::component_sketch::piece(state).is_some()
+                    || crate::title_block_env::is_sheet_sketch(state) =>
+            {
                 Some(t!("msg-open-plan"))
             }
             // In a sketch the modify tools act on its curves.
@@ -1140,6 +1175,10 @@ impl UiCommand {
             }
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             EditProfile if crate::profile_sketch::target(state).is_none() => Some(t!("why-select-sweep")),
+            TbLines | TbText | TbImage if !crate::title_block_env::is_open(state) => Some(t!("why-title-block-editor")),
+            EditTitleBlock if crate::title_block_env::sheet_title_block(state).is_none() => {
+                Some(t!("why-sheet-title-block"))
+            }
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
@@ -1263,6 +1302,12 @@ impl UiCommand {
                 state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::Select)
             }
             Select => *tool == Tool::Select,
+            TbLines => crate::title_block_env::is_sheet_sketch(state),
+            TbText => state.component_env.as_ref().is_some_and(|e| e.tool == crate::component_env::EnvTool::SheetText),
+            TbImage => state
+                .component_env
+                .as_ref()
+                .is_some_and(|e| matches!(e.tool, crate::component_env::EnvTool::SheetImage { .. })),
             SketchLine | SketchRect | SketchPolygon | SketchPolygonOut | SketchCircle | SketchEllipse | SketchArc3
             | SketchArcCenter | SketchArcTangent | SketchPoint => {
                 state.sketch.as_ref().is_some_and(|s| sketch_draw(self) == Some(s.draw))
@@ -1381,6 +1426,7 @@ fn place_label(category: Category) -> String {
         Category::Conduit => t!("tool-conduit"),
         Category::Dimension => t!("tool-dimension"),
         Category::Text => t!("tool-text"),
+        Category::TitleBlock => t!("category-title-block"),
         Category::Component => t!("tool-component"),
         Category::CadImport => t!("action-import-cad"),
         Category::Mass => t!("tool-mass"),
@@ -1412,6 +1458,7 @@ fn place_description(category: Category) -> String {
         Category::Conduit => t!("cmd-desc-conduit"),
         Category::Dimension => t!("cmd-desc-dim-aligned"),
         Category::Text => t!("cmd-desc-text"),
+        Category::TitleBlock => t!("category-title-block"),
         Category::Component => t!("cmd-desc-component"),
         Category::CadImport => t!("cmd-desc-import-cad"),
         Category::Mass => t!("cmd-desc-mass"),
@@ -1556,6 +1603,15 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         SketchCancel => crate::sketch_mode::cancel(state),
         EditBoundary => crate::sketch_mode::edit_boundary(state),
         EditProfile => crate::profile_sketch::edit_selected(state),
+        EditTitleBlock => {
+            if let Some(id) = actions::active_sheet(state) {
+                crate::title_block_env::edit_sheet(state, id);
+            }
+        }
+        NewTitleBlock => crate::title_block_env::new_title_block(state),
+        TbLines => crate::title_block_env::start_lines(state),
+        TbText => crate::component_env::set_tool(state, crate::component_env::EnvTool::SheetText),
+        TbImage => crate::title_block_env::pick_image(state),
         SelectInstances => crate::actions::select_instances(state),
         Group => crate::actions::group_selection(state),
         ColumnsAtGrids => crate::actions::columns_at_grids(state),
@@ -1748,6 +1804,12 @@ mod tests {
                 assert!(names.contains(name), "{command:?} runs unknown engine command {name}");
             }
         }
+    }
+
+    #[test]
+    fn opening_an_editor_names_the_query_it_reads() {
+        // Opening changes nothing: like Edit Component, it reads the definition.
+        assert_eq!(UiCommand::EditTitleBlock.engine(), UiCommand::EditComponent.engine());
     }
 
     #[test]

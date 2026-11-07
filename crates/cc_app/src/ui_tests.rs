@@ -311,6 +311,17 @@ fn ribbon_buttons_are_accessible() {
     for node in harness.query_all_by_role(Role::Button) {
         found.insert(node.accesskit_node().label().unwrap_or_default());
     }
+    // And the title block editor.
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let harness = themed_harness(state, egui::vec2(1600.0, 140.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state)
+    });
+    for node in harness.query_all_by_role(Role::Button) {
+        found.insert(node.accesskit_node().label().unwrap_or_default());
+    }
     // So does an open sketch.
     let mut state = sample_state();
     let floor = state.project().default_type(cc_core::Category::Floor).unwrap();
@@ -801,6 +812,23 @@ fn preferences_cancel_restores_and_ok_keeps() {
     assert!(!harness.state().prefs.detailed_tooltips, "OK keeps");
 }
 
+/// Project Information adds a project field; Cancel undoes it, OK keeps it.
+#[test]
+fn project_fields_are_kept_by_ok_and_undone_by_cancel() {
+    for (button, kept) in [(t!("action-cancel"), false), (t!("action-ok"), true)] {
+        let mut state = sample_state();
+        state.dialogs.project_info = true;
+        let mut harness = app_harness(state);
+        harness.get_by_label(&format!("+ {}", t!("info-add-field"))).click();
+        harness.run();
+        assert_eq!(harness.state().project().info.fields.len(), 1);
+        harness.get_by_label(&button).click();
+        harness.run();
+        assert!(!harness.state().dialogs.project_info);
+        assert_eq!(harness.state().project().info.fields.len(), usize::from(kept), "{button}");
+    }
+}
+
 /// The library window's Manage Folders opens Preferences on the file
 /// locations, where the folder list now lives.
 #[test]
@@ -1068,6 +1096,39 @@ fn a_view_picked_on_a_sheet_shows_its_properties() {
     harness.run();
     assert!(harness.query_by_label(&t!("section-position")).is_some(), "the viewport's position");
     assert!(harness.query_by_label(&t!("section-graphics")).is_some(), "and the view's own graphics");
+}
+
+/// The sheet's rows run `sheet_set`: Portrait turns the paper, Today sets
+/// the issue date, each one undo step.
+#[test]
+fn sheet_rows_change_the_sheet() {
+    let mut state = sample_state();
+    let sheet = state
+        .project()
+        .views
+        .values()
+        .find(|v| matches!(v.kind, cc_core::ViewKind::Sheet { .. }))
+        .map(|v| v.id)
+        .expect("the sample has a sheet");
+    state.active_view = Some(sheet);
+    let mut harness = themed_harness(state, egui::vec2(360.0, 1400.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    assert!(harness.query_by_label(&t!("action-today")).is_some());
+    let depth = harness.state().session.doc.undo_depth();
+    harness.get_by_label(&t!("prop-portrait")).click();
+    harness.run();
+    harness.get_by_label(&t!("action-today")).click();
+    harness.run();
+    let state = harness.state();
+    assert_eq!(state.session.doc.undo_depth(), depth + 2);
+    let Some(cc_core::ViewKind::Sheet { portrait, issue_date, .. }) = state.project().view(sheet).map(|v| &v.kind)
+    else {
+        panic!("not a sheet")
+    };
+    assert!(*portrait);
+    assert_eq!(*issue_date, crate::sheet_props::today_iso());
 }
 
 /// A view dragged from the project browser and dropped on a sheet is
@@ -2212,4 +2273,94 @@ fn the_node_search_adds_a_node() {
     assert_eq!(g.nodes.len(), 1, "one node added");
     assert_eq!(g.nodes[0].kind, cc_engine::graph::NodeKind::Builtin("polygon_points".into()));
     assert_eq!(g.nodes[0].pos, [100.0, 50.0]);
+}
+
+#[test]
+fn sheet_properties_snapshot() {
+    if !snapshots_requested() {
+        return;
+    }
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    let mut harness = themed_harness(state, egui::vec2(360.0, 720.0), egui::Theme::Light, |ui, state| {
+        crate::properties::show(ui, state);
+    });
+    harness.run();
+    harness.snapshot("sheet_properties");
+}
+
+/// *Edit Title Block* in a sheet's browser menu opens its title block on that
+/// sheet, though another view is active.
+#[test]
+fn browser_menu_edits_a_sheets_title_block() {
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    let other = state.project().views.keys().copied().find(|&v| v != sheet).unwrap();
+    state.active_view = Some(other);
+    let label = match state.project().view(sheet).map(|v| (&v.kind, &v.name)) {
+        Some((cc_core::ViewKind::Sheet { number, .. }, name)) => format!("{number} - {name}"),
+        _ => panic!("a sheet"),
+    };
+    let mut harness = themed_harness(state, egui::vec2(320.0, 900.0), egui::Theme::Light, |ui, state| {
+        crate::browser::show(ui, state)
+    });
+    harness.get_by_label(&label).click_secondary();
+    harness.run();
+    harness.get_by_label(&t!("action-edit-title-block")).click();
+    harness.run();
+    let state = harness.state();
+    let ed = state.component_env.as_ref().and_then(|e| e.sheet.as_ref()).expect("the title block editor");
+    assert_eq!(ed.sheet, Some(sheet));
+    assert_eq!(state.active_view, Some(sheet));
+}
+
+/// In the title block editor the ribbon's Text tool and a click on the
+/// paper add a text piece and pick it.
+#[test]
+fn the_text_tool_places_a_text_on_the_sheet() {
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+    let mut harness = themed_harness(state, egui::vec2(1100.0, 800.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state);
+        crate::component_env::central(ui, state);
+    });
+    harness.run();
+    harness.get_by_label(&t!("tb-tool-text")).click();
+    harness.run();
+    let at = egui::pos2(550.0, 500.0);
+    harness.input_mut().events.push(egui::Event::PointerMoved(at));
+    for pressed in [true, false] {
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run();
+    }
+    let state = harness.state();
+    assert_eq!(crate::component_env::component(state).unwrap().1.sheet.len(), before + 1);
+    assert_eq!(state.component_env.as_ref().unwrap().pick, Some(crate::component_env::Pick::Sheet(vec![before])));
+}
+
+#[test]
+fn title_block_editor_snapshot() {
+    if !snapshots_requested() {
+        return;
+    }
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let mut harness = themed_harness(state, egui::vec2(1100.0, 700.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state);
+        crate::component_env::options(ui, state);
+        crate::component_env::central(ui, state);
+    });
+    harness.run();
+    harness.snapshot("title_block_editor");
 }

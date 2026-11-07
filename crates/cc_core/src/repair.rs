@@ -128,6 +128,11 @@ impl Project {
         }
         self.sort_levels();
 
+        let before = self.info.fields.len();
+        let mut seen = std::collections::BTreeSet::new();
+        self.info.fields.retain(|f| !f.name.trim().is_empty() && seen.insert(f.name.clone()));
+        repairs += before - self.info.fields.len();
+
         // Curtain panels may only be component types.
         let components: std::collections::BTreeSet<crate::ElementTypeId> =
             self.types.values().filter(|t| matches!(t.data, TypeData::Component { .. })).map(|t| t.id).collect();
@@ -255,6 +260,7 @@ impl Project {
                         }
                     }
                     repairs += repair_scripted(def);
+                    repairs += crate::title_block::repair_def(def);
                     let fix_nonnegative = |v: &mut f64| {
                         let bad = !(v.is_finite() && *v >= 0.0);
                         if bad {
@@ -544,12 +550,29 @@ impl Project {
         }
         let view_ids: Vec<_> = self.views.keys().copied().collect();
         let type_ids: Vec<_> = self.types.keys().copied().collect();
+        let title_blocks = self.title_blocks();
         for view in self.views.values_mut() {
             match &mut view.kind {
-                ViewKind::Sheet { viewports, .. } => {
+                ViewKind::Sheet { viewports, size, title_block, issue_date, fields, .. } => {
+                    if title_block.is_some_and(|t| !title_blocks.contains(&t)) {
+                        *title_block = title_blocks.first().copied();
+                        repairs += 1;
+                    }
+                    if !issue_date.is_empty() && !crate::title_block::is_iso_date(issue_date) {
+                        issue_date.clear();
+                        repairs += 1;
+                    }
+                    let kept = fields.len();
+                    fields
+                        .retain(|k, v| !k.trim().is_empty() && v.chars().count() <= crate::title_block::MAX_SHEET_TEXT);
+                    repairs += kept - fields.len();
                     let before = viewports.len();
                     viewports.retain(|vp| view_ids.contains(&vp.view) && vp.center.is_finite());
                     repairs += before - viewports.len();
+                    if !size.is_valid() {
+                        *size = crate::SheetSize::A3;
+                        repairs += 1;
+                    }
                 }
                 ViewKind::Legend { types } => {
                     let before = types.len();
@@ -717,8 +740,20 @@ fn repair_scripted(def: &mut crate::ComponentDef) -> usize {
 
 #[cfg(test)]
 mod tests {
-    use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, Wall};
+    use crate::{Category, Element, ElementId, ElementKind, Hosted, Project, ProjectField, Wall};
     use glam::DVec2;
+
+    #[test]
+    fn project_fields_drop_empty_and_repeated_names() {
+        let mut p = Project::from_template();
+        p.info.fields = vec![
+            ProjectField { name: "A".into(), value: "1".into() },
+            ProjectField { name: " ".into(), value: "2".into() },
+            ProjectField { name: "A".into(), value: "3".into() },
+        ];
+        assert_eq!(p.repair(), 2);
+        assert_eq!(p.info.fields, vec![ProjectField { name: "A".into(), value: "1".into() }]);
+    }
 
     /// A sweep type's curves that do not draw its profile (a crafted or
     /// hand-edited file) are dropped on load; curves that do are kept.
@@ -738,6 +773,62 @@ mod tests {
         p.types.insert(id, ty(data(Some(other))));
         assert_eq!(p.repair(), 1);
         assert!(matches!(p.element_type(id).map(|t| &t.data), Some(TypeData::Sweep { sketch: None, .. })));
+    }
+
+    #[test]
+    fn sheets_drop_title_blocks_that_are_gone_or_not_title_blocks() {
+        use crate::{Category, ViewKind};
+        let mut p = Project::from_template();
+        let wall_type = p.types.values().find(|t| t.category() == Category::Wall).map(|t| t.id).unwrap();
+        let mut n = 0;
+        for v in p.views.values_mut() {
+            if let ViewKind::Sheet { title_block, issue_date, fields, .. } = &mut v.kind {
+                *title_block = Some(wall_type);
+                *issue_date = "06/11/2026".into();
+                fields.insert(" ".into(), "x".into());
+                n += 3;
+            }
+        }
+        // A second title block type, on a second sheet, is valid and stays.
+        let standard = p.title_blocks().first().copied().unwrap();
+        let mut other = p.element_type(standard).unwrap().clone();
+        other.id = crate::ElementTypeId(p.alloc_id());
+        other.name = "Other".into();
+        let other_id = other.id;
+        p.types.insert(other_id, other);
+        let kept = crate::ViewId(p.alloc_id());
+        let kind = ViewKind::Sheet {
+            number: "B1".into(),
+            size: crate::SheetSize::A3,
+            portrait: false,
+            viewports: Vec::new(),
+            title_block: Some(other_id),
+            fields: Default::default(),
+            issue_date: String::new(),
+        };
+        p.views.insert(kept, crate::View::new(kept, "B1", 1, kind));
+        let fixes = p.repair();
+        assert!(fixes >= n);
+        for v in p.views.values() {
+            if let ViewKind::Sheet { title_block, issue_date, fields, .. } = &v.kind {
+                let expected = if v.id == kept { other_id } else { standard };
+                assert_eq!(*title_block, Some(expected), "{}", v.name);
+                assert!(issue_date.is_empty() && fields.is_empty());
+            }
+        }
+    }
+
+    #[test]
+    fn bad_custom_paper_resets_to_a3() {
+        use crate::{SheetSize, ViewKind};
+        let mut p = Project::from_template();
+        let sheet = p.views.values_mut().find(|v| matches!(v.kind, ViewKind::Sheet { .. }));
+        let Some(sheet) = sheet else { return };
+        if let ViewKind::Sheet { size, .. } = &mut sheet.kind {
+            *size = SheetSize::Custom { width: f64::NAN, height: 10.0 };
+        }
+        assert!(p.repair() >= 1);
+        assert!(p.views.values().any(|v| matches!(v.kind, ViewKind::Sheet { size: SheetSize::A3, .. })));
     }
 
     #[test]

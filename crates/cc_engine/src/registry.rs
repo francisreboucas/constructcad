@@ -306,6 +306,12 @@ registry![
         views::ViewDelete,
         views::SheetPlaceView,
         views::SheetRemoveViewport,
+        sheets::SheetSet,
+        sheets::SheetFields,
+        sheets::TitleBlockCreate,
+        sheets::ComponentSheetPieceAdd,
+        sheets::ComponentSheetPieceSet,
+        sheets::ComponentSheetPieceDelete,
     ],
     "View graphics" => [
         graphics::ViewGraphicsGet,

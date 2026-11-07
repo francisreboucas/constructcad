@@ -188,6 +188,37 @@ pub fn tr_args(key: &str, args: &[(&str, String)]) -> String {
     s
 }
 
+/// A date written the way the current language writes it.
+pub fn format_date(y: i32, m: u32, d: u32) -> String {
+    match language() {
+        Language::En | Language::Ja | Language::ZhCn | Language::ZhTw => format!("{y:04}-{m:02}-{d:02}"),
+        Language::De | Language::Pl | Language::Uk => format!("{d:02}.{m:02}.{y:04}"),
+        Language::PtBr | Language::Es | Language::Fr | Language::It | Language::Lo => {
+            format!("{d:02}/{m:02}/{y:04}")
+        }
+    }
+}
+
+/// Today's date (UTC), from the system clock.
+pub fn today() -> (i32, u32, u32) {
+    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    civil_from_days((secs / 86_400) as i64)
+}
+
+/// Year, month, day of a count of days since 1970-01-01 (proleptic Gregorian).
+pub fn civil_from_days(z: i64) -> (i32, u32, u32) {
+    let z = z + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    let y = (yoe + era * 400 + i64::from(m <= 2)) as i32;
+    (y, m, d)
+}
+
 /// `t!("key")` or `t!("key", "name" => value, ...)`.
 #[macro_export]
 macro_rules! t {
@@ -203,6 +234,14 @@ macro_rules! t {
 mod tests {
     use super::*;
     use std::collections::BTreeSet;
+
+    #[test]
+    fn dates() {
+        assert_eq!(civil_from_days(0), (1970, 1, 1));
+        assert_eq!(civil_from_days(20_398), (2025, 11, 6));
+        assert_eq!(civil_from_days(-1), (1969, 12, 31));
+        assert_eq!(civil_from_days(11_016), (2000, 2, 29));
+    }
 
     #[test]
     fn placeholders() {

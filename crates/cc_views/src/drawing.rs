@@ -99,6 +99,8 @@ pub enum Anchor {
     #[default]
     LeftBottom,
     CenterBottom,
+    /// The end of the baseline (right-aligned).
+    RightBottom,
     Center,
 }
 

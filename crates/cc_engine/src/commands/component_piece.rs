@@ -92,7 +92,7 @@ pub struct EllipseArg {
     pub clockwise: bool,
 }
 
-fn profile_points(points: &[SketchPointArg]) -> Result<Vec<ProfilePoint>> {
+pub(crate) fn profile_points(points: &[SketchPointArg]) -> Result<Vec<ProfilePoint>> {
     if points.len() < 2 || points.len() > MAX_SKETCH_POINTS {
         return Err(EngineError::invalid(format!("a sketch needs 2 to {MAX_SKETCH_POINTS} points")));
     }

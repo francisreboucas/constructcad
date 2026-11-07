@@ -243,16 +243,19 @@ fn same(a: Segment, b: Segment) -> bool {
     }
 }
 
-/// The profile points that draw `curves` (closed, or an open path), or why not.
-fn written(
+/// The profile points that draw `curves` (closed, or an open path), or why
+/// not; `extra` are names the old points' expressions may read (a title
+/// block's paper).
+pub(crate) fn written(
     def: &cc_core::ComponentDef,
     view: &ComponentView,
     curves: &[SketchCurve],
     closed: bool,
     old: &[ProfilePoint],
+    extra: &[(&str, f64)],
 ) -> Result<Vec<SketchPointArg>, String> {
     let vertices = profile::from_curves(curves, closed).map_err(|e| crate::sketch_mode::error_text(&e))?;
-    let scope = def.scope(&Default::default(), &[]);
+    let scope = def.scope(&Default::default(), extra);
     let lookup = |name: &str| scope.get(name);
     let old = profile::vertices(old, &lookup)
         .map(|v| old.iter().cloned().zip(v).map(|(p, (at, s))| (p, at, s)).collect())
@@ -395,8 +398,8 @@ fn create(
     let Some(kind) = piece.view else { return };
     // The drawn curves are a blend's top over the bottom drawn first, a sweep's path.
     let old = if piece.kind == PieceKind::Blend { &piece.old_top } else { &piece.old };
-    let drawn = written(def, view, curves, piece.kind != PieceKind::Sweep, old);
-    let bottom = piece.bottom.as_ref().map(|b| written(def, view, b, true, &piece.old)).transpose();
+    let drawn = written(def, view, curves, piece.kind != PieceKind::Sweep, old, &[]);
+    let bottom = piece.bottom.as_ref().map(|b| written(def, view, b, true, &piece.old, &[])).transpose();
     let (drawn, bottom) = match (drawn, bottom) {
         (Ok(d), Ok(b)) => (d, b),
         (Err(e), _) | (_, Err(e)) => {

@@ -2574,7 +2574,9 @@ fn component_entity(def: &cc_core::ComponentDef) -> (&'static str, &'static str)
         cc_core::ComponentKind::Plumbing => ("IFCSANITARYTERMINAL", "NOTDEFINED"),
         cc_core::ComponentKind::Lighting => ("IFCLIGHTFIXTURE", "NOTDEFINED"),
         cc_core::ComponentKind::Electrical => ("IFCBUILDINGELEMENTPROXY", "NOTDEFINED"),
-        cc_core::ComponentKind::Generic => ("IFCBUILDINGELEMENTPROXY", "NOTDEFINED"),
+        cc_core::ComponentKind::Generic | cc_core::ComponentKind::TitleBlock => {
+            ("IFCBUILDINGELEMENTPROXY", "NOTDEFINED")
+        }
         cc_core::ComponentKind::Door => ("IFCDOOR", "DOOR"),
         cc_core::ComponentKind::Window => ("IFCWINDOW", "WINDOW"),
     }

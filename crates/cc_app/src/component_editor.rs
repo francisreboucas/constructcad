@@ -282,6 +282,11 @@ fn section(ui: &mut Ui, title: String) {
     ui.label(theme::title(title));
 }
 
+/// The kinds *Quick Edit* offers: title blocks are drawn in their own editor.
+pub(crate) fn kinds() -> Vec<ComponentKind> {
+    ComponentKind::ALL.into_iter().filter(|k| *k != ComponentKind::TitleBlock).collect()
+}
+
 fn body(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 8.0;
@@ -290,7 +295,7 @@ fn body(ui: &mut Ui, ed: &mut Editor, materials: &[String]) {
         ui.add_space(16.0);
         ui.label(theme::muted(t!("comp-kind")));
         egui::ComboBox::from_id_salt("comp-kind").selected_text(tr(ed.def.kind.key())).width(180.0).show_ui(ui, |ui| {
-            for k in ComponentKind::ALL {
+            for k in kinds() {
                 ui.selectable_value(&mut ed.def.kind, k, tr(k.key()));
             }
         });

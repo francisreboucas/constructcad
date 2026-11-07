@@ -93,6 +93,7 @@ fn summary(s: &Session) -> Value {
         "client": i.client,
         "address": i.address,
         "author": i.author,
+        "fields": i.fields.iter().map(|f| (f.name.clone(), json!(f.value))).collect::<serde_json::Map<_, _>>(),
         "path": s.doc.path,
         "unsaved_changes": s.doc.is_dirty(),
         "can_undo": s.doc.undo_name(),
@@ -124,12 +125,39 @@ pub struct ProjectInfoSet {
     /// Author of the drawings.
     #[serde(default)]
     pub author: Option<String>,
+    /// Project fields by name: a text sets the field (adding it; a new name holds no braces and at most 192 bytes), `null` removes it.
+    #[serde(default)]
+    pub fields: Option<serde_json::Map<String, Value>>,
 }
 
 impl Command for ProjectInfoSet {
     const NAME: &'static str = "project_info_set";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
+        let mut changes: Vec<(String, Option<String>)> = Vec::new();
+        for (name, value) in self.fields.iter().flatten() {
+            let name = name.trim();
+            if name.is_empty() {
+                return Err(EngineError::invalid("a project field needs a name"));
+            }
+            let value = match value {
+                Value::Null => None,
+                Value::String(v) => Some(v.clone()),
+                other => {
+                    return Err(EngineError::invalid(format!("field '{name}': expected text or null, got {other}")));
+                }
+            };
+            // A new field must be one a text can read as `{project:Name}`
+            // (fields already there may still be set or removed).
+            let new = value.is_some() && s.project().info.field(name).is_none();
+            if new && !cc_core::title_block::project_field_name_ok(name) {
+                return Err(EngineError::invalid(format!(
+                    "project field '{name}': a name holds no braces and at most {} bytes",
+                    cc_core::title_block::MAX_FIELD_KEY - cc_core::title_block::PROJECT_FIELD_PREFIX.len()
+                )));
+            }
+            changes.push((name.to_string(), value));
+        }
         edit(s, t!("tx-project-info"), |e| {
             let info = e.info_mut();
             for (field, value) in [
@@ -141,6 +169,20 @@ impl Command for ProjectInfoSet {
             ] {
                 if let Some(v) = value {
                     *field = v;
+                }
+            }
+            for (name, value) in changes {
+                match (info.fields.iter().position(|f| f.name == name), value) {
+                    (Some(i), Some(v)) => {
+                        if let Some(f) = info.fields.get_mut(i) {
+                            f.value = v;
+                        }
+                    }
+                    (Some(i), None) => {
+                        info.fields.remove(i);
+                    }
+                    (None, Some(v)) => info.fields.push(cc_core::ProjectField { name, value: v }),
+                    (None, None) => {}
                 }
             }
             Ok(())

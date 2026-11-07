@@ -42,6 +42,7 @@ pub mod sketch;
 pub mod sketch_edit;
 pub mod stair;
 pub mod sweep;
+pub mod title_block;
 pub mod topography;
 pub mod transform;
 mod types;
@@ -72,11 +73,14 @@ pub use ids::{
 pub use material::{Material, MaterialClass, Pattern, PatternFill};
 pub use mep::{DeviceKind, MepData, MepSegment, MepSystem, SystemKind};
 pub use persist::{
-    FORMAT_VERSION, PersistError, from_ron, from_ron_with_repairs, load, load_with_repairs, save, to_ron,
+    FORMAT_VERSION, PersistError, from_ron, from_ron_with_repairs, from_ron_with_repairs_localized, load,
+    load_with_repairs, load_with_repairs_localized, save, to_ron,
 };
 pub use phase::{Phase, PhaseDisplay, PhaseFilter, PhaseGraphics, PhaseState, PhaseStatus};
 pub use profile::{ProfilePoint, SketchPlane};
-pub use project::{Group, Level, Project, ProjectInfo, can_join_geometry, join_priority, template_default};
+pub use project::{
+    Group, Level, Project, ProjectField, ProjectInfo, can_join_geometry, join_priority, template_default,
+};
 pub use ramp::{RampCheck, RampIssue, RampLayout, RampRules, RampShape, ramp_flights};
 pub use schedule::{ScheduleDef, ScheduleField};
 pub use stair::{
@@ -90,8 +94,8 @@ pub use types::{
 };
 pub use units::{AreaUnit, LengthUnit, NumberStyle, SlopeUnit, Units, VolumeUnit};
 pub use view::{
-    CameraState, DetailLevel, Direction, Looking, MepDiscipline, SheetSize, Underlay, UnderlayLevel, UnderlayPlan,
-    View, ViewCategory, ViewKind, Viewport, VisualStyle,
+    CameraState, DetailLevel, Direction, Looking, MAX_PAPER_MM, MIN_PAPER_MM, MepDiscipline, SheetSize, Underlay,
+    UnderlayLevel, UnderlayPlan, View, ViewCategory, ViewKind, Viewport, VisualStyle,
 };
 
 pub use glam::{DVec2, DVec3};

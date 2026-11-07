@@ -13,7 +13,7 @@ Every command runs the same way from the desktop app, `ccad run` / `ccad script`
 - **Modifying elements**: [`elements_delete`](#elements_delete), [`elements_move`](#elements_move), [`elements_copy`](#elements_copy), [`elements_rotate`](#elements_rotate), [`elements_mirror`](#elements_mirror), [`elements_pin`](#elements_pin), [`element_flip`](#element_flip), [`elements_turn`](#elements_turn), [`elements_export`](#elements_export), [`elements_paste`](#elements_paste), [`wall_join`](#wall_join), [`wall_attach`](#wall_attach), [`geometry_join`](#geometry_join), [`geometry_unjoin`](#geometry_unjoin), [`group_create`](#group_create), [`group_ungroup`](#group_ungroup), [`trim_corner`](#trim_corner), [`trim_extend`](#trim_extend), [`element_split`](#element_split), [`element_offset`](#element_offset), [`element_align`](#element_align), [`element_move_end`](#element_move_end), [`grids_align_ends`](#grids_align_ends), [`element_set`](#element_set), [`elements_set`](#elements_set), [`elements_set_type`](#elements_set_type)
 - **Dimensions and text**: [`dimension_create`](#dimension_create), [`tag_move`](#tag_move), [`dimension_chain_create`](#dimension_chain_create), [`dimension_ordinate_create`](#dimension_ordinate_create), [`dimension_set_value`](#dimension_set_value), [`text_create`](#text_create), [`text_add_leader`](#text_add_leader), [`text_remove_leader`](#text_remove_leader)
 - **Types, components, materials**: [`type_set`](#type_set), [`type_duplicate`](#type_duplicate), [`type_delete`](#type_delete), [`component_create`](#component_create), [`component_get`](#component_get), [`component_param_add`](#component_param_add), [`component_param_set`](#component_param_set), [`component_param_delete`](#component_param_delete), [`component_ref_plane_add`](#component_ref_plane_add), [`component_ref_plane_set`](#component_ref_plane_set), [`component_ref_plane_delete`](#component_ref_plane_delete), [`component_ref_line_add`](#component_ref_line_add), [`component_ref_line_delete`](#component_ref_line_delete), [`component_dimension_add`](#component_dimension_add), [`component_dimension_set`](#component_dimension_set), [`component_dimension_delete`](#component_dimension_delete), [`component_equal_add`](#component_equal_add), [`component_equal_delete`](#component_equal_delete), [`component_piece_add`](#component_piece_add), [`component_piece_set`](#component_piece_set), [`component_piece_delete`](#component_piece_delete), [`component_connector_add`](#component_connector_add), [`component_connector_set`](#component_connector_set), [`component_connector_delete`](#component_connector_delete), [`component_script_set`](#component_script_set), [`component_params_get`](#component_params_get), [`component_params_set`](#component_params_set), [`component_hotspot_move`](#component_hotspot_move), [`material_create`](#material_create), [`material_duplicate`](#material_duplicate), [`material_rename`](#material_rename), [`material_set`](#material_set), [`material_delete`](#material_delete)
-- **Levels and views**: [`level_create`](#level_create), [`level_set`](#level_set), [`level_delete`](#level_delete), [`view_create`](#view_create), [`view_set`](#view_set), [`view_duplicate`](#view_duplicate), [`view_delete`](#view_delete), [`sheet_place_view`](#sheet_place_view), [`sheet_remove_viewport`](#sheet_remove_viewport)
+- **Levels and views**: [`level_create`](#level_create), [`level_set`](#level_set), [`level_delete`](#level_delete), [`view_create`](#view_create), [`view_set`](#view_set), [`view_duplicate`](#view_duplicate), [`view_delete`](#view_delete), [`sheet_place_view`](#sheet_place_view), [`sheet_remove_viewport`](#sheet_remove_viewport), [`sheet_set`](#sheet_set), [`sheet_fields`](#sheet_fields), [`title_block_create`](#title_block_create), [`component_sheet_piece_add`](#component_sheet_piece_add), [`component_sheet_piece_set`](#component_sheet_piece_set), [`component_sheet_piece_delete`](#component_sheet_piece_delete)
 - **View graphics**: [`view_graphics_get`](#view_graphics_get), [`view_graphics_set`](#view_graphics_set), [`element_override_set`](#element_override_set), [`element_hide_in_view`](#element_hide_in_view), [`filters_list`](#filters_list), [`filter_create`](#filter_create), [`filter_set`](#filter_set), [`filter_delete`](#filter_delete), [`filter_elements`](#filter_elements), [`view_filter_add`](#view_filter_add), [`view_filter_set`](#view_filter_set), [`view_filter_remove`](#view_filter_remove), [`view_filter_move`](#view_filter_move), [`templates_list`](#templates_list), [`template_create`](#template_create), [`template_set`](#template_set), [`template_delete`](#template_delete), [`view_template_apply`](#view_template_apply), [`view_template_assign`](#view_template_assign), [`view_temporary`](#view_temporary), [`view_temporary_apply`](#view_temporary_apply)
 - **Phases**: [`phases_list`](#phases_list), [`phase_create`](#phase_create), [`phase_set`](#phase_set), [`phase_delete`](#phase_delete), [`elements_phase_set`](#elements_phase_set), [`elements_demolish`](#elements_demolish), [`phase_creation_set`](#phase_creation_set), [`phase_filters_list`](#phase_filters_list), [`phase_filter_create`](#phase_filter_create), [`phase_filter_set`](#phase_filter_set), [`phase_filter_delete`](#phase_filter_delete), [`phase_graphics_get`](#phase_graphics_get), [`phase_graphics_set`](#phase_graphics_set)
 - **Visual programming**: [`graph_run`](#graph_run), [`graph_check`](#graph_check), [`graph_nodes`](#graph_nodes), [`graph_elements`](#graph_elements), [`graph_release`](#graph_release)
@@ -57,6 +57,7 @@ No parameters.
 | `address` | string | optional | Project address. |
 | `author` | string | optional | Author of the drawings. |
 | `client` | string | optional | Client name. |
+| `fields` | object | optional | Project fields by name: a text sets the field (adding it; a new name holds no braces and at most 192 bytes), `null` removes it. |
 | `name` | string | optional | Project name. |
 | `number` | string | optional | Project number. |
 
@@ -259,7 +260,7 @@ No parameters.
 
 ### `type_get`
 
-*query* — A type with all its parameters (`params`, editable with `type_set`) and identity data (`info`).
+*query* — A type with all its parameters (`params`, editable with `type_set`) and identity data (`info`). A title block's pictures show as `format`, `width`, `height` (pixels) and `bytes`, not their bytes; `component_sheet_piece_set` replaces them.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -1592,7 +1593,7 @@ No parameters.
 
 ### `type_delete`
 
-*edit* — Delete a type that no element uses (the last type of a category is kept).
+*edit* — Delete a type that no element uses (the last type of a category is kept, except a title block: sheets on a deleted title block move to the first other one, or to none).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -1609,7 +1610,7 @@ No parameters.
 
 ### `component_get`
 
-*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, where each connector is, the problems found, and the component's types with their parameter values.
+*query* — The component of a type, as the modeling environment shows it: the definition, the value of every parameter and reference plane, the value of each dimension, where each connector is, the problems found, and the component's types with their parameter values. A title block's pictures show as `format`, `width`, `height` (pixels) and `bytes`, not their bytes.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -1623,8 +1624,9 @@ No parameters.
 |---|---|---|---|
 | `name` | string | required | Name used in expressions (letters, digits and `_`, not starting with a digit). |
 | `type` | id or name | required | A type of the component: id or name. |
-| `instance` | boolean | optional | Elements may override the value. |
-| `kind` | string | optional | `length` (default), `angle` or `number`. |
+| `instance` | boolean | optional | Elements may override the value (sheets, for a title block's text parameter). |
+| `kind` | string | optional | `length` (default), `angle`, `number` or `text` (a title block's per-sheet field, with `instance`). |
+| `text` | string | optional | Value of a `text` parameter (default empty). |
 | `value` | number | optional | Value (meters for lengths, degrees for angles; default 0). |
 
 ### `component_param_set`
@@ -1967,7 +1969,7 @@ No parameters.
 
 ### `view_create`
 
-*edit* — Create a view. `kind` is `floor_plan` or `ceiling_plan` (with `level`), `section` (with `start`, `end` and optional `depth`), `elevation` (with `direction`: north, south, east or west), `structural_plan` (with `level`: a formwork plan of the structure, tagged), `plumbing_plan` and `electrical_plan` (with `level`: the pipes, or the conduits and devices, over the architecture, tagged), `three_d`, `analytical` (a 3D view of the analytical model), `rebar` (a 3D view of the reinforcement), `legend` (all types), `schedule` (with `category`), `panel_diagram` (with `panel`: the single-line diagram and load schedule of a distribution board; default the only board) or `sheet` (A3, numbered after the others).
+*edit* — Create a view. `kind` is `floor_plan` or `ceiling_plan` (with `level`), `section` (with `start`, `end` and optional `depth`), `elevation` (with `direction`: north, south, east or west), `structural_plan` (with `level`: a formwork plan of the structure, tagged), `plumbing_plan` and `electrical_plan` (with `level`: the pipes, or the conduits and devices, over the architecture, tagged), `three_d`, `analytical` (a 3D view of the analytical model), `rebar` (a 3D view of the reinforcement), `legend` (all types), `schedule` (with `category`), `panel_diagram` (with `panel`: the single-line diagram and load schedule of a distribution board; default the only board) or `sheet` (A3, numbered after the others, with the first title block type).
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -2031,6 +2033,72 @@ No parameters.
 |---|---|---|---|
 | `sheet` | id or name | required | A level, type, view or material: its numeric id or its name. |
 | `view` | id or name | required | A level, type, view or material: its numeric id or its name. |
+
+### `sheet_set`
+
+*edit* — Change a sheet: its number, paper (`size`, `portrait`), title block, per-sheet field values and issue date.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `sheet` | id or name | required | The sheet: id or name. |
+| `fields` | object | optional | Values of the title block's per-sheet fields by parameter name: a text sets one, `null` clears it. |
+| `issue_date` | string | optional | Issue date, `YYYY-MM-DD`; empty to clear. |
+| `number` | string | optional | Sheet number. |
+| `portrait` | boolean | optional | The long side runs up. |
+| `size` | string or object | optional | Paper: `"A0"`…`"A4"`, or `{width, height}` in millimeters (50 to 5000). |
+| `title_block` | id or name | optional | The title block type (id or name), or `null` for none. |
+
+### `sheet_fields`
+
+*query* — A sheet's title block fields: every field key (`fields`, as `{key}` in title block texts reads it) with its value on this sheet, the title block's per-sheet parameters (`params`: name, label, the sheet's value and the type's default), and the title block's pieces that do not resolve on this paper (`errors`).
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `sheet` | id or name | required | The sheet: id or name. |
+
+### `title_block_create`
+
+*edit* — Create a title block component: a copy of the standard one, or empty with `empty`. Sheets use it through `sheet_set` `title_block`.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `name` | string | required | Name of the component and of its first type. |
+| `empty` | boolean | optional | Start with no pieces. |
+
+### `component_sheet_piece_add`
+
+*edit* — Add 2D pieces to a title block component (every type of it), in one step.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `type` | id or name | required | A type of the title block: id or name. |
+| `name` | string | optional | Name of the first piece added (default `Piece1`, `Piece2`…). |
+| `piece` | JSON | optional | The piece, by `kind`: `stroke` (`points` as [{u, v, radius}], `closed`, `weight`, `color`, `fill`), `text` (`x`, `y`, `text` with `{fields}`, `size`, `anchor`: left, center, right or middle, `rotation`) or `image` (`x`, `y`, `width`, `height`, and `image_path` or base64 `image`). Millimeters from the paper's bottom-left corner, as numbers or expressions over the parameters, `SheetWidth` and `SheetHeight`. |
+| `pieces` | [JSON, …] | optional | More pieces (each as `piece`), added after it in the same step: all of them or, when one is refused, none. |
+
+### `component_sheet_piece_set`
+
+*edit* — Change a 2D piece of a title block: `piece` is a merge patch over its form in `component_get` `def.sheet` (e.g. `{"Text": {"size": "4"}}`); an image piece's picture is replaced with `image_path` or `image`, not by the patch.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `index` | integer | required | The piece's index (in `component_get` `def.sheet`). |
+| `type` | id or name | required | A type of the title block: id or name. |
+| `add` | [JSON, …] | optional | Pieces added in the same step (each as `component_sheet_piece_add` `piece`; e.g. the other chains of a redrawn sketch); the result lists their indices in `added`. |
+| `image` | string | optional | A new picture for an image piece: its bytes, base64. |
+| `image_path` | string | optional | A new picture for an image piece: its file (PNG, JPEG, GIF, BMP or WebP). |
+| `name` | string | optional | New name. |
+| `piece` | JSON | optional | Merge patch over the piece's shape (without a picture). |
+
+### `component_sheet_piece_delete`
+
+*edit* — Delete 2D pieces of a title block, in one step.
+
+| Parameter | Type | | Description |
+|---|---|---|---|
+| `type` | id or name | required | A type of the title block: id or name. |
+| `index` | integer | optional | The piece's index (in `component_get` `def.sheet`). |
+| `indices` | [id, …] | optional | More pieces' indices, deleted with `index` in the same step: all of them or, when one does not exist, none. |
 
 ## View graphics
 

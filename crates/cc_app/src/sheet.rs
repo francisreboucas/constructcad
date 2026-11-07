@@ -46,6 +46,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState, sheet_id: ViewId) {
     if let Some(cmd) = crate::canvas::view_toolbar(ui, state.zoom_default, rect, sheet_id, None, nav) {
         crate::canvas::zoom(state, sheet_id, cmd, 1.0);
     }
+    resp.context_menu(|ui| {
+        let enabled = crate::title_block_env::sheet_title_block_of(state, sheet_id).is_some();
+        if ui.add_enabled(enabled, egui::Button::new(crate::t!("action-edit-title-block"))).clicked() {
+            crate::title_block_env::edit_sheet(state, sheet_id);
+            ui.close();
+        }
+    });
     if zooming {
         return;
     }

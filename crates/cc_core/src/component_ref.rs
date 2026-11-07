@@ -173,10 +173,14 @@ impl Scope {
     }
 }
 
-/// Whether `name` is one of the reserved names (the origin planes, a door's
-/// wall thickness).
-pub fn is_reserved(name: &str) -> bool {
-    ORIGIN_PLANES.iter().any(|(n, _)| *n == name) || name == crate::component::WALL_THICKNESS
+/// Whether `name` is reserved in a component of `kind`: the origin planes
+/// and a door's wall thickness everywhere, the paper size
+/// (`SheetWidth`, `SheetHeight`) in title blocks.
+pub fn is_reserved_for(kind: crate::component::ComponentKind, name: &str) -> bool {
+    ORIGIN_PLANES.iter().any(|(n, _)| *n == name)
+        || name == crate::component::WALL_THICKNESS
+        || (kind == crate::component::ComponentKind::TitleBlock
+            && (name == crate::title_block::SHEET_WIDTH || name == crate::title_block::SHEET_HEIGHT))
 }
 
 impl ComponentDef {
@@ -242,7 +246,7 @@ impl ComponentDef {
 
     /// Whether `name` is already used by a parameter, plane or line (or reserved).
     pub fn name_taken(&self, name: &str) -> bool {
-        is_reserved(name)
+        is_reserved_for(self.kind, name)
             || self.params.iter().any(|p| p.name == name)
             || self.ref_planes.iter().any(|p| p.name == name)
             || self.ref_lines.iter().any(|l| l.name == name)
@@ -284,7 +288,7 @@ impl ComponentDef {
         let mut out = Vec::new();
         let mut seen: Vec<&str> = self.params.iter().map(|p| p.name.as_str()).collect();
         for name in self.ref_planes.iter().map(|p| &p.name).chain(self.ref_lines.iter().map(|l| &l.name)) {
-            if !expr::is_valid_name(name) || is_reserved(name) || seen.contains(&name.as_str()) {
+            if !expr::is_valid_name(name) || is_reserved_for(self.kind, name) || seen.contains(&name.as_str()) {
                 out.push(format!("invalid or repeated name '{name}'"));
             }
             seen.push(name);
@@ -297,7 +301,13 @@ impl ComponentDef {
         if self.ref_planes.len() + self.ref_lines.len() + self.dimensions.len() + self.equals.len() > MAX_REFS {
             out.push("too many reference planes, lines and dimensions".into());
         }
-        let scope = self.scope(&BTreeMap::new(), &[(crate::component::WALL_THICKNESS, 0.2)]);
+        // A title block's planes may read the paper (probed at A3 landscape).
+        let paper = [(crate::title_block::SHEET_WIDTH, 420.0), (crate::title_block::SHEET_HEIGHT, 297.0)];
+        let mut extra = vec![(crate::component::WALL_THICKNESS, 0.2)];
+        if self.kind == crate::component::ComponentKind::TitleBlock {
+            extra.extend(paper);
+        }
+        let scope = self.scope(&BTreeMap::new(), &extra);
         out.extend(scope.errors.iter().map(|e| e.to_string()));
         for (i, d) in self.dimensions.iter().enumerate() {
             if let Err(e) = self.dimension_value(&scope, i) {
@@ -317,6 +327,41 @@ impl ComponentDef {
 mod tests {
     use super::*;
     use crate::component::{ComponentItem, ComponentParam, ComponentShape, ParamKind};
+
+    #[test]
+    fn planes_may_read_the_paper_and_its_names_are_reserved() {
+        use crate::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
+        let def = ComponentDef {
+            kind: crate::component::ComponentKind::TitleBlock,
+            ref_planes: vec![RefPlane { name: "Margin".into(), axis: PlaneAxis::X, at: "SheetWidth - 10".into() }],
+            ..Default::default()
+        };
+        assert!(def.ref_problems().is_empty(), "{:?}", def.ref_problems());
+        let tb = crate::component::ComponentKind::TitleBlock;
+        assert!(is_reserved_for(tb, SHEET_WIDTH) && is_reserved_for(tb, SHEET_HEIGHT));
+        assert!(def.name_taken(SHEET_WIDTH));
+    }
+
+    #[test]
+    fn other_components_may_name_a_plane_sheet_width_and_do_not_read_the_paper() {
+        use crate::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
+        let kind = crate::component::ComponentKind::Furniture;
+        assert!(!is_reserved_for(kind, SHEET_WIDTH) && !is_reserved_for(kind, SHEET_HEIGHT));
+        let def = ComponentDef {
+            kind,
+            ref_planes: vec![RefPlane { name: SHEET_WIDTH.into(), axis: PlaneAxis::X, at: "1".into() }],
+            ..Default::default()
+        };
+        assert!(!def.name_taken(SHEET_HEIGHT));
+        assert!(def.ref_problems().is_empty(), "{:?}", def.ref_problems());
+        // Without the paper, a plane reading it is an unknown name.
+        let reads = ComponentDef {
+            kind,
+            ref_planes: vec![RefPlane { name: "Edge".into(), axis: PlaneAxis::X, at: "SheetHeight - 10".into() }],
+            ..Default::default()
+        };
+        assert!(!reads.ref_problems().is_empty(), "the A3 probe is for title blocks only");
+    }
 
     fn param(name: &str, value: f64) -> ComponentParam {
         ComponentParam { name: name.into(), value, kind: ParamKind::Length, instance: false, ..Default::default() }

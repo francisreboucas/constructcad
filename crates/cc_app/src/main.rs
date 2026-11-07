@@ -39,6 +39,7 @@ mod recovery;
 mod ribbon;
 mod schedule_ui;
 mod sheet;
+mod sheet_props;
 mod sketch_mode;
 mod stair_ui;
 mod state;
@@ -47,6 +48,7 @@ mod table;
 mod text_tool;
 mod theme;
 mod thumbnails;
+mod title_block_env;
 mod tools;
 mod type_dialog;
 #[cfg(test)]

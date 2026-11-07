@@ -85,12 +85,12 @@ $names = @{
 # A view is named by its id in the showcase script, so the list works in every language.
 $shotList = [ordered]@{
     'hero'       = @(65, 69)
-    'roof-3d'    = @(341)
-    'plumbing'   = @(331)
-    'electrical' = @(332, 333)
-    'structure'  = @(334, 335)
-    'graphics'   = @(338, 339)
-    'section'    = @(337)
+    'roof-3d'    = @(343)
+    'plumbing'   = @(333)
+    'electrical' = @(334, 335)
+    'structure'  = @(336, 337)
+    'graphics'   = @(340, 341)
+    'section'    = @(339)
     'sheet'      = @(79)
     'schedule'   = @(78)
 }

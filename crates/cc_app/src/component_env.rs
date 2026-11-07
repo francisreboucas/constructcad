@@ -39,6 +39,8 @@ pub enum Pick {
     Equal(usize),
     /// A connector, by its index.
     Connector(usize),
+    /// 2D pieces of a title block, by their indices in `def.sheet`.
+    Sheet(Vec<usize>),
 }
 
 /// The tool of the environment.
@@ -54,6 +56,10 @@ pub enum EnvTool {
     Equal { picked: Vec<String>, view: Option<ComponentViewKind> },
     /// A click in the plan, front or side view places a connector.
     Connector,
+    /// A click on a title block's Sheet view places a text.
+    SheetText,
+    /// A drag on a title block's Sheet view places a picture.
+    SheetImage { picture: std::sync::Arc<crate::title_block_env::Picture>, start: Option<DVec2> },
 }
 
 /// Pan and zoom of one view.
@@ -75,6 +81,8 @@ pub struct Env {
     cameras: BTreeMap<u8, Camera>,
     /// Text being typed in the panel's fields, until committed.
     drafts: BTreeMap<String, String>,
+    /// A title block shows on one Sheet view instead ([`crate::title_block_env`]).
+    pub sheet: Option<crate::title_block_env::SheetEditor>,
 }
 
 impl Env {
@@ -92,18 +100,36 @@ impl Env {
             start_depth,
             cameras: BTreeMap::new(),
             drafts: BTreeMap::new(),
+            sheet: None,
         }
     }
 }
 
-/// Open the environment on the component of type `type_id`.
+/// Open the environment on the component of type `type_id` (a title block
+/// previews the active sheet).
 pub fn open(state: &mut AppState, type_id: ElementTypeId) {
+    let sheet = crate::actions::active_sheet(state);
+    open_on(state, type_id, sheet);
+}
+
+/// Open the environment on component type `type_id`; a title block
+/// previews `sheet` (its paper and fields), or sample values on A3 paper
+/// when there is none.
+pub fn open_on(state: &mut AppState, type_id: ElementTypeId, sheet: Option<cc_core::ViewId>) {
     if !matches!(state.project().element_type(type_id).map(|t| &t.data), Some(TypeData::Component { .. })) {
         return;
     }
     state.set_tool(crate::tools::Tool::Select);
     state.selection.clear();
-    state.component_env = Some(Env::new(type_id, state.session.doc.undo_depth()));
+    let mut env = Env::new(type_id, state.session.doc.undo_depth());
+    let title_block = matches!(
+        state.project().element_type(type_id).map(|t| &t.data),
+        Some(TypeData::Component { def, .. }) if def.kind == cc_core::ComponentKind::TitleBlock
+    );
+    if title_block {
+        env.sheet = Some(crate::title_block_env::SheetEditor::new(sheet));
+    }
+    state.component_env = Some(env);
 }
 
 /// The type of the selected component element, or the one the component tool places.
@@ -149,7 +175,7 @@ pub(crate) fn component(state: &AppState) -> Option<(String, cc_core::ComponentD
     }
 }
 
-fn type_ref(state: &AppState) -> Ref {
+pub(crate) fn type_ref(state: &AppState) -> Ref {
     Ref::Id(state.component_env.as_ref().map_or(0, |e| e.type_id.0))
 }
 
@@ -299,6 +325,10 @@ fn view_name(kind: ComponentViewKind) -> &'static str {
 
 /// The *Create* tab of the ribbon.
 pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::ribbon(ui, state);
+        return;
+    }
     use crate::commands::UiCommand::*;
     let title = component(state).map(|(name, _)| name).unwrap_or_default();
     ui.horizontal(|ui| {
@@ -323,6 +353,10 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
 
 /// The hint of the active tool, for the options bar.
 pub fn options(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::options(ui, state);
+        return;
+    }
     let Some(env) = &state.component_env else { return };
     let hint = match &env.tool {
         EnvTool::Select => t!("comp-env-hint-select"),
@@ -332,12 +366,18 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         EnvTool::Dimension { first: Some(_) } => t!("comp-env-hint-dimension-second"),
         EnvTool::Equal { picked, .. } => t!("comp-env-hint-equal", "count" => picked.len() + 1),
         EnvTool::Connector => t!("comp-env-hint-connector"),
+        EnvTool::SheetText => t!("tb-hint-text"),
+        EnvTool::SheetImage { .. } => t!("tb-hint-image"),
     };
     ui.label(theme::muted(hint));
 }
 
 /// The central area: the component's views in tabs.
 pub fn central(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::central(ui, state);
+        return;
+    }
     let Some(mut dock) = state.component_env.as_mut().map(|e| std::mem::replace(&mut e.dock, DockState::new(vec![])))
     else {
         return;
@@ -542,6 +582,8 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                 env.pick = out["index"].as_u64().map(|i| Pick::Connector(i as usize));
             }
         }
+        // Only the title block editor's Sheet view places texts and pictures.
+        EnvTool::SheetText | EnvTool::SheetImage { .. } => {}
         EnvTool::RefPlane { first } => {
             let Some(p) = hover else { return };
             match first {
@@ -635,6 +677,9 @@ pub fn escape(state: &mut AppState) {
         EnvTool::RefPlane { first: Some(_) } => EnvTool::RefPlane { first: None },
         EnvTool::Dimension { first: Some(_) } => EnvTool::Dimension { first: None },
         EnvTool::Equal { picked, .. } if !picked.is_empty() => EnvTool::Equal { picked: Vec::new(), view: None },
+        EnvTool::SheetImage { picture, start: Some(_) } => {
+            EnvTool::SheetImage { picture: picture.clone(), start: None }
+        }
         EnvTool::Select => {
             env.pick = None;
             EnvTool::Select
@@ -648,6 +693,10 @@ pub fn delete_pick(state: &mut AppState) {
     let Some(pick) = state.component_env.as_ref().and_then(|e| e.pick.clone()) else { return };
     let t = type_ref(state);
     let done = match pick {
+        Pick::Sheet(list) => {
+            crate::title_block_env::delete_pieces(state, &list);
+            return;
+        }
         Pick::Plane(name) => crate::actions::run_command(state, cmd::ComponentRefPlaneDelete { type_ref: t, name }),
         Pick::Dimension(index) => {
             crate::actions::run_command(state, cmd::ComponentDimensionDelete { type_ref: t, index })
@@ -672,7 +721,7 @@ pub fn delete_pick(state: &mut AppState) {
 // --- Left panel ---
 
 /// Text field that commits on Enter or when it loses focus; `None` until then.
-fn draft_field(ui: &mut Ui, state: &mut AppState, key: &str, current: &str, width: f32) -> Option<String> {
+pub(crate) fn draft_field(ui: &mut Ui, state: &mut AppState, key: &str, current: &str, width: f32) -> Option<String> {
     let env = state.component_env.as_mut()?;
     let text = env.drafts.entry(key.to_string()).or_insert_with(|| current.to_string());
     let r = ui.add(egui::TextEdit::singleline(text).desired_width(width));
@@ -701,6 +750,8 @@ pub fn panel(ui: &mut Ui, state: &mut AppState) {
             // A piece being sketched shows its picked curve.
             if state.sketch.is_some() {
                 crate::sketch_mode::properties(ui, state);
+            } else if crate::title_block_env::is_open(state) {
+                crate::title_block_env::panel_content(ui, state, &name, &def);
             } else {
                 panel_content(ui, state, &name, &def);
             }
@@ -714,7 +765,7 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
     ui.label(theme::title(name.to_string()));
     types_row(ui, state);
     ui.add_space(6.0);
-    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def));
+    crate::table::section(ui, "comp-env-params", t!("comp-params"), |ui| params(ui, state, def, false));
     let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
     match pick {
         Some(Pick::Plane(plane)) => {
@@ -750,8 +801,13 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
                 connector_props(ui, state, def, index);
             });
         }
-        None => {}
+        Some(Pick::Sheet(_)) | None => {}
     }
+    ref_problems(ui, def);
+}
+
+/// The planes and dimensions that do not resolve, in the danger color.
+pub(crate) fn ref_problems(ui: &mut Ui, def: &cc_core::ComponentDef) {
     let problems = def.ref_problems();
     if !problems.is_empty() {
         ui.add_space(6.0);
@@ -762,7 +818,7 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
 }
 
 /// The type whose values the views show.
-fn types_row(ui: &mut Ui, state: &mut AppState) {
+pub(crate) fn types_row(ui: &mut Ui, state: &mut AppState) {
     let Some(env) = state.component_env.as_ref() else { return };
     let current = env.type_id;
     let p = state.project();
@@ -791,28 +847,68 @@ fn types_row(ui: &mut Ui, state: &mut AppState) {
     }
 }
 
-fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef) {
+/// The parameters: name, value, instance and delete per row, then *Add*.
+/// A title block's (`title_block`) numbers are plain millimeters, its texts
+/// are typed in, and a new parameter is a number starting at 0.
+pub(crate) fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef, title_block: bool) {
     for p in &def.params {
         let mut value = p.value;
         let mut instance = p.instance;
         let mut rename = None;
+        let mut text = None;
         let mut delete = false;
         let r = ui.horizontal(|ui| {
-            rename = draft_field(ui, state, &format!("param:{}", p.name), &p.name, 110.0);
-            let r = ui.add(crate::properties::param_value(&mut value, p.kind));
+            let width = if title_block { 100.0 } else { 110.0 };
+            rename = draft_field(ui, state, &format!("param:{}", p.name), &p.name, width);
+            let r = if title_block && p.kind.is_text() {
+                text = draft_field(ui, state, &format!("param-text:{}", p.name), &p.text, 120.0);
+                None
+            } else if title_block {
+                Some(ui.add(egui::DragValue::new(&mut value).speed(0.5)))
+            } else {
+                Some(ui.add(crate::properties::param_value(&mut value, p.kind)))
+            };
             ui.checkbox(&mut instance, "").on_hover_text(t!("comp-param-instance"));
             delete = ui.small_button("×").on_hover_text(t!("action-delete")).clicked();
             r
         });
         let t = type_ref(state);
-        if r.inner.changed() || instance != p.instance {
+        if r.inner.as_ref().is_some_and(egui::Response::changed) {
+            // A dragged value is one undo step per drag (merged until let go).
             let command = cmd::ComponentParamSet {
                 type_ref: t.clone(),
                 name: p.name.clone(),
-                value: r.inner.changed().then_some(value),
+                value: Some(value),
                 kind: None,
-                instance: (instance != p.instance).then_some(instance),
+                instance: None,
                 rename: None,
+            };
+            let type_id = state.component_env.as_ref().map(|e| e.type_id.0);
+            let k = crate::graphics_dialog::key(("comp-param", type_id, &p.name));
+            if let Err(e) = state.session.run_merged(k, command) {
+                state.message = e.message;
+            }
+        }
+        if r.inner.as_ref().is_some_and(|r| r.drag_stopped() || r.lost_focus()) {
+            state.session.doc.break_merge();
+        }
+        if instance != p.instance {
+            let command = cmd::ComponentParamSet {
+                type_ref: t.clone(),
+                name: p.name.clone(),
+                value: None,
+                kind: None,
+                instance: Some(instance),
+                rename: None,
+            };
+            crate::actions::run_command(state, command);
+        }
+        if let Some(text) = text {
+            let command = cc_engine::commands::component_script::ComponentParamsSet {
+                type_ref: Some(t.clone()),
+                elements: Vec::new(),
+                name: p.name.clone(),
+                value: serde_json::Value::String(text),
             };
             crate::actions::run_command(state, command);
         }
@@ -833,8 +929,14 @@ fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::ComponentDef) {
     }
     if ui.button(format!("+ {}", t!("comp-env-add-param"))).clicked() {
         let name = (1..).map(|i| format!("Param{i}")).find(|n| !def.name_taken(n)).unwrap_or_default();
-        let command =
-            cmd::ComponentParamAdd { type_ref: type_ref(state), name, value: Some(1.0), kind: None, instance: None };
+        let command = cmd::ComponentParamAdd {
+            type_ref: type_ref(state),
+            name,
+            value: Some(if title_block { 0.0 } else { 1.0 }),
+            kind: title_block.then(|| "number".to_string()),
+            instance: None,
+            text: None,
+        };
         crate::actions::run_command(state, command);
     }
 }

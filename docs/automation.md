@@ -187,6 +187,22 @@ A curtain wall is a wall whose type has a curtain grid instead of layers: vertic
 {"command": "wall_create", "args": {"start": [2, 0], "end": [6, 0], "type": "Storefront", "height": 2.8}}
 ```
 
+### Sheets and title blocks
+
+`sheet_set` changes a sheet: `number`, `size` (`"A0"`…`"A4"`, or `{"width": …, "height": …}` in millimeters), `portrait`, `title_block` (a title block type, or `null` for none), `fields` (the sheet's values of the title block's per-sheet fields; `null` clears one) and `issue_date` (`YYYY-MM-DD`, or `""`). `sheet_fields` shows what a sheet's title block will read: every field with its value, the per-sheet fields with this sheet's value and the default, and the pieces that do not resolve. `project_info_set` takes `fields` (project fields by name, read as `{project:Name}`).
+
+A title block is a component whose 2D pieces draw the whole sheet, in millimeters from the paper's bottom-left corner. `title_block_create` copies the standard one (or starts `empty`); `component_sheet_piece_add`, `component_sheet_piece_set` (a merge patch over the piece as `component_get` shows it under `def.sheet`) and `component_sheet_piece_delete` edit its strokes, texts and pictures; several pieces are added (`pieces`), deleted (`indices`) or patched and added (`add`) in one step. A picture is not patched: `component_sheet_piece_set` replaces it with `image_path` (a file) or `image` (base64), and `component_get` and `type_get` show it only as a summary (`format`, `width`, `height`, `bytes`), never as base64. `title_block_create` refuses a name already used by a type or a component. The category is `titleblock` (`types_list`, `categories_list`). `type_delete` may delete the last title block type: its sheets then have no title block, and a sheet without one is drawn as blank paper. Expressions read the parameters and `SheetWidth`/`SheetHeight`, so one title block serves every paper; texts hold `{fields}` (`sheet_number`, `sheet_name`, `sheet_count`, `sheet_index`, `sheet_scale`, `paper`, `project_name`, `project_number`, `client`, `address`, `author`, `date`, `issue_date`, `project:<Name>`, `param:<Name>`). A per-sheet field is a text parameter with `instance`.
+
+```text
+{"command": "title_block_create", "args": {"name": "Office"}}
+{"command": "component_param_add", "args": {"type": "Office", "name": "Drawn", "kind": "text", "instance": true, "text": "Team"}}
+{"command": "component_sheet_piece_add", "args": {"type": "Office", "piece": {"kind": "text", "x": "SheetWidth - 60", "y": 8, "text": "{param:Drawn} · {sheet_index}/{sheet_count}", "size": 2.5}}}
+{"command": "component_sheet_piece_add", "args": {"type": "Office", "piece": {"kind": "image", "x": 15, "y": 15, "width": 30, "height": 12, "image_path": "logo.png"}}}
+{"command": "view_create", "args": {"kind": "sheet", "name": "Plans"}}
+{"command": "sheet_set", "args": {"sheet": "Plans", "title_block": "Office", "size": "A1", "issue_date": "2026-11-06", "fields": {"Drawn": "Ana"}}}
+{"command": "sheet_fields", "args": {"sheet": "Plans"}}
+```
+
 Scripts have no variables: a step cannot use an id created by an earlier one. Commands help by accepting positions where it matters (`door_create` and `window_create` find the wall nearest `point`; floors, ceilings and roofs follow the walls with `from_walls`). For logic between steps, write a [Lua script](#lua-scripts), call `ccad run` from a shell script or use an agent over MCP.
 
 ## Lua scripts

@@ -404,6 +404,7 @@ fn paint_text(painter: &Painter, pos: Pos2, text: &str, px: f32, anchor: cc_view
     let local = match anchor {
         cc_views::Anchor::LeftBottom => egui::vec2(0.0, -size.y),
         cc_views::Anchor::CenterBottom => egui::vec2(-size.x / 2.0, -size.y),
+        cc_views::Anchor::RightBottom => egui::vec2(-size.x, -size.y),
         cc_views::Anchor::Center => egui::vec2(-size.x / 2.0, -size.y / 2.0),
     };
     // Screen Y points down, so drawing rotations are negated.

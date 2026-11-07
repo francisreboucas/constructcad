@@ -41,6 +41,7 @@ pub enum Icon {
     Legend,
     Schedule,
     Sheet,
+    TitleBlock,
     ZoomFit,
     ProjectInfo,
     Levels,
@@ -165,7 +166,7 @@ pub enum Icon {
 
 impl Icon {
     #[cfg(test)]
-    pub const ALL: [Icon; 150] = [
+    pub const ALL: [Icon; 151] = [
         Icon::New,
         Icon::Open,
         Icon::Save,
@@ -196,6 +197,7 @@ impl Icon {
         Icon::Legend,
         Icon::Schedule,
         Icon::Sheet,
+        Icon::TitleBlock,
         Icon::ZoomFit,
         Icon::ProjectInfo,
         Icon::Levels,
@@ -351,6 +353,7 @@ impl Icon {
             Icon::Legend => include_str!("../../../assets/icons/ui/legend.svg"),
             Icon::Schedule => include_str!("../../../assets/icons/ui/schedule.svg"),
             Icon::Sheet => include_str!("../../../assets/icons/ui/sheet.svg"),
+            Icon::TitleBlock => include_str!("../../../assets/icons/ui/title-block.svg"),
             Icon::ZoomFit => include_str!("../../../assets/icons/ui/zoom-fit.svg"),
             Icon::ProjectInfo => include_str!("../../../assets/icons/ui/project-info.svg"),
             Icon::Levels => include_str!("../../../assets/icons/ui/levels.svg"),

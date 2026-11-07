@@ -12,7 +12,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-fn view_out(s: &Session, id: ViewId) -> Value {
+pub(crate) fn view_out(s: &Session, id: ViewId) -> Value {
     view_json(s, id).unwrap_or(json!({ "id": id.0 }))
 }
 
@@ -25,7 +25,7 @@ fn view_out(s: &Session, id: ViewId) -> Value {
 /// view of the analytical model), `rebar` (a 3D view of the reinforcement), `legend` (all types),
 /// `schedule` (with `category`), `panel_diagram` (with `panel`: the
 /// single-line diagram and load schedule of a distribution board; default
-/// the only board) or `sheet` (A3, numbered after the others).
+/// the only board) or `sheet` (A3, numbered after the others, with the first title block type).
 #[derive(Debug, Deserialize, Serialize, JsonSchema, Default)]
 #[serde(deny_unknown_fields)]
 pub struct ViewCreate {
@@ -197,7 +197,15 @@ impl Command for ViewCreate {
             }
             "sheet" => {
                 let n = count(p, ViewCategory::Sheet) + 101;
-                let kind = ViewKind::Sheet { number: format!("A{n}"), size: SheetSize::A3, viewports: Vec::new() };
+                let kind = ViewKind::Sheet {
+                    number: format!("A{n}"),
+                    size: SheetSize::A3,
+                    portrait: false,
+                    viewports: Vec::new(),
+                    title_block: p.title_blocks().first().copied(),
+                    fields: Default::default(),
+                    issue_date: String::new(),
+                };
                 (t!("default-sheet-name"), 1, kind, t!("tx-new-sheet"))
             }
             other => return Err(EngineError::invalid(format!("unknown view kind '{other}'"))),
@@ -398,7 +406,7 @@ pub fn sheet_of(project: &Project, view: ViewId) -> Option<ViewId> {
     })
 }
 
-fn sheet(p: &Project, r: &Ref) -> Result<ViewId> {
+pub(crate) fn sheet(p: &Project, r: &Ref) -> Result<ViewId> {
     let id = refs::view(p, r)?;
     match p.view(id).map(|v| &v.kind) {
         Some(ViewKind::Sheet { .. }) => Ok(id),
@@ -432,9 +440,10 @@ impl Command for SheetPlaceView {
             return Err(EngineError::rejected(t!("msg-view-already-placed")));
         }
         let center = self.center.map(point).transpose()?;
+        let paper = p.view(sheet_id).and_then(|v| v.paper_mm()).unwrap_or(glam::DVec2::new(420.0, 297.0));
         edit(s, t!("tx-place-view"), |e| {
-            if let Some(ViewKind::Sheet { viewports, size, .. }) = e.view_mut(sheet_id).map(|v| &mut v.kind) {
-                let center = center.unwrap_or(size.size_mm() * glam::DVec2::new(0.4, 0.55));
+            if let Some(ViewKind::Sheet { viewports, .. }) = e.view_mut(sheet_id).map(|v| &mut v.kind) {
+                let center = center.unwrap_or(paper * glam::DVec2::new(0.4, 0.55));
                 viewports.push(Viewport { view, center });
             }
             Ok(())

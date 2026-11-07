@@ -95,19 +95,34 @@ impl CameraState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Smallest and largest side of a custom sheet, millimeters.
+pub const MIN_PAPER_MM: f64 = 50.0;
+pub const MAX_PAPER_MM: f64 = 5000.0;
+
+/// A custom paper side within the limits (the smallest when not a number).
+fn paper_side(v: f64) -> f64 {
+    if v.is_nan() { MIN_PAPER_MM } else { v.clamp(MIN_PAPER_MM, MAX_PAPER_MM) }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub enum SheetSize {
     A0,
     A1,
     A2,
     A3,
     A4,
+    /// Any size, millimeters (width and height as typed; `portrait` puts the long side up).
+    Custom {
+        width: f64,
+        height: f64,
+    },
 }
 
 impl SheetSize {
     pub const ALL: [SheetSize; 5] = [SheetSize::A0, SheetSize::A1, SheetSize::A2, SheetSize::A3, SheetSize::A4];
 
-    /// Landscape paper size in millimeters.
+    /// Landscape paper size in millimeters (a custom size as typed, kept
+    /// within [`MIN_PAPER_MM`] and [`MAX_PAPER_MM`]).
     pub fn size_mm(self) -> DVec2 {
         match self {
             SheetSize::A0 => DVec2::new(1189.0, 841.0),
@@ -115,16 +130,28 @@ impl SheetSize {
             SheetSize::A2 => DVec2::new(594.0, 420.0),
             SheetSize::A3 => DVec2::new(420.0, 297.0),
             SheetSize::A4 => DVec2::new(297.0, 210.0),
+            SheetSize::Custom { width, height } => DVec2::new(paper_side(width), paper_side(height)),
         }
     }
 
-    pub fn label(self) -> &'static str {
+    pub fn label(self) -> String {
         match self {
-            SheetSize::A0 => "A0",
-            SheetSize::A1 => "A1",
-            SheetSize::A2 => "A2",
-            SheetSize::A3 => "A3",
-            SheetSize::A4 => "A4",
+            SheetSize::A0 => "A0".into(),
+            SheetSize::A1 => "A1".into(),
+            SheetSize::A2 => "A2".into(),
+            SheetSize::A3 => "A3".into(),
+            SheetSize::A4 => "A4".into(),
+            SheetSize::Custom { width, height } => format!("{} × {} mm", width.round(), height.round()),
+        }
+    }
+
+    /// A custom size within the limits, finite.
+    pub fn is_valid(self) -> bool {
+        match self {
+            SheetSize::Custom { width, height } => {
+                [width, height].iter().all(|v| v.is_finite() && (MIN_PAPER_MM..=MAX_PAPER_MM).contains(v))
+            }
+            _ => true,
         }
     }
 }
@@ -192,7 +219,19 @@ pub enum ViewKind {
     Sheet {
         number: String,
         size: SheetSize,
+        /// The long side runs up.
+        #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+        portrait: bool,
         viewports: Vec<Viewport>,
+        /// The title block type drawn on it; `None` draws the blank paper.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        title_block: Option<crate::ElementTypeId>,
+        /// Values of the title block's per-sheet fields, by parameter name.
+        #[serde(default, skip_serializing_if = "std::collections::BTreeMap::is_empty")]
+        fields: std::collections::BTreeMap<String, String>,
+        /// Issue date, ISO `YYYY-MM-DD`; empty when not issued.
+        #[serde(default, skip_serializing_if = "String::is_empty")]
+        issue_date: String,
     },
     /// The single-line diagram and load schedule of a distribution board.
     Diagram {
@@ -296,6 +335,18 @@ impl VisualStyle {
 }
 
 impl View {
+    /// A sheet's paper size in millimeters, after its orientation.
+    pub fn paper_mm(&self) -> Option<DVec2> {
+        let ViewKind::Sheet { size, portrait, .. } = &self.kind else { return None };
+        let s = size.size_mm();
+        let (long, short) = (s.x.max(s.y), s.x.min(s.y));
+        Some(match (size, portrait) {
+            (SheetSize::Custom { .. }, false) => s,
+            (_, true) => DVec2::new(short, long),
+            (_, false) => DVec2::new(long, short),
+        })
+    }
+
     /// The style the view is drawn in: its own, else plans in hidden line
     /// (as drawn before styles existed) and other views shaded.
     pub fn style(&self) -> VisualStyle {
@@ -559,5 +610,48 @@ impl Underlay {
             }
         }
         n
+    }
+}
+
+#[cfg(test)]
+mod paper_tests {
+    use super::*;
+
+    fn sheet(size: SheetSize, portrait: bool) -> View {
+        let kind = ViewKind::Sheet {
+            number: "A1".into(),
+            size,
+            portrait,
+            viewports: Vec::new(),
+            title_block: None,
+            fields: Default::default(),
+            issue_date: String::new(),
+        };
+        View::new(ViewId(1), "S", 100, kind)
+    }
+
+    #[test]
+    fn paper_follows_size_and_orientation() {
+        assert_eq!(sheet(SheetSize::A3, false).paper_mm(), Some(DVec2::new(420.0, 297.0)));
+        assert_eq!(sheet(SheetSize::A3, true).paper_mm(), Some(DVec2::new(297.0, 420.0)));
+        let custom = SheetSize::Custom { width: 1000.0, height: 594.0 };
+        assert_eq!(sheet(custom, false).paper_mm(), Some(DVec2::new(1000.0, 594.0)));
+        // Portrait puts the long side up whatever the order typed.
+        assert_eq!(sheet(custom, true).paper_mm(), Some(DVec2::new(594.0, 1000.0)));
+        assert_eq!(custom.label(), "1000 × 594 mm");
+        assert_eq!(SheetSize::A1.label(), "A1");
+        // Each side stays within the limits, whatever a file holds.
+        let wild = SheetSize::Custom { width: 1e9, height: f64::NAN };
+        assert_eq!(sheet(wild, false).paper_mm(), Some(DVec2::new(MAX_PAPER_MM, MIN_PAPER_MM)));
+        let tiny = SheetSize::Custom { width: 1.0, height: f64::NEG_INFINITY };
+        assert_eq!(sheet(tiny, true).paper_mm(), Some(DVec2::new(MIN_PAPER_MM, MIN_PAPER_MM)));
+    }
+
+    #[test]
+    fn old_sheets_read_with_defaults() {
+        let ron = r#"Sheet(number: "A101", size: A3, viewports: [])"#;
+        let kind: ViewKind = ron::from_str(ron).unwrap();
+        let ViewKind::Sheet { portrait, title_block, fields, issue_date, .. } = kind else { panic!() };
+        assert!(!portrait && title_block.is_none() && fields.is_empty() && issue_date.is_empty());
     }
 }
