@@ -864,14 +864,32 @@ pub(crate) fn params(ui: &mut Ui, state: &mut AppState, def: &cc_core::Component
             r
         });
         let t = type_ref(state);
-        let changed = r.inner.as_ref().is_some_and(egui::Response::changed);
-        if changed || instance != p.instance {
+        if r.inner.as_ref().is_some_and(egui::Response::changed) {
+            // A dragged value is one undo step per drag (merged until let go).
             let command = cmd::ComponentParamSet {
                 type_ref: t.clone(),
                 name: p.name.clone(),
-                value: changed.then_some(value),
+                value: Some(value),
                 kind: None,
-                instance: (instance != p.instance).then_some(instance),
+                instance: None,
+                rename: None,
+            };
+            let type_id = state.component_env.as_ref().map(|e| e.type_id.0);
+            let k = crate::graphics_dialog::key(("comp-param", type_id, &p.name));
+            if let Err(e) = state.session.run_merged(k, command) {
+                state.message = e.message;
+            }
+        }
+        if r.inner.as_ref().is_some_and(|r| r.drag_stopped() || r.lost_focus()) {
+            state.session.doc.break_merge();
+        }
+        if instance != p.instance {
+            let command = cmd::ComponentParamSet {
+                type_ref: t.clone(),
+                name: p.name.clone(),
+                value: None,
+                kind: None,
+                instance: Some(instance),
                 rename: None,
             };
             crate::actions::run_command(state, command);

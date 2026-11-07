@@ -1973,6 +1973,47 @@ mod tests {
     }
 
     #[test]
+    fn dragging_a_parameter_is_one_undo_step() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::Queryable;
+        // Both rows: the title block's plain numbers and the other components' values.
+        for title_block in [true, false] {
+            let (mut state, _, _) = editor_state();
+            let command = cc_engine::commands::component::ComponentParamAdd {
+                type_ref: crate::component_env::type_ref(&state),
+                name: "Gap".into(),
+                value: Some(5.0),
+                kind: Some("number".into()),
+                instance: None,
+                text: None,
+            };
+            state.session.run(command).unwrap();
+            let gap = |s: &AppState| {
+                let (_, def) = crate::component_env::component(s).unwrap();
+                def.params.iter().find(|p| p.name == "Gap").map(|p| p.value).unwrap()
+            };
+            let mut harness = egui_kittest::Harness::builder().with_size(egui::vec2(400.0, 600.0)).build_ui_state(
+                move |ui, state: &mut AppState| {
+                    let Some((_, def)) = crate::component_env::component(state) else { return };
+                    crate::component_env::params(ui, state, &def, title_block);
+                },
+                state,
+            );
+            harness.run();
+            let depth = harness.state().session.doc.undo_depth();
+            let spin = harness.query_all_by_role(Role::SpinButton).last().expect("the Gap value").rect().center();
+            drag(&mut harness, spin, spin + egui::vec2(40.0, 0.0));
+            assert_ne!(gap(harness.state()), 5.0, "the drag changed the value");
+            assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "one drag, one step ({title_block})");
+            drag(&mut harness, spin, spin + egui::vec2(20.0, 0.0));
+            assert_eq!(harness.state().session.doc.undo_depth(), depth + 2, "the next drag is its own step");
+            harness.state_mut().session.doc.undo();
+            harness.state_mut().session.doc.undo();
+            assert_eq!(gap(harness.state()), 5.0);
+        }
+    }
+
+    #[test]
     fn showing_an_out_of_range_weight_keeps_it() {
         let (mut state, _, _) = editor_state();
         let (index, _) = first_stroke(&state);
