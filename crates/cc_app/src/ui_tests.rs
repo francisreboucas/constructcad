@@ -2364,3 +2364,57 @@ fn title_block_editor_snapshot() {
     harness.run();
     harness.snapshot("title_block_editor");
 }
+
+/// A section's mark in a plan is picked by a click on its head, flipped
+/// with Space and moved by dragging its line.
+#[test]
+fn section_marks_are_picked_flipped_and_moved() {
+    let mut state = sample_state();
+    let plan = state.project().views.values().find(|v| v.level().is_some()).map(|v| v.id).unwrap();
+    let section_of = |state: &AppState| {
+        state.project().views.values().find_map(|v| match v.kind {
+            cc_core::ViewKind::Section { start, end, .. } => Some((v.id, start, end)),
+            _ => None,
+        })
+    };
+    let (section, start, end) = section_of(&state).expect("the sample's section");
+    state.active_view = Some(plan);
+    // The app's keys and a canvas of the plan, 20 points per meter around the origin.
+    let mut harness = themed_harness(state, egui::vec2(600.0, 400.0), egui::Theme::Light, |ui, state| {
+        crate::app::shortcuts(ui.ctx(), state);
+        let (resp, painter) = ui.allocate_painter(ui.available_size(), egui::Sense::click_and_drag());
+        let xf = crate::paint::Xf { screen: resp.rect.center(), origin: glam::DVec2::ZERO, scale: 20.0 };
+        if let Some(drawing) = state.active_view.and_then(|plan| state.drawing(plan)) {
+            crate::section_mark::select(ui, &resp, &painter, state, &xf, &drawing);
+        }
+    });
+    harness.run();
+    let screen = |p: glam::DVec2| egui::pos2(300.0 + p.x as f32 * 20.0, 200.0 - p.y as f32 * 20.0);
+    let press = |h: &mut Harness<'static, AppState>, pos: egui::Pos2, pressed: bool| {
+        h.input_mut().events.push(egui::Event::PointerMoved(pos));
+        let (button, modifiers) = (egui::PointerButton::Primary, egui::Modifiers::NONE);
+        h.input_mut().events.push(egui::Event::PointerButton { pos, button, pressed, modifiers });
+        h.run();
+    };
+
+    press(&mut harness, screen(start), true);
+    press(&mut harness, screen(start), false);
+    assert_eq!(harness.state().section_selection, Some(section));
+
+    harness.key_press(egui::Key::Space);
+    harness.run();
+    let (_, s, e) = section_of(harness.state()).unwrap();
+    assert_eq!((s, e), (end, start), "flipped");
+
+    // Dragged by the middle of its line, 2 m to the right.
+    let mid = (start + end) * 0.5;
+    press(&mut harness, screen(mid), true);
+    for step in 1..=4 {
+        harness.input_mut().events.push(egui::Event::PointerMoved(screen(mid) + egui::vec2(10.0 * step as f32, 0.0)));
+        harness.run();
+    }
+    press(&mut harness, screen(mid) + egui::vec2(40.0, 0.0), false);
+    let (_, s, e) = section_of(harness.state()).unwrap();
+    let shift = glam::DVec2::new(2.0, 0.0);
+    assert!(s.distance(end + shift) < 1e-6 && e.distance(start + shift) < 1e-6, "{s} {e}");
+}

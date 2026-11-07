@@ -94,8 +94,8 @@ pub use types::{
 };
 pub use units::{AreaUnit, LengthUnit, NumberStyle, SlopeUnit, Units, VolumeUnit};
 pub use view::{
-    CameraState, DetailLevel, Direction, Looking, MAX_PAPER_MM, MIN_PAPER_MM, MepDiscipline, SheetSize, Underlay,
-    UnderlayLevel, UnderlayPlan, View, ViewCategory, ViewKind, Viewport, VisualStyle,
+    CameraState, DetailLevel, Direction, Looking, MAX_PAPER_MM, MAX_SECTION_SEGMENT, MIN_PAPER_MM, MepDiscipline,
+    SheetSize, Underlay, UnderlayLevel, UnderlayPlan, View, ViewCategory, ViewKind, Viewport, VisualStyle,
 };
 
 pub use glam::{DVec2, DVec3};

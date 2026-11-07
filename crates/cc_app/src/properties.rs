@@ -123,6 +123,13 @@ pub fn show(ui: &mut Ui, state: &mut AppState) {
             viewport_props(ui, state, sheet, index);
             return;
         }
+        if state.selection.is_empty()
+            && let Some(section) = state.section_selection
+            && state.project().view(section).is_some()
+        {
+            view_props(ui, state, section);
+            return;
+        }
         match state.selection.len() {
             0 => match state.active_view {
                 Some(v) => view_props(ui, state, v),
@@ -2571,7 +2578,8 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
                 });
             }
         }
-        ViewKind::Section { depth, .. } => {
+        ViewKind::Section { depth, start, end, segments } => {
+            let (length, segments) = (start.distance(*end), *segments);
             section(ui, "extents", t!("section-extents"), |ui| {
                 let mut d = *depth;
                 let r = row(ui, &t!("prop-depth"), |ui| {
@@ -2585,11 +2593,33 @@ fn view_sections(ui: &mut Ui, state: &mut AppState, id: ViewId) {
                     });
                 }
                 finish(state, &r);
-                if row(ui, "", |ui| ui.button(t!("prop-flip-section")).clicked()) {
-                    crate::engine_edit::view(state, id, None, |x| {
-                        if let ViewKind::Section { start, end, .. } = &mut x.kind {
-                            std::mem::swap(start, end);
+                let mut split = segments.is_some();
+                if row(ui, &t!("prop-split-line"), |ui| ui.checkbox(&mut split, "")).changed() {
+                    crate::section_mark::set_split(state, id, split);
+                }
+                if let Some(pieces) = segments {
+                    for (i, label) in [t!("prop-segment-start"), t!("prop-segment-end")].iter().enumerate() {
+                        let mut v = pieces[i];
+                        let max = (length - pieces[1 - i]).clamp(0.0, cc_core::MAX_SECTION_SEGMENT);
+                        let r = row(ui, label, |ui| {
+                            ui.add(crate::properties::length_drag(&mut v).speed(0.05).range(0.0..=max))
+                        });
+                        if r.changed() {
+                            crate::engine_edit::view(state, id, Some(key((id, "segment", i))), |x| {
+                                if let ViewKind::Section { segments: Some(s), .. } = &mut x.kind
+                                    && let Some(slot) = s.get_mut(i)
+                                {
+                                    *slot = v;
+                                }
+                            });
                         }
+                        finish(state, &r);
+                    }
+                }
+                let flip = row(ui, "", |ui| ui.button(t!("prop-flip-section")).on_hover_text(t!("tip-flip-section")));
+                if flip.clicked() {
+                    crate::engine_edit::view(state, id, None, |x| {
+                        x.kind.flip_section();
                     });
                 }
             });

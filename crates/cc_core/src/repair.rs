@@ -575,6 +575,13 @@ impl Project {
                         repairs += 1;
                     }
                 }
+                ViewKind::Section { segments, .. } => {
+                    let valid = |v: &f64| v.is_finite() && (0.0..=crate::view::MAX_SECTION_SEGMENT).contains(v);
+                    if segments.is_some_and(|s| !s.iter().all(valid)) {
+                        *segments = None;
+                        repairs += 1;
+                    }
+                }
                 ViewKind::Legend { types } => {
                     let before = types.len();
                     types.retain(|t| type_ids.contains(t));

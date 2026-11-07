@@ -135,25 +135,18 @@ pub fn plan_of(
         }
     }
 
-    if !ceiling {
+    if !ceiling && let Some((lo, hi)) = geom.bounds() {
+        // Markers stay outside the grid lines too, which usually extend past the model.
+        let grid_ends = project.elements.values().filter_map(|e| match &e.kind {
+            ElementKind::Grid(g) => Some([g.start, g.end]),
+            _ => None,
+        });
+        let (lo, hi) = grid_ends
+            .flatten()
+            .fold((DVec2::new(lo.x, lo.y), DVec2::new(hi.x, hi.y)), |(lo, hi), p| (lo.min(p), hi.max(p)));
         for v in project.views.values() {
-            if let ViewKind::Section { start, end, depth } = v.kind {
-                section_mark(&mut d, start, end, depth, &v.name);
-            }
-        }
-        if let Some((lo, hi)) = geom.bounds() {
-            // Markers stay outside the grid lines too, which usually extend past the model.
-            let grid_ends = project.elements.values().filter_map(|e| match &e.kind {
-                ElementKind::Grid(g) => Some([g.start, g.end]),
-                _ => None,
-            });
-            let (lo, hi) = grid_ends
-                .flatten()
-                .fold((DVec2::new(lo.x, lo.y), DVec2::new(hi.x, hi.y)), |(lo, hi), p| (lo.min(p), hi.max(p)));
-            for v in project.views.values() {
-                if let ViewKind::Elevation { direction } = v.kind {
-                    elevation_mark(&mut d, lo, hi, direction.look(), &v.name);
-                }
+            if let ViewKind::Elevation { direction } = v.kind {
+                elevation_mark(&mut d, lo, hi, direction.look(), &v.name);
             }
         }
     }
@@ -724,19 +717,109 @@ fn ceiling_grid(d: &mut Drawing2D, boundary: &[DVec2], id: cc_core::ElementId) {
     }
 }
 
-fn section_mark(d: &mut Drawing2D, start: DVec2, end: DVec2, depth: f64, name: &str) {
+/// Diameter of a section head on paper, millimeters (NBR 6492, A.4.7).
+const SECTION_HEAD_MM: f64 = 12.0;
+/// Pen of a section line: dash-dot, extra wide.
+const SECTION_PEN_MM: f64 = 0.7;
+/// Paper height of the drawing number and of the sheet number, millimeters.
+const SECTION_NUMBER_MM: f64 = 3.5;
+const SECTION_SHEET_MM: f64 = 2.5;
+
+/// The marks of every section in a plan at 1:`scale`, each listed in
+/// `d.sections` to be picked, moved and flipped.
+pub(crate) fn section_marks(d: &mut Drawing2D, project: &Project, scale: u32) {
+    for v in project.views.values() {
+        if let ViewKind::Section { start, end, depth, segments } = v.kind {
+            let (number, sheet) = section_labels(project, v);
+            let handle = section_mark(d, (start, end), depth, segments, scale, (&number, &sheet));
+            d.sections.push(crate::SectionHandle { view: v.id, ..handle });
+        }
+    }
+}
+
+/// What a section head shows: the drawing's number on its sheet and the
+/// sheet's number, or, while the section is on no sheet, the last word of
+/// its name (its letter, as in "Section A") over a dash.
+fn section_labels(project: &Project, view: &cc_core::View) -> (String, String) {
+    for sheet in project.views.values() {
+        if let ViewKind::Sheet { number, viewports, .. } = &sheet.kind
+            && let Some(i) = viewports.iter().position(|vp| vp.view == view.id)
+        {
+            return ((i + 1).to_string(), number.clone());
+        }
+    }
+    let short = view.name.split_whitespace().last().unwrap_or_default();
+    (short.chars().take(4).collect(), "-".into())
+}
+
+/// The pieces of a section line drawn between its heads: the whole line, or
+/// with `segments` only that much of it next to each head (the whole line
+/// when they would meet). The line starts at the base of each head's
+/// triangle, `head` from its end.
+pub fn section_pieces(start: DVec2, end: DVec2, segments: Option<[f64; 2]>, head: f64) -> Vec<(DVec2, DVec2)> {
+    let length = start.distance(end);
+    let dir = (end - start).normalize_or_zero();
+    if length <= 2.0 * head || dir == DVec2::ZERO {
+        return Vec::new();
+    }
+    let (a, b) = (start + dir * head, end - dir * head);
+    match segments {
+        Some([s0, s1]) if s0 + s1 < length => {
+            let mut out = Vec::new();
+            if s0 > head {
+                out.push((a, start + dir * s0));
+            }
+            if s1 > head {
+                out.push((end - dir * s1, b));
+            }
+            out
+        }
+        _ => vec![(a, b)],
+    }
+}
+
+/// A section mark (NBR 6492, figure A.19): at each end a 12 mm circle split
+/// by a horizontal line, the drawing number above it and the sheet number
+/// below, on a filled triangle pointing where the section looks; between
+/// the heads an extra-wide dash-dot line (split with `segments`), and the
+/// far extent dashed. Sizes are on paper at 1:`scale`.
+fn section_mark(
+    d: &mut Drawing2D,
+    (start, end): (DVec2, DVec2),
+    depth: f64,
+    segments: Option<[f64; 2]>,
+    scale: u32,
+    (number, sheet): (&str, &str),
+) -> crate::SectionHandle {
+    let k = f64::from(scale.max(1)) / 1000.0;
+    let r = SECTION_HEAD_MM * 0.5 * k;
     let dir = (end - start).normalize_or_zero();
     let look = -dir.perp();
-    d.line(start, end, LineStyle::Annotation, None);
-    for p in [start, end] {
-        let tip = p + look * 0.6;
-        d.line(p, tip, LineStyle::Annotation, None);
-        d.line(tip, tip - look * 0.2 + dir * 0.12, LineStyle::Annotation, None);
-        d.line(tip, tip - look * 0.2 - dir * 0.12, LineStyle::Annotation, None);
+    // The triangle's base runs along the line, twice the circle wide.
+    let half_base = 2.0 * r;
+    let pieces = section_pieces(start, end, segments, half_base);
+    let pen = crate::Pen { weight: Some(SECTION_PEN_MM), ..Default::default() };
+    for &(a, b) in &pieces {
+        d.prims.push(crate::Prim::Line { a, b, style: LineStyle::Center, element: None, pen: Some(pen) });
+    }
+    let [ink_r, ink_g, ink_b] = LineStyle::Annotation.pen().1;
+    for c in [start, end] {
+        d.fill(vec![c + dir * half_base, c + look * 1.4 * r, c - dir * half_base], [ink_r, ink_g, ink_b, 255], None);
+        let circle: Vec<DVec2> = (0..32)
+            .map(|i| {
+                let a = f64::from(i) / 32.0 * std::f64::consts::TAU;
+                c + DVec2::new(a.cos(), a.sin()) * r
+            })
+            .collect();
+        d.fill(circle.clone(), [255, 255, 255, 255], None);
+        d.polyline(&circle, true, LineStyle::Annotation, None);
+        d.line(c - DVec2::X * r, c + DVec2::X * r, LineStyle::Annotation, None);
+        d.text_at(c + DVec2::Y * r * 0.48, number, SECTION_NUMBER_MM, crate::Anchor::Center, 0.0);
+        d.text_at(c - DVec2::Y * r * 0.5, sheet, SECTION_SHEET_MM, crate::Anchor::Center, 0.0);
     }
     // Far clip extent, dashed.
     d.line(start + look * depth, end + look * depth, LineStyle::Hidden, None);
-    d.text(start - dir * 0.4 + DVec2::new(0.0, 0.1), name, 2.5);
+    crate::SectionHandle { view: cc_core::ViewId(0), start, end, segments, pieces, radius: r, head: half_base }
 }
 
 /// Shafts in a plan: those on its level and those its cut plane passes

@@ -120,6 +120,8 @@ pub struct AppState {
     pub rename: Option<(ViewId, String)>,
     /// Selected viewport on a sheet: (sheet, viewport index).
     pub sheet_selection: Option<(ViewId, usize)>,
+    /// Section whose mark is selected in a plan (see [`crate::section_mark`]).
+    pub section_selection: Option<ViewId>,
     /// Status bar message.
     pub message: String,
     /// Cursor position in the active 2D view's coordinates.
@@ -213,6 +215,7 @@ impl AppState {
             palette: None,
             rename: None,
             sheet_selection: None,
+            section_selection: None,
             message: String::new(),
             cursor: None,
             key_buffer: String::new(),
@@ -298,6 +301,9 @@ impl AppState {
                 && project.view(sheet).is_none()
             {
                 self.sheet_selection = None;
+            }
+            if self.section_selection.is_some_and(|v| project.view(v).is_none()) {
+                self.section_selection = None;
             }
         }
     }
