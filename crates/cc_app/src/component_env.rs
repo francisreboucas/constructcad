@@ -105,8 +105,17 @@ impl Env {
     }
 }
 
-/// Open the environment on the component of type `type_id`.
+/// Open the environment on the component of type `type_id` (a title block
+/// previews the active sheet).
 pub fn open(state: &mut AppState, type_id: ElementTypeId) {
+    let sheet = crate::actions::active_sheet(state);
+    open_on(state, type_id, sheet);
+}
+
+/// Open the environment on component type `type_id`; a title block
+/// previews `sheet` (its paper and fields), or sample values on A3 paper
+/// when there is none.
+pub fn open_on(state: &mut AppState, type_id: ElementTypeId, sheet: Option<cc_core::ViewId>) {
     if !matches!(state.project().element_type(type_id).map(|t| &t.data), Some(TypeData::Component { .. })) {
         return;
     }
@@ -118,7 +127,7 @@ pub fn open(state: &mut AppState, type_id: ElementTypeId) {
         Some(TypeData::Component { def, .. }) if def.kind == cc_core::ComponentKind::TitleBlock
     );
     if title_block {
-        env.sheet = Some(crate::title_block_env::SheetEditor::new(crate::actions::active_sheet(state)));
+        env.sheet = Some(crate::title_block_env::SheetEditor::new(sheet));
     }
     state.component_env = Some(env);
 }

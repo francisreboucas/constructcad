@@ -2448,6 +2448,7 @@ info-project-fields = Champs du projet
 info-add-field = Ajouter un champ
 info-new-field = Champ
 msg-field-name-taken = Un champ porte déjà ce nom, ou le nom est vide
+msg-field-name-invalid = Un nom de champ ne contient pas d'accolades et compte au plus 192 caractères
 tb-preview = Aperçu sur
 tb-preview-sheet = Feuille active ({ $paper })
 tb-preview-landscape = { $paper } paysage

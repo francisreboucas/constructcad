@@ -125,7 +125,7 @@ pub struct ProjectInfoSet {
     /// Author of the drawings.
     #[serde(default)]
     pub author: Option<String>,
-    /// Project fields by name: a text sets the field (adding it), `null` removes it.
+    /// Project fields by name: a text sets the field (adding it; a new name holds no braces and at most 192 bytes), `null` removes it.
     #[serde(default)]
     pub fields: Option<serde_json::Map<String, Value>>,
 }
@@ -147,6 +147,15 @@ impl Command for ProjectInfoSet {
                     return Err(EngineError::invalid(format!("field '{name}': expected text or null, got {other}")));
                 }
             };
+            // A new field must be one a text can read as `{project:Name}`
+            // (fields already there may still be set or removed).
+            let new = value.is_some() && s.project().info.field(name).is_none();
+            if new && !cc_core::title_block::project_field_name_ok(name) {
+                return Err(EngineError::invalid(format!(
+                    "project field '{name}': a name holds no braces and at most {} bytes",
+                    cc_core::title_block::MAX_FIELD_KEY - cc_core::title_block::PROJECT_FIELD_PREFIX.len()
+                )));
+            }
             changes.push((name.to_string(), value));
         }
         edit(s, t!("tx-project-info"), |e| {

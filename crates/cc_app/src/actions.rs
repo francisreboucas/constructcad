@@ -345,7 +345,8 @@ pub fn load_component_path(state: &mut AppState, path: std::path::PathBuf) {
                 let type_id = cc_core::ElementTypeId(first);
                 // Title blocks are not placed: they open in the editor.
                 if state.project().element_type(type_id).map(|t| t.category()) == Some(cc_core::Category::TitleBlock) {
-                    crate::component_env::open(state, type_id);
+                    // From the library, it previews sample values, not the active sheet.
+                    crate::component_env::open_on(state, type_id, None);
                     let name = out["component"].as_str().unwrap_or_default().to_string();
                     state.message = t!("msg-component-loaded", "name" => name);
                     return;

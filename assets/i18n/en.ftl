@@ -2448,6 +2448,7 @@ info-project-fields = Project fields
 info-add-field = Add field
 info-new-field = Field
 msg-field-name-taken = A field already has that name, or the name is empty
+msg-field-name-invalid = A field name holds no braces and at most 192 characters
 tb-preview = Preview on
 tb-preview-sheet = Active sheet ({ $paper })
 tb-preview-landscape = { $paper } landscape

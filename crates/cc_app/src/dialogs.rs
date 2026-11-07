@@ -135,6 +135,11 @@ pub(crate) fn rename_project_field(state: &mut AppState, old: &str, new: &str) -
         state.message = t!("msg-field-name-taken");
         return false;
     }
+    // A text reads it as `{project:Name}`: no braces, and a key short enough.
+    if !cc_core::title_block::project_field_name_ok(&new) {
+        state.message = t!("msg-field-name-invalid");
+        return false;
+    }
     crate::engine_edit::info(state, None, |i| {
         if let Some(f) = i.fields.iter_mut().find(|f| f.name == old) {
             f.name = new;
@@ -600,6 +605,16 @@ mod tests {
         assert!(!rename_project_field(&mut state, "Engineer", " "));
         assert!(!rename_project_field(&mut state, "Engineer", &names[1]));
         assert_eq!(state.message, t!("msg-field-name-taken"));
+        // So are names a text could not read as `{project:Name}`.
+        let depth = state.session.doc.undo_depth();
+        for bad in ["Eng{x}", "a}b", &"n".repeat(193)] {
+            state.message.clear();
+            assert!(!rename_project_field(&mut state, "Engineer", bad), "{bad}");
+            assert_eq!(state.message, t!("msg-field-name-invalid"));
+        }
+        assert_eq!(state.session.doc.undo_depth(), depth);
+        assert!(rename_project_field(&mut state, "Engineer", &"n".repeat(192)));
+        assert!(rename_project_field(&mut state, &"n".repeat(192), "Engineer"));
         assert!(remove_project_field(&mut state, "Engineer"));
         assert_eq!(state.project().info.fields.len(), 1);
     }

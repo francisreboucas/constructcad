@@ -1065,7 +1065,7 @@ impl UiCommand {
             CompConnector => "component_connector_add",
             SketchFinish | EditBoundary => "sketch_set",
             EditProfile => "sweep_profile_set",
-            EditTitleBlock => "component_sheet_piece_set",
+            EditTitleBlock => "component_get",
             NewTitleBlock => "title_block_create",
             TbLines | TbText | TbImage => "component_sheet_piece_add",
             CompSaveFile => "component_save",
@@ -1804,6 +1804,12 @@ mod tests {
                 assert!(names.contains(name), "{command:?} runs unknown engine command {name}");
             }
         }
+    }
+
+    #[test]
+    fn opening_an_editor_names_the_query_it_reads() {
+        // Opening changes nothing: like Edit Component, it reads the definition.
+        assert_eq!(UiCommand::EditTitleBlock.engine(), UiCommand::EditComponent.engine());
     }
 
     #[test]

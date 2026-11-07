@@ -2449,6 +2449,7 @@ info-project-fields = Поля проєкту
 info-add-field = Додати поле
 info-new-field = Поле
 msg-field-name-taken = Поле з такою назвою вже є, або назва порожня
+msg-field-name-invalid = Назва поля не містить фігурних дужок і має не більше 192 символів
 tb-preview = Перегляд на
 tb-preview-sheet = Активний аркуш ({ $paper })
 tb-preview-landscape = { $paper } альбомна

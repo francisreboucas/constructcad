@@ -2448,6 +2448,7 @@ info-project-fields = Projektfelder
 info-add-field = Feld hinzufügen
 info-new-field = Feld
 msg-field-name-taken = Ein Feld hat diesen Namen schon, oder der Name ist leer
+msg-field-name-invalid = Ein Feldname enthält keine geschweiften Klammern und höchstens 192 Zeichen
 tb-preview = Vorschau auf
 tb-preview-sheet = Aktives Blatt ({ $paper })
 tb-preview-landscape = { $paper } quer

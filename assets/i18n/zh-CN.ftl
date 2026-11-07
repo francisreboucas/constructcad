@@ -2448,6 +2448,7 @@ info-project-fields = 项目字段
 info-add-field = 添加字段
 info-new-field = 字段
 msg-field-name-taken = 已有同名字段，或名称为空
+msg-field-name-invalid = 字段名称不能含大括号，且最多 192 个字符
 tb-preview = 预览
 tb-preview-sheet = 当前图纸（{ $paper }）
 tb-preview-landscape = { $paper } 横向

@@ -2448,6 +2448,7 @@ info-project-fields = Pola projektu
 info-add-field = Dodaj pole
 info-new-field = Pole
 msg-field-name-taken = Pole o tej nazwie już istnieje lub nazwa jest pusta
+msg-field-name-invalid = Nazwa pola nie zawiera nawiasów klamrowych i ma najwyżej 192 znaki
 tb-preview = Podgląd na
 tb-preview-sheet = Aktywny arkusz ({ $paper })
 tb-preview-landscape = { $paper } poziomo

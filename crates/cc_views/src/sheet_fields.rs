@@ -83,7 +83,7 @@ pub fn value(key: &str, ctx: &FieldCtx) -> Option<String> {
         "date" => date(ctx.today),
         "issue_date" => cc_core::title_block::parse_iso_date(issue_date).map_or(String::new(), date),
         k => {
-            if let Some(name) = k.strip_prefix("project:") {
+            if let Some(name) = k.strip_prefix(cc_core::title_block::PROJECT_FIELD_PREFIX) {
                 info.field(name.trim())?.to_string()
             } else {
                 let name = k.strip_prefix("param:")?.trim();

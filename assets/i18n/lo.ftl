@@ -2450,6 +2450,7 @@ info-project-fields = ຊ່ອງຂໍ້ມູນໂຄງການ
 info-add-field = ເພີ່ມຊ່ອງ
 info-new-field = ຊ່ອງ
 msg-field-name-taken = ມີຊ່ອງຊື່ນີ້ແລ້ວ ຫຼື ຊື່ວ່າງ
+msg-field-name-invalid = ຊື່ຊ່ອງບໍ່ມີວົງເລັບ ແລະ ຍາວບໍ່ເກີນ 192 ຕົວອັກສອນ
 tb-preview = ສະແດງຕົວຢ່າງ
 tb-preview-sheet = ແຜ່ນທີ່ໃຊ້ຢູ່ ({ $paper })
 tb-preview-landscape = { $paper } ແນວນອນ

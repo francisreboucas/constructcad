@@ -270,6 +270,7 @@ fn fit(paper: DVec2, rect: Rect) -> (DVec2, f64) {
 /// The Sheet view: the paper, the planes, the title block, and the tools.
 pub fn central(ui: &mut Ui, state: &mut AppState) {
     let Some((_, def)) = crate::component_env::component(state) else { return };
+    drop_stale_pick(state, def.sheet.len());
     let Some(ed) = editor(state) else { return };
     let paper_mm = paper(state, ed.preview);
     let (rect, resp) = ui.allocate_exact_size(ui.available_size(), Sense::click_and_drag());
@@ -635,6 +636,18 @@ fn picked(state: &AppState) -> Vec<usize> {
     }
 }
 
+/// Drop picked pieces past the last of `count` (gone after an undo or redo
+/// made elsewhere); a pick left empty is cleared.
+fn drop_stale_pick(state: &mut AppState, count: usize) {
+    let Some(env) = state.component_env.as_mut() else { return };
+    if let Some(crate::component_env::Pick::Sheet(list)) = &mut env.pick {
+        list.retain(|&i| i < count);
+        if list.is_empty() {
+            env.pick = None;
+        }
+    }
+}
+
 /// Pick pieces `list` (an empty list picks nothing).
 fn set_pick(state: &mut AppState, list: Vec<usize>) {
     if let Some(env) = state.component_env.as_mut() {
@@ -660,16 +673,15 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
         rename = crate::component_env::draft_field(ui, state, &format!("tb-piece-name:{index}"), &item.name, 150.0)
     });
     if let Some(name) = rename {
-        let command =
-            ComponentSheetPieceSet {
-                type_ref: t,
-                index,
-                piece: None,
-                name: Some(name),
-                image_path: None,
-                image: None,
-                add: Vec::new(),
-            };
+        let command = ComponentSheetPieceSet {
+            type_ref: t,
+            index,
+            piece: None,
+            name: Some(name),
+            image_path: None,
+            image: None,
+            add: Vec::new(),
+        };
         crate::actions::run_command(state, command);
     }
     if let SheetShape::Stroke { weight, color, fill, closed, .. } = &item.shape {
@@ -751,7 +763,10 @@ fn read_picture(bytes: Vec<u8>) -> Option<Picture> {
         let aspect = f64::from(img.width) / f64::from(img.height.max(1));
         return Some(Picture { bytes: img.data, aspect });
     }
-    let tree = resvg::usvg::Tree::from_data(&bytes, &resvg::usvg::Options::default()).ok()?;
+    // Only the file itself: an `<image>` linking a path on this machine stays empty.
+    let mut options = resvg::usvg::Options::default();
+    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+    let tree = resvg::usvg::Tree::from_data(&bytes, &options).ok()?;
     let size = tree.size();
     let aspect = f64::from(size.width()) / f64::from(size.height());
     let k = SVG_PX / size.width().max(size.height()).max(1.0);
@@ -1477,7 +1492,10 @@ pub fn edit_stroke(state: &mut AppState, index: usize) {
 pub fn delete_pieces(state: &mut AppState, list: &[usize]) {
     if !list.is_empty() {
         let t = crate::component_env::type_ref(state);
-        crate::actions::run_command(state, ComponentSheetPieceDelete { type_ref: t, index: None, indices: list.to_vec() });
+        crate::actions::run_command(
+            state,
+            ComponentSheetPieceDelete { type_ref: t, index: None, indices: list.to_vec() },
+        );
     }
     if let Some(env) = state.component_env.as_mut() {
         env.pick = None;
@@ -1607,6 +1625,30 @@ mod tests {
         };
         crate::component_env::open(&mut state, tb);
         (state, sheet, tb)
+    }
+
+    #[test]
+    fn a_title_block_from_the_library_shows_sample_values() {
+        let (mut state, sheet, tb) = editor_state();
+        let dir = std::env::temp_dir().join(format!("ccad-tb-lib-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("tb.ccomp");
+        let name = match state.project().element_type(tb).map(|t| &t.data) {
+            Some(TypeData::Component { component, .. }) => component.clone(),
+            _ => panic!("a component"),
+        };
+        state.session.execute("component_save", serde_json::json!({"component": name, "path": path})).unwrap();
+        state.component_env = None;
+        assert_eq!(state.active_view, Some(sheet), "a sheet is active");
+        crate::actions::load_component_path(&mut state, path);
+        std::fs::remove_dir_all(&dir).ok();
+        let ed = state.component_env.as_ref().and_then(|e| e.sheet.clone()).expect("the Sheet view");
+        assert_eq!(ed.sheet, None);
+        assert_eq!(ed.preview, Preview::Paper { size: SheetSize::A3, portrait: false });
+        // Edit Title Block still previews its sheet.
+        edit_sheet(&mut state, sheet);
+        let ed = state.component_env.as_ref().and_then(|e| e.sheet.clone()).unwrap();
+        assert_eq!(ed.preview, Preview::Sheet(sheet));
     }
 
     #[test]
@@ -1860,6 +1902,33 @@ mod tests {
     }
 
     #[test]
+    fn an_undo_made_elsewhere_drops_the_pieces_it_removed_from_the_pick() {
+        use cc_core::sketch::SketchCurve;
+        let (mut state, _, _) = editor_state();
+        let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+        start_lines(&mut state);
+        state.sketch.as_mut().unwrap().curves = vec![
+            SketchCurve::Line { a: DVec2::new(0.01, 0.01), b: DVec2::new(0.05, 0.01) },
+            SketchCurve::Line { a: DVec2::new(0.01, 0.03), b: DVec2::new(0.05, 0.03) },
+        ];
+        crate::sketch_mode::finish(&mut state);
+        set_pick(&mut state, vec![0, before, before + 1]);
+        let mut harness = egui_kittest::Harness::builder()
+            .with_size(egui::vec2(600.0, 400.0))
+            .build_ui_state(|ui, state: &mut AppState| central(ui, state), state);
+        harness.run();
+        assert_eq!(picked(harness.state()), vec![0, before, before + 1]);
+        // The undo of the new strokes leaves the first piece picked.
+        harness.state_mut().session.doc.undo();
+        harness.run();
+        assert_eq!(picked(harness.state()), vec![0]);
+        // A pick of removed pieces only is cleared.
+        set_pick(harness.state_mut(), vec![before]);
+        harness.run();
+        assert_eq!(harness.state().component_env.as_ref().unwrap().pick, None);
+    }
+
+    #[test]
     fn finishing_or_deleting_many_strokes_is_one_undo_step() {
         use cc_core::sketch::SketchCurve;
         let (mut state, _, _) = editor_state();
@@ -1879,10 +1948,12 @@ mod tests {
 
         // Edit Sketch of the first, then a third chain: the patch and the new stroke are one step.
         edit_stroke(&mut state, before);
-        state.sketch.as_mut().unwrap().curves.push(SketchCurve::Line {
-            a: DVec2::new(0.06, 0.05),
-            b: DVec2::new(0.09, 0.05),
-        });
+        state
+            .sketch
+            .as_mut()
+            .unwrap()
+            .curves
+            .push(SketchCurve::Line { a: DVec2::new(0.06, 0.05), b: DVec2::new(0.09, 0.05) });
         crate::sketch_mode::finish(&mut state);
         assert!(state.sketch.is_none(), "{}", state.message);
         assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before + 3);
@@ -2320,6 +2391,31 @@ mod tests {
         let (_, def) = crate::component_env::component(&state).unwrap();
         assert!(matches!(def.sheet.get(before).map(|i| &i.shape), Some(SheetShape::Image { .. })), "{}", state.message);
         assert_eq!(picked(&state), vec![before]);
+    }
+
+    #[test]
+    fn an_svg_reads_no_picture_from_this_machine() {
+        // A 1 × 1 opaque PNG, as a file and as a data URL.
+        let b64 = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
+        let dir = std::env::temp_dir().join(format!("ccad-tb-href-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("secret.png");
+        std::fs::write(&path, cc_core::raster::base64_decode(b64).unwrap()).unwrap();
+        let opaque = |href: &str| {
+            let svg = format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="8" height="8"><image width="8" height="8" href="{href}"/></svg>"#
+            );
+            let p = picture(svg.into_bytes()).expect("the SVG is read");
+            let decoder = png::Decoder::new(std::io::Cursor::new(p.bytes));
+            let mut reader = decoder.read_info().unwrap();
+            let mut buf = vec![0; reader.output_buffer_size().unwrap()];
+            let info = reader.next_frame(&mut buf).unwrap();
+            buf[..info.buffer_size()].chunks(4).any(|px| px[3] > 0)
+        };
+        assert!(opaque(&format!("data:image/png;base64,{b64}")), "an embedded picture is drawn");
+        let local = path.to_string_lossy().replace('\\', "/");
+        assert!(!opaque(&local), "a picture on this machine is not read");
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]

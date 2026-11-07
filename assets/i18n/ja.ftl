@@ -2448,6 +2448,7 @@ info-project-fields = プロジェクトの項目
 info-add-field = 項目を追加
 info-new-field = 項目
 msg-field-name-taken = その名前の項目がすでにあるか、名前が空です
+msg-field-name-invalid = 項目名に波かっこ は使えず、192 文字までです
 tb-preview = プレビュー
 tb-preview-sheet = アクティブなシート ({ $paper })
 tb-preview-landscape = { $paper } 横

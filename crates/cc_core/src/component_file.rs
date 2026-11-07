@@ -154,7 +154,10 @@ fn validate(file: &ComponentFile) -> Result<(), ComponentFileError> {
     let names = def.ref_planes.iter().map(|p| &p.name).chain(def.ref_lines.iter().map(|l| &l.name));
     let mut seen: Vec<&str> = def.params.iter().map(|p| p.name.as_str()).collect();
     for name in names {
-        if !expr::is_valid_name(name) || crate::component_ref::is_reserved(name) || seen.contains(&name.as_str()) {
+        if !expr::is_valid_name(name)
+            || crate::component_ref::is_reserved_for(def.kind, name)
+            || seen.contains(&name.as_str())
+        {
             return bad(&format!("invalid or repeated reference name '{name}'"));
         }
         seen.push(name);

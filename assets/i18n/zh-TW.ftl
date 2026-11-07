@@ -2448,6 +2448,7 @@ info-project-fields = 專案欄位
 info-add-field = 新增欄位
 info-new-field = 欄位
 msg-field-name-taken = 已有同名欄位，或名稱為空
+msg-field-name-invalid = 欄位名稱不可含大括號，且最多 192 個字元
 tb-preview = 預覽
 tb-preview-sheet = 目前圖紙（{ $paper }）
 tb-preview-landscape = { $paper } 橫向

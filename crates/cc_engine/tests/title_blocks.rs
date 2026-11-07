@@ -25,6 +25,15 @@ fn project_fields_are_set_renamed_and_removed() {
     assert!(info["fields"].get("CAU").is_none());
     assert_eq!(info["fields"]["Etapa"], "Executivo");
     assert_eq!(fails(&mut s, "project_info_set", json!({"fields": {"  ": "x"}})), ErrorCode::InvalidArguments);
+    // A new name a text could not read as `{project:Name}` is refused, whole.
+    let long = "n".repeat(193);
+    for bad in ["A{b}", "c}", long.as_str()] {
+        let args = json!({"fields": {"Ok": "1", bad: "x"}});
+        assert_eq!(fails(&mut s, "project_info_set", args), ErrorCode::InvalidArguments, "{bad}");
+    }
+    let info = run(&mut s, "project_info", json!({}));
+    assert!(info["fields"].get("Ok").is_none());
+    run(&mut s, "project_info_set", json!({"fields": {"n".repeat(192): "x"}}));
 }
 
 #[test]

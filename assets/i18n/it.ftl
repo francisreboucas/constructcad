@@ -2448,6 +2448,7 @@ info-project-fields = Campi del progetto
 info-add-field = Aggiungi campo
 info-new-field = Campo
 msg-field-name-taken = Esiste già un campo con questo nome, o il nome è vuoto
+msg-field-name-invalid = Il nome di un campo non contiene parentesi graffe e ha al massimo 192 caratteri
 tb-preview = Anteprima su
 tb-preview-sheet = Tavola attiva ({ $paper })
 tb-preview-landscape = { $paper } orizzontale

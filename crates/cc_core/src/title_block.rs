@@ -323,6 +323,16 @@ pub fn repair_def(def: &mut ComponentDef) -> usize {
 /// Most bytes a field key may have (a longer `{…}` is not a field).
 pub const MAX_FIELD_KEY: usize = 200;
 
+/// What a project field's key starts with (`{project:Name}`).
+pub const PROJECT_FIELD_PREFIX: &str = "project:";
+
+/// Whether `name` can name a project field a text reads as
+/// `{project:Name}`: not blank, without braces, and short enough for the
+/// key to stay within [`MAX_FIELD_KEY`].
+pub fn project_field_name_ok(name: &str) -> bool {
+    !name.trim().is_empty() && !name.contains(['{', '}']) && PROJECT_FIELD_PREFIX.len() + name.len() <= MAX_FIELD_KEY
+}
+
 /// A run of a title block text, as [`field_parts`] splits it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FieldPart<'a> {

@@ -252,12 +252,21 @@ fn header_size(d: &[u8], format: cc_core::raster::RasterFormat) -> Option<(u32, 
     }
 }
 
+/// Parsing options that read nothing but the file itself: an `<image>`
+/// whose href is not a `data:` URL (a path on this machine, say) comes in
+/// empty.
+pub fn options() -> usvg::Options<'static> {
+    let mut options = usvg::Options::default();
+    options.image_href_resolver.resolve_string = Box::new(|_, _| None);
+    options
+}
+
 /// Read an SVG file's bytes.
 pub fn read(data: &[u8], limits: &Limits) -> Result<CadRead, CadError> {
     if data.len() > MAX_SVG_BYTES {
         return Err(CadError::TooLarge(MAX_SVG_BYTES >> 20));
     }
-    let tree = usvg::Tree::from_data(data, &usvg::Options::default()).map_err(|e| CadError::Format(e.to_string()))?;
+    let tree = usvg::Tree::from_data(data, &options()).map_err(|e| CadError::Format(e.to_string()))?;
     let mut reader = Reader {
         limits,
         height: f64::from(tree.size().height()),
@@ -329,6 +338,21 @@ mod tests {
         assert_eq!((image.image.width, image.image.height), (1, 1));
         assert!(image.origin.distance(DVec2::ZERO) < 1e-6);
         assert!(image.u.distance(DVec2::new(12.7, 0.0)) < 1e-6 && image.v.distance(DVec2::new(0.0, 12.7)) < 1e-6);
+    }
+
+    #[test]
+    fn pictures_on_this_machine_are_not_read() {
+        let png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
+        let dir = std::env::temp_dir().join(format!("ccad-svg-href-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("secret.png");
+        std::fs::write(&path, cc_core::raster::base64_decode(png).unwrap()).unwrap();
+        let href = path.to_string_lossy().replace('\\', "/");
+        for href in [href.clone(), format!("file:///{href}")] {
+            let r = svg(&format!(r#"<image x="0" y="0" width="48" height="48" href="{href}"/>"#));
+            assert!(r.drawing.images.is_empty(), "{href} was read");
+        }
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[test]
