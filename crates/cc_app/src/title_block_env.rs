@@ -25,6 +25,9 @@ use cc_views::component_view::ViewPlane;
 use egui::{Color32, Rect, Sense, Stroke, Ui, vec2};
 use glam::DVec2;
 
+/// How close (screen pixels) a click must be to pick a plane.
+const PICK_PX: f64 = 6.0;
+
 /// Millimeters per canvas unit (the canvas is in paper meters).
 pub const MM: f64 = 1000.0;
 
@@ -334,8 +337,111 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
             PALETTE.danger,
         );
     }
-    // Tools and the sketch come in later tasks (see Tasks 9 to 13).
-    let _ = (&xf, &resp, &planes);
+    let tol = PICK_PX / scale; // paper meters
+    let raw = resp.hover_pos().map(|p| xf.to_world(p));
+    let picked_plane = match state.component_env.as_ref().and_then(|e| e.pick.clone()) {
+        Some(crate::component_env::Pick::Plane(n)) => Some(n),
+        _ => None,
+    };
+    for p in planes.iter().filter(|p| !p.edge && Some(&p.name) == picked_plane.as_ref()) {
+        paint_plane(&painter, &mm, rect, p, true);
+    }
+    let tool = state.component_env.as_ref().map(|e| e.tool.clone()).unwrap_or_default();
+    let clicked = resp.clicked_by(egui::PointerButton::Primary);
+    match tool {
+        crate::component_env::EnvTool::RefPlane { first } => {
+            let Some(p) = raw else { return };
+            match first {
+                Some((_, a)) => {
+                    painter.line_segment([xf.to_screen(a), xf.to_screen(p)], Stroke::new(1.5, PALETTE.accent));
+                    if clicked {
+                        add_sheet_plane(state, a * MM, p * MM);
+                        crate::component_env::set_tool(state, crate::component_env::EnvTool::RefPlane { first: None });
+                    }
+                }
+                None if clicked => crate::component_env::set_tool(
+                    state,
+                    crate::component_env::EnvTool::RefPlane { first: Some((cc_views::ComponentViewKind::Plan, p)) },
+                ),
+                None => {}
+            }
+        }
+        crate::component_env::EnvTool::Select => {
+            if clicked && let Some(p) = raw {
+                let hit =
+                    plane_at(&planes, p * MM, tol * MM).map(|q| crate::component_env::Pick::Plane(q.name.clone()));
+                if let Some(env) = state.component_env.as_mut() {
+                    env.pick = hit;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+/// The component plane (never a paper edge: those are locked) within `reach`
+/// millimeters of `at`.
+fn plane_at(planes: &[SheetPlane], at: DVec2, reach: f64) -> Option<&SheetPlane> {
+    planes.iter().filter(|q| !q.edge).find(|q| ((if q.vertical { at.x } else { at.y }) - q.at).abs() <= reach)
+}
+
+/// The plane two clicks (millimeters) make: `x` (a vertical line) or `y`,
+/// and its position to a tenth of a millimeter.
+pub fn sheet_plane_from_line(a: DVec2, b: DVec2) -> Option<(&'static str, f64)> {
+    let d = b - a;
+    if d.length() < 1e-6 {
+        return None;
+    }
+    let vertical = d.y.abs() >= d.x.abs();
+    let at = if vertical { (a.x + b.x) / 2.0 } else { (a.y + b.y) / 2.0 };
+    Some((if vertical { "x" } else { "y" }, (at * 10.0).round() / 10.0))
+}
+
+fn add_sheet_plane(state: &mut AppState, a: DVec2, b: DVec2) {
+    let Some((axis, at)) = sheet_plane_from_line(a, b) else { return };
+    let command = cc_engine::commands::component::ComponentRefPlaneAdd {
+        type_ref: crate::component_env::type_ref(state),
+        axis: axis.into(),
+        at: format!("{at}"),
+        name: None,
+    };
+    if let Some(out) = crate::actions::run_command(state, command)
+        && let (Some(env), Some(name)) = (state.component_env.as_mut(), out["name"].as_str())
+    {
+        env.pick = Some(crate::component_env::Pick::Plane(name.to_string()));
+    }
+}
+
+/// A reference plane's name, position (an expression in millimeters) and value.
+/// Paper edges are not component planes, so they show nothing here.
+fn plane_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, name: &str) {
+    use cc_engine::commands::component as cmd;
+    let Some(plane) = def.ref_plane(name) else { return };
+    let Some(ed) = editor(state) else { return };
+    let paper = paper(state, ed.preview);
+    let value = def.scope(&Default::default(), &scope_extra(paper)).get(name);
+    let t = crate::component_env::type_ref(state);
+    let mut rename = None;
+    crate::table::row(ui, &t!("prop-name"), |ui| {
+        rename = crate::component_env::draft_field(ui, state, &format!("tb-plane-name:{name}"), name, 120.0)
+    });
+    let mut at = None;
+    crate::table::row(ui, &t!("comp-env-at"), |ui| {
+        at = crate::component_env::draft_field(ui, state, &format!("tb-plane-at:{name}"), &plane.at, 160.0)
+    });
+    crate::table::readonly_row(ui, &t!("prop-value"), value.map_or_else(String::new, |v| format!("{v} mm")));
+    if at.is_some() || rename.is_some() {
+        let command =
+            cmd::ComponentRefPlaneSet { type_ref: t.clone(), name: name.to_string(), at, rename: rename.clone() };
+        if crate::actions::run_command(state, command).is_some()
+            && let (Some(new), Some(env)) = (rename, state.component_env.as_mut())
+        {
+            env.pick = Some(crate::component_env::Pick::Plane(new));
+        }
+    }
+    if ui.button(t!("action-delete")).clicked() {
+        crate::component_env::delete_pick(state);
+    }
 }
 
 /// A plane's line across the view and its label; `hot` draws it picked.
@@ -370,6 +476,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         crate::ribbon::env_group(ui, state, t!("group-selection"), &[Select]);
+        crate::ribbon::env_group(ui, state, t!("comp-env-group-datum"), &[CompRefPlane]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-component"), &[CompSaveFile]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-editor"), &[CompFinish, CompCancel]);
     });
@@ -414,8 +521,11 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
 }
 
 /// What the active tool waits for.
-fn hint(_state: &AppState) -> String {
-    t!("tb-hint-view")
+fn hint(state: &AppState) -> String {
+    match state.component_env.as_ref().map(|e| &e.tool) {
+        Some(crate::component_env::EnvTool::RefPlane { .. }) => t!("tb-hint-plane"),
+        _ => t!("tb-hint-view"),
+    }
 }
 
 /// The left panel: name, type, parameters (and the paper's size), and the
@@ -426,6 +536,9 @@ pub fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &Compon
     crate::component_env::types_row(ui, state);
     ui.add_space(6.0);
     crate::table::section(ui, "tb-params", t!("comp-params"), |ui| params(ui, state, def));
+    if let Some(crate::component_env::Pick::Plane(plane)) = state.component_env.as_ref().and_then(|e| e.pick.clone()) {
+        crate::table::section(ui, "tb-plane", t!("comp-env-plane"), |ui| plane_props(ui, state, def, &plane));
+    }
     crate::component_env::ref_problems(ui, def);
 }
 
@@ -519,6 +632,54 @@ mod tests {
         let view = plane_view(&ps, 1.0 / MM);
         let (snapped, locked) = crate::component_sketch::snap(&view, DVec2::new(0.4102, 0.1), 0.001);
         assert!(locked && (snapped.x - 0.41).abs() < 1e-12);
+    }
+
+    #[test]
+    fn two_clicks_make_a_plane_in_millimeters() {
+        assert_eq!(sheet_plane_from_line(DVec2::new(30.04, 0.0), DVec2::new(30.08, 200.0)), Some(("x", 30.1)));
+        assert_eq!(sheet_plane_from_line(DVec2::new(0.0, 52.0), DVec2::new(100.0, 52.0)), Some(("y", 52.0)));
+        assert_eq!(sheet_plane_from_line(DVec2::ONE, DVec2::ONE), None);
+        let (mut state, _, _) = editor_state();
+        add_sheet_plane(&mut state, DVec2::new(30.0, 0.0), DVec2::new(30.0, 100.0));
+        let pick = state.component_env.as_ref().and_then(|e| e.pick.clone());
+        let Some(crate::component_env::Pick::Plane(name)) = pick else { panic!("{pick:?}") };
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let p = planes(&def, DVec2::new(420.0, 297.0));
+        assert!(p.iter().any(|q| q.name == name && q.vertical && (q.at - 30.0).abs() < 1e-9));
+    }
+
+    #[test]
+    fn the_paper_edges_cannot_be_picked_edited_or_deleted() {
+        use cc_engine::commands::component as cmd;
+        let (mut state, _, _) = editor_state();
+        add_sheet_plane(&mut state, DVec2::new(30.0, 0.0), DVec2::new(30.0, 100.0));
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        // Clicks on an edge pick nothing; the user's plane is picked.
+        assert!(plane_at(&ps, DVec2::new(0.1, 50.0), 1.0).is_none());
+        assert!(plane_at(&ps, DVec2::new(419.9, 50.0), 1.0).is_none());
+        assert!(plane_at(&ps, DVec2::new(50.0, 296.9), 1.0).is_none());
+        assert!(plane_at(&ps, DVec2::new(30.2, 50.0), 1.0).is_some_and(|p| !p.edge));
+        // Neither the engine commands nor the delete button reach an edge.
+        let t = crate::component_env::type_ref(&state);
+        for name in ["0", "SheetWidth", "SheetHeight"] {
+            let delete = cmd::ComponentRefPlaneDelete { type_ref: t.clone(), name: name.into() };
+            assert!(crate::actions::run_command(&mut state, delete).is_none());
+            let set = cmd::ComponentRefPlaneSet {
+                type_ref: t.clone(),
+                name: name.into(),
+                at: Some("5".into()),
+                rename: Some("Moved".into()),
+            };
+            assert!(crate::actions::run_command(&mut state, set).is_none());
+            if let Some(env) = state.component_env.as_mut() {
+                env.pick = Some(crate::component_env::Pick::Plane(name.into()));
+            }
+            crate::component_env::delete_pick(&mut state);
+        }
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        assert!(def.ref_plane("Moved").is_none());
+        assert_eq!(planes(&def, DVec2::new(420.0, 297.0)).iter().filter(|p| p.edge).count(), 4);
     }
 
     #[test]

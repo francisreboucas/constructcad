@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Ouvre le cartouche de la feuille active dans l'édit
 cmd-desc-new-title-block = Crée un cartouche à partir de la mise en page standard et l'ouvre dans l'éditeur.
 why-sheet-title-block = Ouvrez une feuille qui a un cartouche
 tb-default-name = Cartouche
+tb-hint-plane = Cliquez deux fois le long de la ligne du plan : plutôt verticale ou horizontale, elle fixe sa direction · Échap revient

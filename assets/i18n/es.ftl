@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Abre el rótulo de la hoja activa en el editor de r�
 cmd-desc-new-title-block = Crea un rótulo a partir del diseño estándar y lo abre en el editor.
 why-sheet-title-block = Abra una hoja que tenga rótulo
 tb-default-name = Rótulo
+tb-hint-plane = Haga clic dos veces a lo largo de la línea del plano: más vertical u horizontal define su dirección · Esc retrocede

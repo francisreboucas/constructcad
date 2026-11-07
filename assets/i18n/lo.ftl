@@ -2470,3 +2470,4 @@ cmd-desc-edit-title-block = ເປີດປ້າຍຊື່ຂອງແຜ່�
 cmd-desc-new-title-block = ສ້າງປ້າຍຊື່ຈາກແບບມາດຕະຖານ ແລະ ເປີດໃນຕົວແກ້ໄຂ.
 why-sheet-title-block = ເປີດແຜ່ນທີ່ມີປ້າຍຊື່
 tb-default-name = ປ້າຍຊື່
+tb-hint-plane = ຄລິກສອງເທື່ອຕາມເສັ້ນລະນາບ: ຕັ້ງ ຫຼື ນອນ ກຳນົດທິດທາງ · Esc ຖອຍຄືນ

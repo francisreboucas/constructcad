@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = アクティブなシートの表題欄を表題欄�
 cmd-desc-new-title-block = 標準レイアウトから表題欄を作成し、エディターで開きます。
 why-sheet-title-block = 表題欄のあるシートを開いてください
 tb-default-name = 表題欄
+tb-hint-plane = 面の線に沿って 2 回クリック: 縦寄りか横寄りかで向きが決まります · Esc で戻る

@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Abre o carimbo da folha ativa no editor de carimbos.
 cmd-desc-new-title-block = Cria um carimbo a partir do modelo padrão e o abre no editor.
 why-sheet-title-block = Abra uma folha que tenha carimbo
 tb-default-name = Carimbo
+tb-hint-plane = Clique duas vezes ao longo da linha do plano: mais vertical ou mais horizontal define a direção · Esc volta

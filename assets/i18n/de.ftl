@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Öffnet das Schriftfeld des aktiven Blatts im Schrif
 cmd-desc-new-title-block = Erstellt ein Schriftfeld aus dem Standardlayout und öffnet es im Editor.
 why-sheet-title-block = Öffnen Sie ein Blatt mit Schriftfeld
 tb-default-name = Schriftfeld
+tb-hint-plane = Klicken Sie zweimal entlang der Ebenenlinie: eher senkrecht oder waagerecht legt die Richtung fest · Esc geht zurück

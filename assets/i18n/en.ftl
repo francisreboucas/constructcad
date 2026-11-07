@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Opens the active sheet's title block in the title bl
 cmd-desc-new-title-block = Creates a title block from the standard layout and opens it in the editor.
 why-sheet-title-block = Open a sheet that has a title block
 tb-default-name = Title block
+tb-hint-plane = Click twice along the plane's line: mostly vertical or horizontal sets its direction · Esc steps back

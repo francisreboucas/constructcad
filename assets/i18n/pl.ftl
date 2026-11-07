@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Otwiera tabliczkę aktywnego arkusza w edytorze tabl
 cmd-desc-new-title-block = Tworzy tabliczkę ze standardowego układu i otwiera ją w edytorze.
 why-sheet-title-block = Otwórz arkusz z tabliczką
 tb-default-name = Tabliczka
+tb-hint-plane = Kliknij dwa razy wzdłuż linii płaszczyzny: bardziej pionowa lub pozioma ustala kierunek · Esc cofa

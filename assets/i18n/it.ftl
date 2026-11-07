@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = Apre il cartiglio della tavola attiva nell'editor de
 cmd-desc-new-title-block = Crea un cartiglio dal modello standard e lo apre nell'editor.
 why-sheet-title-block = Apri una tavola con un cartiglio
 tb-default-name = Cartiglio
+tb-hint-plane = Fai clic due volte lungo la linea del piano: più verticale o orizzontale ne fissa la direzione · Esc torna indietro

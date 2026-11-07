@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = 在图签编辑器中打开当前图纸的图签。
 cmd-desc-new-title-block = 按标准布局新建图签并在编辑器中打开。
 why-sheet-title-block = 请打开带图签的图纸
 tb-default-name = 图签
+tb-hint-plane = 沿平面线单击两次：偏竖直或偏水平决定方向 · Esc 返回

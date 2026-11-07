@@ -2468,3 +2468,4 @@ cmd-desc-edit-title-block = 在圖框標題欄編輯器中開啟目前圖紙的�
 cmd-desc-new-title-block = 依標準版面建立圖框標題欄並在編輯器中開啟。
 why-sheet-title-block = 請開啟有圖框標題欄的圖紙
 tb-default-name = 圖框標題欄
+tb-hint-plane = 沿平面線按兩下：偏垂直或偏水平決定方向 · Esc 返回
