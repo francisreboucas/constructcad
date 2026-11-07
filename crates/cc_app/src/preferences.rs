@@ -1177,7 +1177,7 @@ mod tests {
     #[test]
     fn long_paths_are_shortened_in_the_middle() {
         assert_eq!(middle_ellipsis("/short", 20), "/short");
-        let long = "/home/someone/Documents/ConstructCAD/library/doors";
+        let long = "/home/someone/Documents/ConstructCraft/library/doors";
         let short = middle_ellipsis(long, 24);
         assert_eq!(short.chars().count(), 24);
         assert!(short.starts_with("/home/so") && short.ends_with("library/doors") && short.contains('…'));

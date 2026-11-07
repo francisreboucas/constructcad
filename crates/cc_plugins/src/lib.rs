@@ -1,4 +1,4 @@
-//! Lua scripts and plugins for ConstructCAD.
+//! Lua scripts and plugins for ConstructCraft.
 //!
 //! Lua 5.4 runs sandboxed ([`sandbox`], from `cc_script`): no files, no loading of code, an
 //! instruction budget and a memory limit. Lua code reaches the project only

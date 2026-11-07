@@ -1,4 +1,4 @@
-//! ConstructCAD — open source BIM authoring.
+//! ConstructCraft — open source BIM authoring.
 
 // Release builds on Windows open no console window.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
@@ -67,13 +67,13 @@ fn main() -> eframe::Result<()> {
     let viewport = egui::ViewportBuilder::default()
         .with_inner_size([1440.0, 900.0])
         .with_min_inner_size([900.0, 600.0])
-        .with_title("ConstructCAD")
+        .with_title("ConstructCraft")
         .with_icon(app_icon());
     // The Wayland app id / X11 class names the desktop file (packaging/linux),
     // so desktops show its icon. eframe keeps its settings under the same
     // (lowercased) folder name on Linux, so nothing moves.
     #[cfg(target_os = "linux")]
-    let viewport = viewport.with_app_id("constructcad");
+    let viewport = viewport.with_app_id("constructcraft");
     // The language of a start-up error message (the app then applies the saved preference).
     i18n::set_language(args.language.unwrap_or_else(i18n::Language::from_system));
     // Try the graphics APIs in turn until one shows the window (issue #74).
@@ -117,7 +117,7 @@ fn app_icon() -> egui::IconData {
     eframe::icon_data::from_png_bytes(theme::APP_ICON_PNG).unwrap_or_default()
 }
 
-/// `constructcad [project.ccad] [--view NAME]... [--graph FILE.ccgraph] [--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja]`
+/// `constructcraft [project.ccad] [--view NAME]... [--graph FILE.ccgraph] [--lang en|pt-BR|es|fr|de|it|lo|pl|uk-UA|zh-TW|zh-CN|ja]`
 ///
 /// Named views replace the default layout (the first floor plan beside the
 /// 3D view): the first on the left, the second on the right, others as tabs.

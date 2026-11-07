@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- ConstructCAD.app; build-app.sh replaces @VERSION@. -->
+<!-- ConstructCraft.app; build-app.sh replaces @VERSION@. -->
 <plist version="1.0">
 <dict>
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleName</key>
-  <string>ConstructCAD</string>
+  <string>ConstructCraft</string>
   <key>CFBundleDisplayName</key>
-  <string>ConstructCAD</string>
+  <string>ConstructCraft</string>
   <key>CFBundleIdentifier</key>
   <string>io.github.francisreboucas.constructcad</string>
   <key>CFBundleExecutable</key>
-  <string>constructcad</string>
+  <string>constructcraft</string>
   <key>CFBundleIconFile</key>
-  <string>ConstructCAD</string>
+  <string>ConstructCraft</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleInfoDictionaryVersion</key>
@@ -35,13 +35,13 @@
   <array>
     <dict>
       <key>CFBundleTypeName</key>
-      <string>ConstructCAD Project</string>
+      <string>ConstructCraft Project</string>
       <key>CFBundleTypeRole</key>
       <string>Editor</string>
       <key>LSHandlerRank</key>
       <string>Owner</string>
       <key>CFBundleTypeIconFile</key>
-      <string>ConstructCAD</string>
+      <string>ConstructCraft</string>
       <key>LSItemContentTypes</key>
       <array>
         <string>io.github.francisreboucas.constructcad.project</string>
@@ -54,9 +54,9 @@
       <key>UTTypeIdentifier</key>
       <string>io.github.francisreboucas.constructcad.project</string>
       <key>UTTypeDescription</key>
-      <string>ConstructCAD Project</string>
+      <string>ConstructCraft Project</string>
       <key>UTTypeIconFile</key>
-      <string>ConstructCAD</string>
+      <string>ConstructCraft</string>
       <key>UTTypeConformsTo</key>
       <array>
         <string>public.data</string>

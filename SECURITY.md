@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-ConstructCAD is in early development. Security fixes are applied to the latest release and the `main` branch only.
+ConstructCraft is in early development. Security fixes are applied to the latest release and the `main` branch only.
 
 ## Reporting a vulnerability
 
 Please **do not** report security vulnerabilities in public issues, discussions or pull requests.
 
-Report them privately through [GitHub private vulnerability reporting](https://github.com/francisreboucas/constructcad/security/advisories/new) or by email to francisreboucas@gmail.com.
+Report them privately through [GitHub private vulnerability reporting](https://github.com/francisreboucas/constructcraft/security/advisories/new) or by email to francisreboucas@gmail.com.
 
 Include as much of the following as you can:
 

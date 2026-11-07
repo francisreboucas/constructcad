@@ -28,7 +28,7 @@ No parameters.
 
 ### `project_open`
 
-*file* — Open a ConstructCAD project (.ccad), replacing the session's project. Damaged files are repaired and the number of repairs reported.
+*file* — Open a ConstructCraft project (.ccad), replacing the session's project. Damaged files are repaired and the number of repairs reported.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
@@ -189,7 +189,7 @@ No parameters.
 
 ### `cad_import`
 
-*edit* — Import a DWG or DXF file into a 2D view (plan, ceiling plan, elevation, section or legend) as a drawing to trace over, in one undo step. DXF (ASCII or binary, any version) is read entirely by ConstructCAD; DWG (R12 to 2018 and later) through the acadrust library. Blocks are inserted, curves kept as arcs, texts kept; entities that are not drawn (3D solids, images, infinite lines…) are counted in `skipped`. The element starts pinned, with the layers that are off or frozen in the file hidden, and in the view's level. It is drawn in the view only, under the model, and is left out of 3D views and IFC export.
+*edit* — Import a DWG or DXF file into a 2D view (plan, ceiling plan, elevation, section or legend) as a drawing to trace over, in one undo step. DXF (ASCII or binary, any version) is read entirely by ConstructCraft; DWG (R12 to 2018 and later) through the acadrust library. Blocks are inserted, curves kept as arcs, texts kept; entities that are not drawn (3D solids, images, infinite lines…) are counted in `skipped`. The element starts pinned, with the layers that are off or frozen in the file hidden, and in the view's level. It is drawn in the view only, under the model, and is left out of 3D views and IFC export.
 
 | Parameter | Type | | Description |
 |---|---|---|---|

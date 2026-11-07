@@ -1,59 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ConstructCAD installer (WiX Toolset v5).
+  ConstructCraft installer (WiX Toolset v5).
 
-  Per-machine install under Program Files\ConstructCAD with constructcad.exe,
+  Per-machine install under Program Files\ConstructCraft with constructcraft.exe,
   ccad.exe, the documents and the sample project; a Start menu shortcut; the
-  .ccad extension opens with ConstructCAD; an optional feature adds the folder
+  .ccad extension opens with ConstructCraft; an optional feature adds the folder
   to the system PATH so `ccad` runs from any terminal. Newer versions replace
   older ones (the UpgradeCode below must never change).
 
   Build (see .github/workflows/release.yml):
-    wix build packaging/windows/constructcad.wxs -arch x64 -ext WixToolset.UI.wixext
+    wix build packaging/windows/constructcraft.wxs -arch x64 -ext WixToolset.UI.wixext
       -d Version=1.2.3 -d BinDir=<dir with the .exe files> -d LicenseRtf=<License.rtf>
-      -o constructcad.msi
+      -o constructcraft.msi
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs" xmlns:ui="http://wixtoolset.org/schemas/v4/wxs/ui">
   <Package
-    Name="ConstructCAD"
-    Manufacturer="ConstructCAD"
+    Name="ConstructCraft"
+    Manufacturer="ConstructCraft"
     Version="$(var.Version)"
     UpgradeCode="B5AA7C62-EE86-4CE7-A783-16C421BE2188"
     Scope="perMachine"
     Language="1033"
     Compressed="yes">
-    <SummaryInformation Description="ConstructCAD - free and open source BIM authoring" />
+    <SummaryInformation Description="ConstructCraft - free and open source BIM authoring" />
 
     <MajorUpgrade DowngradeErrorMessage="A newer version of [ProductName] is already installed." />
     <MediaTemplate EmbedCab="yes" />
 
-    <Icon Id="ConstructCAD.ico" SourceFile="assets\icons\app-icon.ico" />
-    <Property Id="ARPPRODUCTICON" Value="ConstructCAD.ico" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/francisreboucas/constructcad" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/francisreboucas/constructcad/issues" />
+    <Icon Id="ConstructCraft.ico" SourceFile="assets\icons\app-icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ConstructCraft.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/francisreboucas/constructcraft" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/francisreboucas/constructcraft/issues" />
 
     <StandardDirectory Id="ProgramFiles64Folder">
-      <Directory Id="INSTALLFOLDER" Name="ConstructCAD">
+      <Directory Id="INSTALLFOLDER" Name="ConstructCraft">
         <Directory Id="ExamplesFolder" Name="examples" />
       </Directory>
     </StandardDirectory>
 
     <ComponentGroup Id="ProgramFiles" Directory="INSTALLFOLDER">
       <Component Id="App">
-        <File Id="constructcad.exe" Source="$(var.BinDir)\constructcad.exe" KeyPath="yes">
+        <File Id="constructcraft.exe" Source="$(var.BinDir)\constructcraft.exe" KeyPath="yes">
           <Shortcut
             Id="StartMenuShortcut"
             Directory="ProgramMenuFolder"
-            Name="ConstructCAD"
+            Name="ConstructCraft"
             Description="Free and open source BIM authoring"
             WorkingDirectory="INSTALLFOLDER"
-            Icon="ConstructCAD.ico"
+            Icon="ConstructCraft.ico"
             Advertise="yes" />
         </File>
-        <!-- .ccad projects open with ConstructCAD. -->
-        <ProgId Id="ConstructCAD.Project" Description="ConstructCAD project" Icon="constructcad.exe" IconIndex="0">
+        <!-- .ccad projects open with ConstructCraft. -->
+        <ProgId Id="ConstructCAD.Project" Description="ConstructCraft project" Icon="constructcraft.exe" IconIndex="0">
           <Extension Id="ccad" ContentType="application/x-constructcad">
-            <Verb Id="open" Command="Open" TargetFile="constructcad.exe" Argument="&quot;%1&quot;" />
+            <Verb Id="open" Command="Open" TargetFile="constructcraft.exe" Argument="&quot;%1&quot;" />
           </Extension>
         </ProgId>
       </Component>
@@ -80,13 +80,13 @@
     <!-- The install folder at the end of the system PATH, for `ccad`. -->
     <Component Id="PathEntry" Directory="INSTALLFOLDER">
       <Environment Id="PATH" Name="PATH" Value="[INSTALLFOLDER]" Part="last" Action="set" System="yes" Permanent="no" />
-      <RegistryValue Root="HKLM" Key="Software\ConstructCAD" Name="CliOnPath" Type="integer" Value="1" KeyPath="yes" />
+      <RegistryValue Root="HKLM" Key="Software\ConstructCraft" Name="CliOnPath" Type="integer" Value="1" KeyPath="yes" />
     </Component>
 
     <Feature
       Id="Main"
-      Title="ConstructCAD"
-      Description="The ConstructCAD application, the ccad command line, the documents and the sample project."
+      Title="ConstructCraft"
+      Description="The ConstructCraft application, the ccad command line, the documents and the sample project."
       Level="1"
       AllowAbsent="no"
       AllowAdvertise="no"

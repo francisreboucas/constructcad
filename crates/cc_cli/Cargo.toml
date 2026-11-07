@@ -1,6 +1,6 @@
 [package]
 name = "cc_cli"
-description = "ConstructCAD command line and MCP server (no GUI)"
+description = "ConstructCraft command line and MCP server (no GUI)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

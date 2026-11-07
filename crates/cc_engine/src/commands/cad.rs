@@ -119,7 +119,7 @@ fn color_arg(code: &str) -> Result<CadColorMode> {
 
 /// Import a DWG or DXF file into a 2D view (plan, ceiling plan, elevation,
 /// section or legend) as a drawing to trace over, in one undo step. DXF
-/// (ASCII or binary, any version) is read entirely by ConstructCAD; DWG
+/// (ASCII or binary, any version) is read entirely by ConstructCraft; DWG
 /// (R12 to 2018 and later) through the acadrust library. Blocks are
 /// inserted, curves kept as arcs, texts kept; entities that are not drawn
 /// (3D solids, images, infinite lines…) are counted in `skipped`. The

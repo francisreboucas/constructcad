@@ -465,9 +465,9 @@ impl ConstructApp {
 
         let title = if self.state.project_open {
             let dirty = if self.state.session.doc.is_dirty() { " *" } else { "" };
-            format!("ConstructCAD — {}{dirty}", self.state.project().info.name)
+            format!("ConstructCraft — {}{dirty}", self.state.project().info.name)
         } else {
-            "ConstructCAD".to_string()
+            "ConstructCraft".to_string()
         };
         set_title(&ctx, &mut self.title, title);
 
@@ -634,9 +634,9 @@ mod tests {
             })
         };
         let mut last = String::new();
-        assert!(settle(&mut |ctx| set_title(ctx, &mut last, "ConstructCAD".into())).is_some_and(|n| n <= 3));
+        assert!(settle(&mut |ctx| set_title(ctx, &mut last, "ConstructCraft".into())).is_some_and(|n| n <= 3));
         let every_frame =
-            |ctx: &egui::Context| ctx.send_viewport_cmd(egui::ViewportCommand::Title("ConstructCAD".into()));
+            |ctx: &egui::Context| ctx.send_viewport_cmd(egui::ViewportCommand::Title("ConstructCraft".into()));
         assert_eq!(settle(&mut { every_frame }), None, "sending it every frame never settles");
     }
 

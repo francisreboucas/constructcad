@@ -359,7 +359,7 @@ fn about(ctx: &Context, state: &mut AppState) {
                 ui.add_space(8.0);
                 ui.vertical(|ui| {
                     ui.add_space(8.0);
-                    ui.label(RichText::new("ConstructCAD").family(theme::semibold()).size(22.0).color(PALETTE.text));
+                    ui.label(RichText::new("ConstructCraft").family(theme::semibold()).size(22.0).color(PALETTE.text));
                     let version = format!("{} {}", t!("about-version"), env!("CARGO_PKG_VERSION"));
                     ui.label(RichText::new(version).color(PALETTE.text_muted));
                 });

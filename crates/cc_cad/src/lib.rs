@@ -1,4 +1,4 @@
-//! Reading DWG and DXF drawings into ConstructCAD's neutral
+//! Reading DWG and DXF drawings into ConstructCraft's neutral
 //! [`cc_core::cad::CadDrawing`] (an underlay placed in a 2D view).
 //!
 //! DXF (ASCII and binary) is read by an in-house reader: group-code pairs,

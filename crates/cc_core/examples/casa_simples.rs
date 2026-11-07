@@ -13,7 +13,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     doc.edit("Casa simples", |e| -> Result<(), String> {
         e.info_mut().name = "Casa simples".into();
         e.info_mut().client = "Exemplo".into();
-        e.info_mut().author = "ConstructCAD".into();
+        e.info_mut().author = "ConstructCraft".into();
         let p = e.project().clone();
         let (level, upper) = match p.levels.as_slice() {
             [ground, first, ..] => (ground.id, first.id),

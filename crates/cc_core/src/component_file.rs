@@ -73,7 +73,7 @@ pub fn extract(project: &Project, component: &str) -> Result<ComponentFile, Comp
         .collect();
     Ok(ComponentFile {
         format_version: COMPONENT_FORMAT_VERSION,
-        generator: format!("ConstructCAD {}", env!("CARGO_PKG_VERSION")),
+        generator: format!("ConstructCraft {}", env!("CARGO_PKG_VERSION")),
         component: component.to_string(),
         def: (*first).clone(),
         types: types

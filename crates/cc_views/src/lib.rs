@@ -1,4 +1,4 @@
-//! View generation for ConstructCAD.
+//! View generation for ConstructCraft.
 //!
 //! Each [`cc_core::View`] is a query over the model. [`generate`] produces a
 //! resolution-independent [`Drawing2D`] for graphical views; [`schedule`]

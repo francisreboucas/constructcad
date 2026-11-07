@@ -13,16 +13,16 @@ out=$4
 
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
-pkg="$work/constructcad"
+pkg="$work/constructcraft"
 packaging/linux/install-tree.sh "$bin_dir" "$pkg"
 
-cat > "$pkg/usr/share/doc/constructcad/copyright" <<'EOF'
+cat > "$pkg/usr/share/doc/constructcraft/copyright" <<'EOF'
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
-Upstream-Name: ConstructCAD
-Source: https://github.com/francisreboucas/constructcad
+Upstream-Name: ConstructCraft
+Source: https://github.com/francisreboucas/constructcraft
 
 Files: *
-Copyright: Francis Rebouças and the ConstructCAD contributors
+Copyright: Francis Rebouças and the ConstructCraft contributors
 License: GPL-3.0-or-later
  On Debian systems, the complete text of the GNU General Public License
  version 3 can be found in /usr/share/common-licenses/GPL-3.
@@ -33,7 +33,7 @@ EOF
 # time, so they are listed by hand.
 mkdir -p "$work/shlibs/debian"
 touch "$work/shlibs/debian/control"
-shlibs=$(cd "$work/shlibs" && dpkg-shlibdeps -O "$pkg/usr/bin/constructcad" "$pkg/usr/bin/ccad" 2>/dev/null |
+shlibs=$(cd "$work/shlibs" && dpkg-shlibdeps -O "$pkg/usr/bin/constructcraft" "$pkg/usr/bin/ccad" 2>/dev/null |
     sed -n 's/^shlibs:Depends=//p') || shlibs=""
 if [ -z "$shlibs" ]; then
     shlibs="libc6, libgcc-s1"
@@ -42,7 +42,10 @@ fi
 installed_size=$(du -sk "$pkg/usr" | cut -f1)
 mkdir -p "$pkg/DEBIAN"
 cat > "$pkg/DEBIAN/control" <<EOF
-Package: constructcad
+Package: constructcraft
+Replaces: constructcad
+Conflicts: constructcad
+Provides: constructcad
 Version: $version
 Section: graphics
 Priority: optional
@@ -51,13 +54,13 @@ Maintainer: Francis Rebouças <francisreboucas@gmail.com>
 Installed-Size: $installed_size
 Depends: $shlibs, libxkbcommon0, libvulkan1 | libegl1
 Recommends: libxkbcommon-x11-0, libx11-6, libxcursor1, libxi6, libxrandr2, libwayland-client0, xdg-desktop-portal
-Homepage: https://github.com/francisreboucas/constructcad
+Homepage: https://github.com/francisreboucas/constructcraft
 Description: Free and open source BIM authoring
- ConstructCAD models buildings with walls, floors, roofs, doors, windows,
+ ConstructCraft models buildings with walls, floors, roofs, doors, windows,
  structure and building services, and derives plans, sections, elevations,
  3D views, schedules and sheets from the model. It reads and writes IFC.
  .
- The package installs the desktop application (constructcad) and the ccad
+ The package installs the desktop application (constructcraft) and the ccad
  command line, which runs the same commands from scripts and serves them
  to AI agents over MCP.
 EOF

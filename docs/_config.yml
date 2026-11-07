@@ -1,6 +1,6 @@
 # GitHub Pages (Jekyll) settings for the site built from /docs.
 # index.html is a plain page; the Markdown guides render with the theme below.
-title: ConstructCAD
+title: ConstructCraft
 description: Free and open source BIM software, written in Rust.
 theme: jekyll-theme-primer
 plugins:
@@ -12,4 +12,4 @@ plugins:
 relative_links:
   enabled: true
 url: https://francisreboucas.github.io
-baseurl: /constructcad
+baseurl: /constructcraft

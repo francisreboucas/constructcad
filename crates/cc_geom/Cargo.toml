@@ -1,6 +1,6 @@
 [package]
 name = "cc_geom"
-description = "ConstructCAD geometry generation: walls, openings, slabs, roofs, plane cuts"
+description = "ConstructCraft geometry generation: walls, openings, slabs, roofs, plane cuts"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

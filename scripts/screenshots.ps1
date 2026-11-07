@@ -29,7 +29,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$app = Join-Path $root 'target/release/constructcad.exe'
+$app = Join-Path $root 'target/release/constructcraft.exe'
 $cli = Join-Path $root 'target/release/ccad.exe'
 $macro = Join-Path $root 'examples/showcase.ccmacro'
 foreach ($exe in $app, $cli) {
@@ -141,7 +141,7 @@ function Capture([string]$project, [string]$lang, [string[]]$views, [string]$fil
     try {
         $deadline = (Get-Date).AddSeconds(30)
         # The title names the project once it is open.
-        while ($p.MainWindowHandle -eq 0 -or $p.MainWindowTitle -notlike 'ConstructCAD *') {
+        while ($p.MainWindowHandle -eq 0 -or $p.MainWindowTitle -notlike 'ConstructCraft *') {
             if ((Get-Date) -gt $deadline) { throw 'the app window did not appear' }
             Start-Sleep -Milliseconds 250
             $p.Refresh()

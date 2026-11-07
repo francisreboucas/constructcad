@@ -1237,7 +1237,7 @@ fn update_install_dialog_offers_what_is_left_to_do() {
     harness.run();
     assert!(harness.state().updates.install.is_none());
 
-    let msi = std::path::PathBuf::from("C:/Temp/constructcad-v9.0.0-x86_64.msi");
+    let msi = std::path::PathBuf::from("C:/Temp/constructcraft-v9.0.0-x86_64.msi");
     let next = crate::update_install::Next::Installer(msi);
     harness.state_mut().updates.install = Some(Install::Ready(version, next.clone()));
     harness.run();
@@ -2065,7 +2065,7 @@ fn available_plugins_install_or_report() {
     assert!(!harness.state().prefs.plugins_files.contains("stairs_plus"), "no permission for a failed install");
 }
 
-/// A plugin that needs a newer ConstructCAD shows its version and why it
+/// A plugin that needs a newer ConstructCraft shows its version and why it
 /// cannot be installed, with no Install button.
 #[test]
 fn available_plugins_say_what_they_need() {

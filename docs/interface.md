@@ -2,7 +2,7 @@
 
 *Versão em português: [interface.pt-BR.md](interface.pt-BR.md).*
 
-ConstructCAD's window follows the layout desktop CAD and BIM users expect. The **quick access toolbar** sits at the top left. Below it is the **ribbon**, a row of tabs with groups of buttons. The **options bar** for the active tool comes next. The **project browser** and **properties** are docked on the left, the **views** fill the tabs in the middle, and the **status bar** is at the bottom. When many views are open, **Close Inactive Views** (in the quick access toolbar and in *View → Windows*) closes every tab but the active one, and right-clicking a tab offers *Close Other Views*.
+ConstructCraft's window follows the layout desktop CAD and BIM users expect. The **quick access toolbar** sits at the top left. Below it is the **ribbon**, a row of tabs with groups of buttons. The **options bar** for the active tool comes next. The **project browser** and **properties** are docked on the left, the **views** fill the tabs in the middle, and the **status bar** is at the bottom. When many views are open, **Close Inactive Views** (in the quick access toolbar and in *View → Windows*) closes every tab but the active one, and right-clicking a tab offers *Close Other Views*.
 
 ## Commands and their tooltips
 
@@ -266,7 +266,7 @@ A title block draws the whole sheet: border, margins, the block itself, logos. I
 
 ## Visual programming
 
-*Manage → Macros → Visual Programming* opens the graph editor in a panel under the views, so the model and the graph are seen together (`constructcad project.ccad --graph file.ccgraph` opens one at startup). A graph is a set of nodes joined by wires (see [Visual programming graphs](automation.md#visual-programming-graphs) for what the nodes do and how running again updates the model).
+*Manage → Macros → Visual Programming* opens the graph editor in a panel under the views, so the model and the graph are seen together (`constructcraft project.ccad --graph file.ccgraph` opens one at startup). A graph is a set of nodes joined by wires (see [Visual programming graphs](automation.md#visual-programming-graphs) for what the nodes do and how running again updates the model).
 
 - **Adding nodes**: double-click or right-click the background to open the node search; type words of the node's name, group or description and press Enter (or click a match). Every engine command is a node, next to the built-in nodes (inputs, math, logic, lists, geometry, parameters, outputs) and the Lua node.
 - **Wiring**: drag from an output (right side) to an input (left side), or the other way. Dragging from a wired input picks its wire up. Ports are colored by type; a wire between types that do not fit is refused with a message in the status bar.
@@ -278,7 +278,7 @@ A title block draws the whole sheet: border, margins, the block itself, logos. I
 
 ## Plugins
 
-Plugins add commands to ConstructCAD (see [Plugins](automation.md#plugins) in the automation guide). *Manage → Plugins* holds two buttons: *Plugins…* opens the Plugins window, and *Plugin Commands* is a menu of the installed plugins' commands, by plugin; choosing one opens its form in the [command palette](#running-engine-commands), where **Run** executes it as one undo step and shows what the plugin printed. The palette also finds plugin commands by name.
+Plugins add commands to ConstructCraft (see [Plugins](automation.md#plugins) in the automation guide). *Manage → Plugins* holds two buttons: *Plugins…* opens the Plugins window, and *Plugin Commands* is a menu of the installed plugins' commands, by plugin; choosing one opens its form in the [command palette](#running-engine-commands), where **Run** executes it as one undo step and shows what the plugin printed. The palette also finds plugin commands by name.
 
 The Plugins window has two tabs:
 
@@ -289,43 +289,43 @@ Only this tab reaches the network: it reads the index and the archives it lists,
 
 ## Update notice
 
-ConstructCAD tells you when a newer version is published; it never downloads or installs anything by itself, only when you choose **Update Now**.
+ConstructCraft tells you when a newer version is published; it never downloads or installs anything by itself, only when you choose **Update Now**.
 
 - **When**: at startup, at most once a day, in the background (the window never waits for it). *File → Check for Updates* (also in the *About* dialog) checks at once and reports "up to date", the new version, or that it could not check.
-- **What is contacted**: one HTTPS request to the GitHub API, `https://api.github.com/repos/francisreboucas/constructcad/releases/latest`, which returns the latest published release. The request sends the usual connection data (your IP address) and a `ConstructCAD/<version>` user agent; no project data, identifier or usage information. GitHub's privacy statement applies to it.
+- **What is contacted**: one HTTPS request to the GitHub API, `https://api.github.com/repos/francisreboucas/constructcraft/releases/latest`, which returns the latest published release. The request sends the usual connection data (your IP address) and a `ConstructCraft/<version>` user agent; no project data, identifier or usage information. GitHub's privacy statement applies to it.
 - **What you see**: when the release is newer than the running version (pre-releases are ignored), a notice appears in the status bar and on the home screen: *Download* opens the release page in your browser, *Skip This Version* hides the notice until a later version comes out, and × hides it until the next check. Any failure (offline, timeout, proxy, rate limit) is silent.
-- **Update Now**: where ConstructCAD can replace itself safely, the notice and the check's dialog offer *Update Now*. It downloads the package that fits how this copy was installed and checks its SHA-256 against the release's `SHA256SUMS.txt` (both from the release's own download links on GitHub) before anything changes; a download that does not match is deleted and the installed copy is left as it was.
+- **Update Now**: where ConstructCraft can replace itself safely, the notice and the check's dialog offer *Update Now*. It downloads the package that fits how this copy was installed and checks its SHA-256 against the release's `SHA256SUMS.txt` (both from the release's own download links on GitHub) before anything changes; a download that does not match is deleted and the installed copy is left as it was.
 
   | Installed as | Update Now does |
   |---|---|
   | AppImage | Downloads the new AppImage next to the old one, checks it, renames it over the old file and offers *Restart Now* |
-  | Windows installer (`.msi`, under Program Files) | Downloads and checks the installer; it runs when ConstructCAD closes (*Install Now* closes it, asking about unsaved changes first; *On Exit* waits), and ConstructCAD opens again when it is done |
-  | Windows `.zip` | Downloads and checks the archive, puts the new `constructcad.exe` and `ccad.exe` in place (the old ones are kept as `.old` and removed at the next start) and offers *Restart Now* |
-  | macOS app | Downloads and checks the disk image and opens it: drag ConstructCAD to Applications |
+  | Windows installer (`.msi`, under Program Files) | Downloads and checks the installer; it runs when ConstructCraft closes (*Install Now* closes it, asking about unsaved changes first; *On Exit* waits), and ConstructCraft opens again when it is done |
+  | Windows `.zip` | Downloads and checks the archive, puts the new `constructcraft.exe` and `ccad.exe` in place (the old ones are kept as `.old` and removed at the next start) and offers *Restart Now* |
+  | macOS app | Downloads and checks the disk image and opens it: drag ConstructCraft to Applications |
   | `.deb` | Nothing: the dialog shows the `apt` command, with Copy, and *Download* gets the package |
   | `.tar.gz`, builds from source | Nothing: *Download* opens the release page |
 
   Update Now needs write access to the installed files: an AppImage in a folder you cannot write to fails with a message, and *Download* is the way to update it.
-- **Turning it off**: clear *Check for updates automatically* in *Preferences → General*. The environment variable `CONSTRUCTCAD_NO_UPDATE_CHECK=1` turns off every check, automatic or on request (useful for CI, kiosks and offline installations). ConstructCAD remembers the last check time, the skipped version and the setting with its other preferences.
+- **Turning it off**: clear *Check for updates automatically* in *Preferences → General*. The environment variable `CONSTRUCTCAD_NO_UPDATE_CHECK=1` turns off every check, automatic or on request (useful for CI, kiosks and offline installations). ConstructCraft remembers the last check time, the skipped version and the setting with its other preferences.
 
 ## Autosave and recovery
 
-A minute after a project gets unsaved changes (a new project that was never saved too; *Preferences → Saving* sets another interval or turns autosave off), ConstructCAD writes a copy of it, in the background, to the `recovery` folder of its data folder (`%APPDATA%\ConstructCAD\data` on Windows, `~/Library/Application Support/ConstructCAD` on macOS, `~/.local/share/constructcad` on Linux). It writes again only after the model changes, and never over your project file. Saving, closing the project or quitting removes the copy.
+A minute after a project gets unsaved changes (a new project that was never saved too; *Preferences → Saving* sets another interval or turns autosave off), ConstructCraft writes a copy of it, in the background, to the `recovery` folder of its data folder (`%APPDATA%\ConstructCraft\data` on Windows, `~/Library/Application Support/ConstructCraft` on macOS, `~/.local/share/constructcraft` on Linux). It writes again only after the model changes, and never over your project file. Saving, closing the project or quitting removes the copy.
 
-If ConstructCAD crashes or is killed, the next start shows *Recover Unsaved Work* with the copies left behind: *Restore* opens the chosen project with its unsaved changes (saving it writes to its original file, or asks where for a project that was never saved), *Discard* deletes the copy, and *Cancel* keeps the copies for the next start. A crash in the interface also writes a last copy before the app closes, and every crash is appended to `crash.log` in the data folder; attach it when you report a crash.
+If ConstructCraft crashes or is killed, the next start shows *Recover Unsaved Work* with the copies left behind: *Restore* opens the chosen project with its unsaved changes (saving it writes to its original file, or asks where for a project that was never saved), *Discard* deletes the copy, and *Cancel* keeps the copies for the next start. A crash in the interface also writes a last copy before the app closes, and every crash is appended to `crash.log` in the data folder; attach it when you report a crash.
 
 ## Graphics start-up
 
-ConstructCAD draws with the system's native graphics API (DirectX 12 or Vulkan on Windows, Metal on macOS, Vulkan on Linux) and falls back to OpenGL by itself when that fails, which some older or small integrated GPUs need:
+ConstructCraft draws with the system's native graphics API (DirectX 12 or Vulkan on Windows, Metal on macOS, Vulkan on Linux) and falls back to OpenGL by itself when that fails, which some older or small integrated GPUs need:
 
-- If the native API reports an error, the same start tries OpenGL. If it crashes before the window appears, ConstructCAD starts again once with OpenGL; if the whole process dies (a driver crash), the next start tries OpenGL first.
+- If the native API reports an error, the same start tries OpenGL. If it crashes before the window appears, ConstructCraft starts again once with OpenGL; if the whole process dies (a driver crash), the next start tries OpenGL first.
 - Once OpenGL was needed, it stays first: the choice is kept in the file `gpu-backend` of the data folder. Delete that file (after updating the graphics driver, for example) to try the native API again.
 - Every failed start is written to `crash.log` in the data folder. When no API works, a message says so and names that file.
-- The environment variable `WGPU_BACKEND` picks the API yourself and turns the fallback off: `gl` for OpenGL, `dx12`, `vulkan` or `metal`, or several separated by commas (on Windows, for example, `set WGPU_BACKEND=gl` in a command prompt before starting `constructcad.exe`, or as a user environment variable). `WGPU_POWER_PREF=low` prefers the integrated GPU on computers with two.
+- The environment variable `WGPU_BACKEND` picks the API yourself and turns the fallback off: `gl` for OpenGL, `dx12`, `vulkan` or `metal`, or several separated by commas (on Windows, for example, `set WGPU_BACKEND=gl` in a command prompt before starting `constructcraft.exe`, or as a user environment variable). `WGPU_POWER_PREF=low` prefers the integrated GPU on computers with two.
 
 ## Accessibility
 
-The ribbon buttons, tab titles, scroll arrows, palette entries, browser rows, home screen cards, dialog close buttons, property sections and the view cube's home button are drawn by ConstructCAD itself. They report their role (button, selectable item, collapsible header), their name and their state (enabled, selected, expanded) to the operating system's accessibility interface, so screen readers can announce them.
+The ribbon buttons, tab titles, scroll arrows, palette entries, browser rows, home screen cards, dialog close buttons, property sections and the view cube's home button are drawn by ConstructCraft itself. They report their role (button, selectable item, collapsible header), their name and their state (enabled, selected, expanded) to the operating system's accessibility interface, so screen readers can announce them.
 
 ## For developers
 

@@ -1,4 +1,4 @@
-//! Core BIM data model for ConstructCAD.
+//! Core BIM data model for ConstructCraft.
 //!
 //! The [`Project`] is the single source of truth. Every view, schedule and
 //! sheet is a *query* over it; all geometry is derived. Edits go through

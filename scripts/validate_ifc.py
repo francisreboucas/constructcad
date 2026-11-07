@@ -1,7 +1,7 @@
-"""Validate an IFC file exported by ConstructCAD with IfcOpenShell.
+"""Validate an IFC file exported by ConstructCraft with IfcOpenShell.
 
 Used in CI only: IfcOpenShell is an independent, open-source reference, never
-a build or runtime dependency of ConstructCAD.
+a build or runtime dependency of ConstructCraft.
 
 Checks:
   * schema and EXPRESS rule validation;

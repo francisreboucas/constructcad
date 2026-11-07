@@ -142,7 +142,7 @@ impl Manifest {
             return Err("version: 1 to 32 characters".into());
         }
         if self.api == 0 || self.api > API_VERSION {
-            return Err(format!("api {}: this version of ConstructCAD provides plugin API {API_VERSION}", self.api));
+            return Err(format!("api {}: this version of ConstructCraft provides plugin API {API_VERSION}", self.api));
         }
         if module_path(&self.main).is_none() {
             return Err(format!("main \"{}\": a .lua file inside the plugin's folder", self.main));

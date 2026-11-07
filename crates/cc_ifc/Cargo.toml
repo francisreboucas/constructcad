@@ -1,6 +1,6 @@
 [package]
 name = "cc_ifc"
-description = "ConstructCAD IFC export: STEP physical file writer and IFC4 mapping of the BIM model"
+description = "ConstructCraft IFC export: STEP physical file writer and IFC4 mapping of the BIM model"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

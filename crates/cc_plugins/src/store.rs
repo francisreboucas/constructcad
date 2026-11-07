@@ -68,7 +68,7 @@ pub struct IndexVersion {
     /// The folder of `plugin.toml` inside the archive.
     #[serde(default)]
     pub path: Option<String>,
-    /// The oldest ConstructCAD version it works with.
+    /// The oldest ConstructCraft version it works with.
     #[serde(default)]
     pub min_app: Option<String>,
     #[serde(default)]

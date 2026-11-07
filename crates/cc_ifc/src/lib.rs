@@ -1,4 +1,4 @@
-//! IFC export and import for ConstructCAD.
+//! IFC export and import for ConstructCraft.
 //!
 //! [`export`] maps a [`cc_core::Project`] to an IFC4 STEP physical file
 //! (ISO 10303-21): spatial structure (project, site, building, storeys),

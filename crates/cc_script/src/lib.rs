@@ -1,4 +1,4 @@
-//! ConstructCAD's sandboxed Lua 5.4.
+//! ConstructCraft's sandboxed Lua 5.4.
 //!
 //! [`sandbox`] is the restricted state every Lua run uses: no files, no
 //! loading of code, an instruction budget and a memory limit. [`convert`]

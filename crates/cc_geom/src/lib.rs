@@ -1,4 +1,4 @@
-//! Derived geometry for ConstructCAD.
+//! Derived geometry for ConstructCraft.
 //!
 //! [`ModelGeometry::build`] turns a [`cc_core::Project`] into boundary
 //! representation [`Solid`]s (planar polygon faces) that feed the 3D renderer,

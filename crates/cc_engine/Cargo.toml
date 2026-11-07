@@ -1,6 +1,6 @@
 [package]
 name = "cc_engine"
-description = "ConstructCAD engine: every user-facing operation as a named command, without a GUI"
+description = "ConstructCraft engine: every user-facing operation as a named command, without a GUI"
 version.workspace = true
 edition.workspace = true
 license.workspace = true

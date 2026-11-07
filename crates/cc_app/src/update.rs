@@ -1,5 +1,5 @@
 //! Update notice: at startup (at most once a day) and on request, the app
-//! asks GitHub for the latest release of ConstructCAD in a background thread
+//! asks GitHub for the latest release of ConstructCraft in a background thread
 //! and, when it is newer than this build, shows a notice with a link to the
 //! release page. Checks only notify; *Update Now* (see [`crate::update_install`])
 //! downloads, verifies and installs a release, and only when the user asks.
@@ -17,9 +17,9 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 use std::time::Duration;
 
 /// The GitHub API endpoint of the latest (non-draft, non-prerelease) release.
-pub const RELEASES_API: &str = "https://api.github.com/repos/francisreboucas/constructcad/releases/latest";
+pub const RELEASES_API: &str = "https://api.github.com/repos/francisreboucas/constructcraft/releases/latest";
 /// Release pages; the tag is appended.
-const RELEASE_PAGE: &str = "https://github.com/francisreboucas/constructcad/releases/tag/";
+const RELEASE_PAGE: &str = "https://github.com/francisreboucas/constructcraft/releases/tag/";
 /// Set (to anything but `0` or nothing) to turn every update check off.
 pub const NO_CHECK_ENV: &str = "CONSTRUCTCAD_NO_UPDATE_CHECK";
 /// Time between automatic checks.
@@ -144,7 +144,7 @@ pub fn now() -> u64 {
 fn fetch() -> Result<String, ureq::Error> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(TIMEOUT))
-        .user_agent(format!("ConstructCAD/{}", env!("CARGO_PKG_VERSION")))
+        .user_agent(format!("ConstructCraft/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .into();
     let mut response = agent
@@ -419,7 +419,7 @@ mod tests {
             evaluate(now, &json("v0.4.0")),
             Outcome::Available(Release {
                 version: v(0, 4, 0),
-                url: "https://github.com/francisreboucas/constructcad/releases/tag/v0.4.0".into(),
+                url: "https://github.com/francisreboucas/constructcraft/releases/tag/v0.4.0".into(),
                 assets: Vec::new(),
             })
         );
@@ -510,13 +510,13 @@ mod tests {
         let body = serde_json::json!({
             "tag_name": "v9.0.0", "draft": false, "prerelease": false,
             "assets": [
-                {"name": "constructcad-v9.0.0-x86_64.msi", "browser_download_url": format!("{prefix}v9.0.0/constructcad-v9.0.0-x86_64.msi")},
+                {"name": "constructcraft-v9.0.0-x86_64.msi", "browser_download_url": format!("{prefix}v9.0.0/constructcraft-v9.0.0-x86_64.msi")},
                 {"name": "SHA256SUMS.txt", "browser_download_url": format!("{prefix}v9.0.0/SHA256SUMS.txt")},
                 {"name": "elsewhere.msi", "browser_download_url": "https://example.com/elsewhere.msi"},
             ]
         });
         let Outcome::Available(release) = evaluate(v(0, 1, 0), &body.to_string()) else { panic!("newer") };
         let names: Vec<&str> = release.assets.iter().map(|a| a.name.as_str()).collect();
-        assert_eq!(names, ["constructcad-v9.0.0-x86_64.msi", "SHA256SUMS.txt"]);
+        assert_eq!(names, ["constructcraft-v9.0.0-x86_64.msi", "SHA256SUMS.txt"]);
     }
 }

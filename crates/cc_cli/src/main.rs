@@ -1,4 +1,4 @@
-//! `ccad`: ConstructCAD without a GUI. Runs engine commands from the
+//! `ccad`: ConstructCraft without a GUI. Runs engine commands from the
 //! command line, from scripts, or for AI agents as an MCP server; all three
 //! use the engine's one command catalog, plus the commands of the plugins
 //! loaded with `--plugins`.
@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::process::ExitCode;
 
 const USAGE: &str = "\
-ccad - ConstructCAD without a GUI
+ccad - ConstructCraft without a GUI
 
 Usage:
   ccad [options] commands             list the commands
