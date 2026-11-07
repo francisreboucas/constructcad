@@ -14,12 +14,18 @@
 //! the piece follows the paper. Every change is a `component_*` command.
 
 use crate::paint::{PaintOptions, Xf, paint_drawing};
+use crate::sketch_mode::{Draw, Session, Target};
 use crate::state::AppState;
 use crate::t;
 use crate::theme::{self, PALETTE};
 use cc_core::profile::ProfilePoint;
+use cc_core::sketch::SketchCurve;
 use cc_core::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
 use cc_core::{ComponentDef, ElementTypeId, PlaneAxis, SheetSize, TypeData, ViewId, ViewKind};
+use cc_engine::commands::component_piece::{ExprArg, SketchPointArg};
+use cc_engine::commands::sheets::{
+    ComponentSheetPieceAdd, ComponentSheetPieceDelete, ComponentSheetPieceSet, SheetPieceArg,
+};
 use cc_views::ComponentView;
 use cc_views::component_view::ViewPlane;
 use egui::{Color32, Rect, Sense, Stroke, Ui, vec2};
@@ -197,8 +203,6 @@ pub fn planes(def: &ComponentDef, paper: DVec2) -> Vec<SheetPlane> {
 /// The planes as the lines of a [`ComponentView`], `k` canvas units per
 /// millimeter: the sketch snaps to them ([`crate::component_sketch::snap`])
 /// and writes coordinates on them as their names.
-// The sheet sketch (the drawing tools of the next tasks) snaps to it.
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn plane_view(planes: &[SheetPlane], k: f64) -> ComponentView {
     // Far past any paper, millimeters.
     const FAR: f64 = 1.0e5;
@@ -346,26 +350,48 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
     for p in planes.iter().filter(|p| !p.edge && Some(&p.name) == picked_plane.as_ref()) {
         paint_plane(&painter, &mm, rect, p, true);
     }
+    // An open sketch takes the clicks: its own points first, then the edges
+    // and planes, then the millimeter.
+    if let Some(mut s) = state.sketch.take() {
+        let view = plane_view(&planes, 1.0 / MM);
+        let snapped = raw.map(|r| {
+            let own = s
+                .snap_points()
+                .into_iter()
+                .filter(|q| q.distance(r) <= tol)
+                .min_by(|a, b| a.distance(r).total_cmp(&b.distance(r)));
+            match own {
+                Some(q) => crate::tools::Snap::plain(q, true),
+                None => {
+                    let (at, locked) = crate::component_sketch::snap(&view, r, tol);
+                    crate::tools::Snap::plain(at, locked)
+                }
+            }
+        });
+        let message = crate::sketch_mode::interact(ui, &resp, &painter, &mut s, &state.modify, raw, snapped, &xf);
+        state.sketch = Some(s);
+        if let Some(m) = message {
+            state.message = m;
+        }
+        return;
+    }
     let tool = state.component_env.as_ref().map(|e| e.tool.clone()).unwrap_or_default();
     let clicked = resp.clicked_by(egui::PointerButton::Primary);
     match tool {
-        crate::component_env::EnvTool::RefPlane { first } => {
-            let Some(p) = raw else { return };
-            match first {
-                Some((_, a)) => {
-                    painter.line_segment([xf.to_screen(a), xf.to_screen(p)], Stroke::new(1.5, PALETTE.accent));
-                    if clicked {
-                        add_sheet_plane(state, a * MM, p * MM);
-                        crate::component_env::set_tool(state, crate::component_env::EnvTool::RefPlane { first: None });
-                    }
+        crate::component_env::EnvTool::RefPlane { first } => match (first, raw) {
+            (Some((_, a)), Some(p)) => {
+                painter.line_segment([xf.to_screen(a), xf.to_screen(p)], Stroke::new(1.5, PALETTE.accent));
+                if clicked {
+                    add_sheet_plane(state, a * MM, p * MM);
+                    crate::component_env::set_tool(state, crate::component_env::EnvTool::RefPlane { first: None });
                 }
-                None if clicked => crate::component_env::set_tool(
-                    state,
-                    crate::component_env::EnvTool::RefPlane { first: Some((cc_views::ComponentViewKind::Plan, p)) },
-                ),
-                None => {}
             }
-        }
+            (None, Some(p)) if clicked => crate::component_env::set_tool(
+                state,
+                crate::component_env::EnvTool::RefPlane { first: Some((cc_views::ComponentViewKind::Plan, p)) },
+            ),
+            _ => {}
+        },
         crate::component_env::EnvTool::Select => {
             if clicked && let Some(p) = raw {
                 let hit =
@@ -465,6 +491,199 @@ fn paint_plane(painter: &egui::Painter, mm: &Xf, rect: Rect, p: &SheetPlane, hot
     painter.text(label_at, align, &p.label, egui::FontId::proportional(11.0), color);
 }
 
+/// Whether the open sketch draws a title block's lines.
+pub fn is_sheet_sketch(state: &AppState) -> bool {
+    state.sketch.as_ref().is_some_and(|s| s.target == Target::Sheet)
+}
+
+/// *Lines*: a new sketch on the Sheet view.
+pub fn start_lines(state: &mut AppState) {
+    if !is_open(state) {
+        return;
+    }
+    state.sketch = Some(Session::new(Target::Sheet, Vec::new()));
+    if let Some(env) = state.component_env.as_mut() {
+        env.tool = crate::component_env::EnvTool::Select;
+        if let Some(ed) = env.sheet.as_mut() {
+            ed.editing = None;
+        }
+    }
+}
+
+/// `c` with every length times `k`.
+fn scaled(c: &SketchCurve, k: f64) -> SketchCurve {
+    match *c {
+        SketchCurve::Line { a, b } => SketchCurve::Line { a: a * k, b: b * k },
+        SketchCurve::Arc { a, b, bulge } => SketchCurve::Arc { a: a * k, b: b * k, bulge },
+        SketchCurve::Circle { center, radius } => SketchCurve::Circle { center: center * k, radius: radius * k },
+        SketchCurve::Ellipse { center, radii, rotation_deg, start_deg, sweep_deg } => {
+            SketchCurve::Ellipse { center: center * k, radii: radii * k, rotation_deg, start_deg, sweep_deg }
+        }
+    }
+}
+
+/// The curves in chains joined end to end (a chain stops where more than
+/// two curves meet), each with whether it closes.
+pub fn chains(curves: &[SketchCurve]) -> Vec<(Vec<SketchCurve>, bool)> {
+    let mut used = vec![false; curves.len()];
+    let mut out = Vec::new();
+    for i in 0..curves.len() {
+        if used.get(i).copied().unwrap_or(true) {
+            continue;
+        }
+        let (links, closed) = cc_core::sketch_edit::chain(curves, i);
+        let mut chain = Vec::new();
+        let mut whole = true;
+        for (k, _) in links {
+            match (used.get_mut(k), curves.get(k)) {
+                (Some(u), Some(c)) if !*u => {
+                    *u = true;
+                    chain.push(*c);
+                }
+                _ => whole = false,
+            }
+        }
+        if chain.is_empty() {
+            if let (Some(u), Some(c)) = (used.get_mut(i), curves.get(i)) {
+                *u = true;
+                chain.push(*c);
+            }
+            whole = false;
+        }
+        out.push((chain, closed && whole));
+    }
+    out
+}
+
+fn expr_text(e: &ExprArg) -> String {
+    match e {
+        ExprArg::Text(t) => t.clone(),
+        ExprArg::Number(v) => format!("{v}"),
+    }
+}
+
+/// The model's form of a written point (for a merge patch over a stroke).
+fn point_of(a: &SketchPointArg) -> ProfilePoint {
+    ProfilePoint {
+        u: expr_text(&a.u),
+        v: expr_text(&a.v),
+        radius: a.radius.as_ref().map(expr_text).unwrap_or_default(),
+        ellipse: a.ellipse.as_ref().map(|e| cc_core::profile::ProfileEllipse {
+            u: expr_text(&e.u),
+            v: expr_text(&e.v),
+            rx: expr_text(&e.rx),
+            ry: expr_text(&e.ry),
+            rotation: e.rotation.as_ref().map(expr_text).unwrap_or_default(),
+            clockwise: e.clockwise,
+        }),
+    }
+}
+
+/// *Finish* of a lines sketch: each chain becomes a stroke, closed when its
+/// ends meet; an edited stroke takes the first chain. A chain that does not
+/// make a stroke keeps the sketch open with the reason.
+pub fn finish_stroke(state: &mut AppState) {
+    let Some(session) = state.sketch.clone() else { return };
+    let Some((_, def)) = crate::component_env::component(state) else { return };
+    let Some(ed) = editor(state) else { return };
+    if session.curves.is_empty() {
+        state.message = t!("sketch-empty");
+        return;
+    }
+    let paper = paper(state, ed.preview);
+    let view = plane_view(&planes(&def, paper), 1.0);
+    let extra = scope_extra(paper);
+    let (edit, old) = ed.editing.clone().unzip();
+    let mut strokes = Vec::new();
+    for (n, (chain, closed)) in chains(&session.curves).into_iter().enumerate() {
+        let mm: Vec<SketchCurve> = chain.iter().map(|c| scaled(c, MM)).collect();
+        let old: &[ProfilePoint] = if n == 0 { old.as_deref().unwrap_or(&[]) } else { &[] };
+        match crate::component_sketch::written(&def, &view, &mm, closed, old, &extra) {
+            Ok(points) => strokes.push((points, closed)),
+            Err(e) => {
+                state.message = e;
+                return;
+            }
+        }
+    }
+    let t = crate::component_env::type_ref(state);
+    let mut picked = Vec::new();
+    for (n, (points, closed)) in strokes.into_iter().enumerate() {
+        let done = match edit.filter(|_| n == 0) {
+            Some(index) => {
+                let points: Vec<ProfilePoint> = points.iter().map(point_of).collect();
+                let patch = serde_json::json!({ "Stroke": { "points": points, "closed": closed } });
+                let command = ComponentSheetPieceSet {
+                    type_ref: t.clone(),
+                    index,
+                    piece: Some(patch),
+                    name: None,
+                    image_path: None,
+                    image: None,
+                };
+                crate::actions::run_command(state, command).map(|_| index)
+            }
+            None => {
+                let piece = SheetPieceArg::Stroke { points, closed, weight: None, color: None, fill: None };
+                crate::actions::run_command(state, ComponentSheetPieceAdd { type_ref: t.clone(), piece, name: None })
+                    .and_then(|o| o["index"].as_u64())
+                    .and_then(|i| usize::try_from(i).ok())
+            }
+        };
+        let Some(index) = done else { return };
+        picked.push(index);
+    }
+    state.sketch = None;
+    if let Some(env) = state.component_env.as_mut() {
+        env.pick = Some(crate::component_env::Pick::Sheet(picked));
+        if let Some(ed) = env.sheet.as_mut() {
+            ed.editing = None;
+        }
+    }
+}
+
+/// *Edit Sketch* of stroke `index`: its lines and arcs on the Sheet view.
+// Picking a stroke (the next task) opens it; until then only tests do.
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn edit_stroke(state: &mut AppState, index: usize) {
+    let Some((_, def)) = crate::component_env::component(state) else { return };
+    let Some(ed) = editor(state) else { return };
+    let Some(cc_core::title_block::SheetShape::Stroke { points, closed, .. }) = def.sheet.get(index).map(|i| &i.shape)
+    else {
+        return;
+    };
+    let scope = def.scope(&Default::default(), &scope_extra(paper(state, ed.preview)));
+    let lookup = |name: &str| scope.get(name);
+    let Ok(vertices) = cc_core::profile::vertices(points, &lookup) else {
+        state.message = t!("sketch-piece-unreadable");
+        return;
+    };
+    let curves = cc_core::profile::to_curves(&vertices, *closed).iter().map(|c| scaled(c, 1.0 / MM)).collect();
+    let mut session = Session::new(Target::Sheet, curves);
+    session.draw = Draw::Select;
+    state.sketch = Some(session);
+    if let Some(ed) = editor_mut(state) {
+        ed.editing = Some((index, points.clone()));
+    }
+}
+
+/// Delete pieces `list` (highest index first, so the others keep theirs).
+pub fn delete_pieces(state: &mut AppState, list: &[usize]) {
+    let t = crate::component_env::type_ref(state);
+    let mut list = list.to_vec();
+    list.sort_unstable();
+    list.dedup();
+    for index in list.into_iter().rev() {
+        let command = ComponentSheetPieceDelete { type_ref: t.clone(), index };
+        if crate::actions::run_command(state, command).is_none() {
+            break;
+        }
+    }
+    if let Some(env) = state.component_env.as_mut() {
+        env.pick = None;
+    }
+}
+
 /// The *Create* tab of the title block editor.
 pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     use crate::commands::UiCommand::*;
@@ -476,6 +695,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         crate::ribbon::env_group(ui, state, t!("group-selection"), &[Select]);
+        crate::ribbon::env_group(ui, state, t!("group-draw"), &[TbLines]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-datum"), &[CompRefPlane]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-component"), &[CompSaveFile]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-editor"), &[CompFinish, CompCancel]);
@@ -763,6 +983,74 @@ mod tests {
         state.active_view = None;
         edit_sheet(&mut state, sheet);
         assert_eq!(state.component_env.as_ref().and_then(|e| e.sheet.as_ref()).and_then(|e| e.sheet), Some(sheet));
+    }
+
+    fn rect(a: (f64, f64), b: (f64, f64)) -> Vec<cc_core::sketch::SketchCurve> {
+        cc_engine::commands::sketch::CurveArg::Rectangle { corner: [a.0, a.1], opposite: [b.0, b.1], rotation: 0.0 }
+            .curves()
+            .unwrap()
+    }
+
+    #[test]
+    fn chains_split_a_sketch_into_strokes() {
+        use cc_core::sketch::SketchCurve;
+        let mut curves = rect((0.0, 0.0), (1.0, 1.0));
+        curves.push(SketchCurve::Line { a: DVec2::new(2.0, 0.0), b: DVec2::new(3.0, 0.0) });
+        curves.push(SketchCurve::Line { a: DVec2::new(3.0, 0.0), b: DVec2::new(3.0, 1.0) });
+        let c = chains(&curves);
+        assert_eq!(c.len(), 2);
+        assert_eq!((c[0].0.len(), c[0].1), (4, true));
+        assert_eq!((c[1].0.len(), c[1].1), (2, false));
+    }
+
+    #[test]
+    fn sketched_lines_become_strokes_that_follow_the_paper() {
+        let (mut state, _, _) = editor_state();
+        let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+        start_lines(&mut state);
+        assert!(is_sheet_sketch(&state));
+        // A frame 10 mm in from the sheet's left and bottom, out to its right edge (in paper meters).
+        let ed = state.component_env.as_ref().and_then(|e| e.sheet.clone()).unwrap();
+        let right = paper(&state, ed.preview).x / MM;
+        state.sketch.as_mut().unwrap().curves = rect((0.01, 0.01), (right, 0.1));
+        crate::sketch_mode::finish(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        assert_eq!(def.sheet.len(), before + 1);
+        let cc_core::title_block::SheetShape::Stroke { points, closed, .. } = &def.sheet[before].shape else {
+            panic!()
+        };
+        assert!(*closed);
+        assert!(points.iter().any(|p| p.u == "SheetWidth"), "{points:?}");
+        assert!(points.iter().any(|p| p.u == "10" && p.v == "10"), "{points:?}");
+        assert_eq!(state.component_env.as_ref().unwrap().pick, Some(crate::component_env::Pick::Sheet(vec![before])));
+        // On A1 the right side follows the paper.
+        let a1 = def.resolve_sheet(DVec2::new(841.0, 594.0));
+        let stroke = a1.strokes.iter().find(|s| s.item == before).unwrap();
+        assert!(stroke.points.iter().any(|p| (p.x - 841.0).abs() < 1e-9));
+
+        // Edit Sketch: moving the bottom-left corner keeps the edge points as written.
+        edit_stroke(&mut state, before);
+        let s = state.sketch.as_mut().unwrap();
+        assert_eq!(s.curves.len(), 4);
+        for c in &mut s.curves {
+            if let cc_core::sketch::SketchCurve::Line { a, b } = c {
+                for p in [a, b] {
+                    if p.distance(DVec2::new(0.01, 0.01)) < 1e-9 {
+                        *p = DVec2::new(0.02, 0.01);
+                    }
+                }
+            }
+        }
+        crate::sketch_mode::finish(&mut state);
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        assert_eq!(def.sheet.len(), before + 1, "edited, not added");
+        let cc_core::title_block::SheetShape::Stroke { points, .. } = &def.sheet[before].shape else { panic!() };
+        assert!(points.iter().any(|p| p.u == "20"), "{points:?}");
+        assert!(points.iter().any(|p| p.u == "SheetWidth"), "{points:?}");
+        // Delete removes the picked strokes.
+        crate::component_env::delete_pick(&mut state);
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
     }
 
     #[test]

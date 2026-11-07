@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = 按标准布局新建图签并在编辑器中打开�
 why-sheet-title-block = 请打开带图签的图纸
 tb-default-name = 图签
 tb-hint-plane = 沿平面线单击两次：偏竖直或偏水平决定方向 · Esc 返回
+tb-tool-lines = 线条
+cmd-desc-tb-lines = 绘制直线和圆弧作为图签的线条；位于边缘和参照平面上的点随之移动。
+why-title-block-editor = 请打开图签编辑器
+sketch-title-sheet = 草图：图签线条

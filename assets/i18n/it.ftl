@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Crea un cartiglio dal modello standard e lo apre nell
 why-sheet-title-block = Apri una tavola con un cartiglio
 tb-default-name = Cartiglio
 tb-hint-plane = Fai clic due volte lungo la linea del piano: più verticale o orizzontale ne fissa la direzione · Esc torna indietro
+tb-tool-lines = Linee
+cmd-desc-tb-lines = Disegna linee e archi che diventano tratti del cartiglio; i punti sui bordi e sui piani di riferimento li seguono.
+why-title-block-editor = Apri l'editor dei cartigli
+sketch-title-sheet = Schizzo: linee del cartiglio

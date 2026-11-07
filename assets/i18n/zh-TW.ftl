@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = 依標準版面建立圖框標題欄並在編輯器�
 why-sheet-title-block = 請開啟有圖框標題欄的圖紙
 tb-default-name = 圖框標題欄
 tb-hint-plane = 沿平面線按兩下：偏垂直或偏水平決定方向 · Esc 返回
+tb-tool-lines = 線條
+cmd-desc-tb-lines = 繪製直線與圓弧作為圖框標題欄的線條；位於邊緣與參考平面上的點會跟著移動。
+why-title-block-editor = 請開啟圖框標題欄編輯器
+sketch-title-sheet = 草圖：圖框標題欄線條

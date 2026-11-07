@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Tworzy tabliczkę ze standardowego układu i otwiera 
 why-sheet-title-block = Otwórz arkusz z tabliczką
 tb-default-name = Tabliczka
 tb-hint-plane = Kliknij dwa razy wzdłuż linii płaszczyzny: bardziej pionowa lub pozioma ustala kierunek · Esc cofa
+tb-tool-lines = Linie
+cmd-desc-tb-lines = Szkicuje linie i łuki, które stają się kreskami tabliczki; punkty na krawędziach i płaszczyznach odniesienia podążają za nimi.
+why-title-block-editor = Otwórz edytor tabliczek
+sketch-title-sheet = Szkic: linie tabliczki

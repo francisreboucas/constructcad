@@ -46,6 +46,8 @@ pub enum Target {
     Piece,
     /// The profile of a sweep type (*Edit Profile*, see [`crate::profile_sketch`]).
     Profile { type_id: ElementTypeId },
+    /// Lines of a title block on its Sheet view (see [`crate::title_block_env`]).
+    Sheet,
 }
 
 /// How clicks draw.
@@ -544,9 +546,12 @@ pub fn takes_points(state: &AppState) -> bool {
 
 /// Leave the sketch without changing the model.
 pub fn cancel(state: &mut AppState) {
-    let piece = state.sketch.as_ref().is_some_and(|s| s.piece.is_some());
+    let keep_tool = state.sketch.as_ref().is_some_and(|s| s.piece.is_some() || s.target == Target::Sheet);
     state.sketch = None;
-    if !piece {
+    if let Some(ed) = state.component_env.as_mut().and_then(|e| e.sheet.as_mut()) {
+        ed.editing = None;
+    }
+    if !keep_tool {
         state.set_tool(Tool::Select);
     }
 }
@@ -566,6 +571,10 @@ pub fn finish(state: &mut AppState) {
             return;
         }
         Target::Profile { .. } => false,
+        Target::Sheet => {
+            crate::title_block_env::finish_stroke(state);
+            return;
+        }
     };
     let checked = if allows_openings { sketch.profile().map(|_| ()) } else { sketch.outline().map(|_| ()) };
     if let Err(e) = checked {
@@ -609,7 +618,7 @@ pub fn finish(state: &mut AppState) {
             }
             return;
         }
-        Target::Piece => None,
+        Target::Piece | Target::Sheet => None,
     };
     if let Some(id) = out {
         state.sketch = None;
@@ -735,7 +744,7 @@ pub fn pick_walls(state: &mut AppState) {
     let category = match state.sketch.as_ref().map(|s| s.target) {
         Some(Target::New { category, .. }) => category,
         Some(Target::Edit { id }) => state.project().element(id).map_or(Category::Floor, |e| e.category()),
-        Some(Target::Piece | Target::Profile { .. }) | None => return,
+        Some(Target::Piece | Target::Profile { .. } | Target::Sheet) | None => return,
     };
     let outward = if category == Category::Ceiling { -1.0 } else { 1.0 };
     match crate::tools::walls_loop(state.project(), level, outward) {
@@ -1372,6 +1381,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
             let name = state.project().element_type(type_id).map(|t| t.name.clone()).unwrap_or_default();
             t!("sketch-title-profile", "type" => name)
         }
+        (Some(Target::Sheet), _) => t!("sketch-title-sheet"),
         _ => t!("sketch-title-new", "category" => what),
     };
     ui.horizontal(|ui| {
@@ -1399,7 +1409,8 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
         );
         // Walls are picked in plans only.
         let profile = matches!(state.sketch.as_ref().map(|s| s.target), Some(Target::Profile { .. }));
-        let tools: &[_] = if piece.is_some() || profile { &[Delete] } else { &[SketchPickWalls, Delete] };
+        let sheet = matches!(state.sketch.as_ref().map(|s| s.target), Some(Target::Sheet));
+        let tools: &[_] = if piece.is_some() || profile || sheet { &[Delete] } else { &[SketchPickWalls, Delete] };
         if takes_points(state) {
             crate::ribbon::env_group(ui, state, t!("group-points"), &[SketchPoint]);
         }

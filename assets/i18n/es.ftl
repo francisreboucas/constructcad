@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Crea un rótulo a partir del diseño estándar y lo a
 why-sheet-title-block = Abra una hoja que tenga rótulo
 tb-default-name = Rótulo
 tb-hint-plane = Haga clic dos veces a lo largo de la línea del plano: más vertical u horizontal define su dirección · Esc retrocede
+tb-tool-lines = Líneas
+cmd-desc-tb-lines = Dibuja líneas y arcos que se convierten en trazos del rótulo; los puntos sobre los bordes y planos de referencia los siguen.
+why-title-block-editor = Abra el editor de rótulos
+sketch-title-sheet = Boceto: líneas del rótulo

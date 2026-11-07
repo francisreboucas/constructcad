@@ -311,6 +311,17 @@ fn ribbon_buttons_are_accessible() {
     for node in harness.query_all_by_role(Role::Button) {
         found.insert(node.accesskit_node().label().unwrap_or_default());
     }
+    // And the title block editor.
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let harness = themed_harness(state, egui::vec2(1600.0, 140.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state)
+    });
+    for node in harness.query_all_by_role(Role::Button) {
+        found.insert(node.accesskit_node().label().unwrap_or_default());
+    }
     // So does an open sketch.
     let mut state = sample_state();
     let floor = state.project().default_type(cc_core::Category::Floor).unwrap();

@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Cria um carimbo a partir do modelo padrão e o abre n
 why-sheet-title-block = Abra uma folha que tenha carimbo
 tb-default-name = Carimbo
 tb-hint-plane = Clique duas vezes ao longo da linha do plano: mais vertical ou mais horizontal define a direção · Esc volta
+tb-tool-lines = Linhas
+cmd-desc-tb-lines = Esboça linhas e arcos que viram traços do carimbo; pontos sobre as bordas e os planos de referência os acompanham.
+why-title-block-editor = Abra o editor de carimbos
+sketch-title-sheet = Esboço: linhas do carimbo

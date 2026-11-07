@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Crée un cartouche à partir de la mise en page stand
 why-sheet-title-block = Ouvrez une feuille qui a un cartouche
 tb-default-name = Cartouche
 tb-hint-plane = Cliquez deux fois le long de la ligne du plan : plutôt verticale ou horizontale, elle fixe sa direction · Échap revient
+tb-tool-lines = Lignes
+cmd-desc-tb-lines = Esquisse des lignes et des arcs qui deviennent des traits du cartouche ; les points sur les bords et les plans de référence les suivent.
+why-title-block-editor = Ouvrez l'éditeur de cartouches
+sketch-title-sheet = Esquisse : lignes du cartouche

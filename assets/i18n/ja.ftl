@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = 標準レイアウトから表題欄を作成し、�
 why-sheet-title-block = 表題欄のあるシートを開いてください
 tb-default-name = 表題欄
 tb-hint-plane = 面の線に沿って 2 回クリック: 縦寄りか横寄りかで向きが決まります · Esc で戻る
+tb-tool-lines = 線
+cmd-desc-tb-lines = 線と円弧をスケッチして表題欄の線にします。縁や参照面上の点はそれに追従します。
+why-title-block-editor = 表題欄エディターを開いてください
+sketch-title-sheet = スケッチ: 表題欄の線

@@ -39,6 +39,8 @@ pub enum Pick {
     Equal(usize),
     /// A connector, by its index.
     Connector(usize),
+    /// 2D pieces of a title block, by their indices in `def.sheet`.
+    Sheet(Vec<usize>),
 }
 
 /// The tool of the environment.
@@ -671,6 +673,10 @@ pub fn delete_pick(state: &mut AppState) {
     let Some(pick) = state.component_env.as_ref().and_then(|e| e.pick.clone()) else { return };
     let t = type_ref(state);
     let done = match pick {
+        Pick::Sheet(list) => {
+            crate::title_block_env::delete_pieces(state, &list);
+            return;
+        }
         Pick::Plane(name) => crate::actions::run_command(state, cmd::ComponentRefPlaneDelete { type_ref: t, name }),
         Pick::Dimension(index) => {
             crate::actions::run_command(state, cmd::ComponentDimensionDelete { type_ref: t, index })
@@ -775,7 +781,7 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
                 connector_props(ui, state, def, index);
             });
         }
-        None => {}
+        Some(Pick::Sheet(_)) | None => {}
     }
     ref_problems(ui, def);
 }

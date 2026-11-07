@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Creates a title block from the standard layout and op
 why-sheet-title-block = Open a sheet that has a title block
 tb-default-name = Title block
 tb-hint-plane = Click twice along the plane's line: mostly vertical or horizontal sets its direction · Esc steps back
+tb-tool-lines = Lines
+cmd-desc-tb-lines = Sketches lines and arcs that become strokes of the title block; points on the edges and reference planes follow them.
+why-title-block-editor = Open the title block editor
+sketch-title-sheet = Sketch: Title Block Lines

@@ -2469,3 +2469,7 @@ cmd-desc-new-title-block = Erstellt ein Schriftfeld aus dem Standardlayout und �
 why-sheet-title-block = Öffnen Sie ein Blatt mit Schriftfeld
 tb-default-name = Schriftfeld
 tb-hint-plane = Klicken Sie zweimal entlang der Ebenenlinie: eher senkrecht oder waagerecht legt die Richtung fest · Esc geht zurück
+tb-tool-lines = Linien
+cmd-desc-tb-lines = Skizziert Linien und Bögen, die zu Strichen des Schriftfelds werden; Punkte auf Rändern und Referenzebenen folgen ihnen.
+why-title-block-editor = Öffnen Sie den Schriftfeld-Editor
+sketch-title-sheet = Skizze: Schriftfeldlinien

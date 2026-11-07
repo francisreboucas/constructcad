@@ -2471,3 +2471,7 @@ cmd-desc-new-title-block = ສ້າງປ້າຍຊື່ຈາກແບບ�
 why-sheet-title-block = ເປີດແຜ່ນທີ່ມີປ້າຍຊື່
 tb-default-name = ປ້າຍຊື່
 tb-hint-plane = ຄລິກສອງເທື່ອຕາມເສັ້ນລະນາບ: ຕັ້ງ ຫຼື ນອນ ກຳນົດທິດທາງ · Esc ຖອຍຄືນ
+tb-tool-lines = ເສັ້ນ
+cmd-desc-tb-lines = ແຕ້ມເສັ້ນ ແລະ ເສັ້ນໂຄ້ງເປັນເສັ້ນຂອງປ້າຍຊື່; ຈຸດເທິງຂອບ ແລະ ລະນາບອ້າງອີງຈະຕາມໄປ.
+why-title-block-editor = ເປີດຕົວແກ້ໄຂປ້າຍຊື່
+sketch-title-sheet = ຮ່າງ: ເສັ້ນປ້າຍຊື່
