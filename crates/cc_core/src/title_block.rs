@@ -23,6 +23,8 @@ pub const MAX_SHEET_TEXT: usize = 4000;
 pub const MAX_SHEET_POINTS: usize = 500_000;
 /// Pen width of a stroke without one, millimeters.
 pub const DEFAULT_WEIGHT: f64 = 0.25;
+/// Largest text height in millimeters (larger sizes are drawn at this one).
+pub const MAX_TEXT_SIZE: f64 = 500.0;
 
 /// Name key of the standard title block (component and type).
 pub const STANDARD_KEY: &str = "tpl-tb-standard";
@@ -278,7 +280,7 @@ fn resolve_piece(
                 item: i,
                 position,
                 text: text.chars().take(MAX_SHEET_TEXT).collect(),
-                size,
+                size: size.min(MAX_TEXT_SIZE),
                 anchor: *anchor,
                 rotation_deg,
             });
@@ -302,15 +304,28 @@ pub fn repair_def(def: &mut ComponentDef) -> usize {
     if def.kind == ComponentKind::TitleBlock {
         fixes += def.items.len();
         def.items.clear();
+        // No IFC class, MEP data, opening or connectors: a title block has no elements.
+        fixes += usize::from(def.ifc.take().is_some())
+            + usize::from(def.mep.take().is_some())
+            + usize::from(def.opening.take().is_some())
+            + def.connectors.len();
+        def.connectors.clear();
+        // Parameters may not hide the paper's size.
+        let before = def.params.len();
+        def.params.retain(|p| p.name != SHEET_WIDTH && p.name != SHEET_HEIGHT);
+        fixes += before - def.params.len();
         if def.sheet.len() > MAX_SHEET_PIECES {
             fixes += def.sheet.len() - MAX_SHEET_PIECES;
             def.sheet.truncate(MAX_SHEET_PIECES);
         }
         let before = def.sheet.len();
-        def.sheet.retain(|item| match &item.shape {
-            SheetShape::Stroke { points, .. } => (2..=MAX_STROKE_POINTS).contains(&points.len()),
-            SheetShape::Text { text, .. } => text.chars().count() <= MAX_SHEET_TEXT,
-            SheetShape::Image { image, .. } => image.is_valid(),
+        def.sheet.retain_mut(|item| {
+            let fits = match &item.shape {
+                SheetShape::Stroke { points, .. } => (2..=MAX_STROKE_POINTS).contains(&points.len()),
+                SheetShape::Text { text, .. } => text.chars().count() <= MAX_SHEET_TEXT,
+                SheetShape::Image { image, .. } => image.is_valid(),
+            };
+            fits && item.shape.expressions_mut().iter().all(|e| e.len() <= crate::expr::MAX_LEN)
         });
         fixes += before - def.sheet.len();
     } else {
@@ -600,5 +615,48 @@ mod tests {
         assert_eq!(repair_def(&mut other), 1);
         assert!(other.sheet.is_empty());
         assert_eq!(block(Vec::new()).category(), crate::Category::TitleBlock);
+    }
+
+    #[test]
+    fn repair_clears_what_a_title_block_cannot_have() {
+        let long = "1+".repeat(crate::expr::MAX_LEN) + "1";
+        let mut def = block(vec![line(("0", "0"), ("1", "1")), line((long.as_str(), "0"), ("1", "1"))]);
+        def.ifc = Some(Default::default());
+        def.mep = Some(crate::MepData::Fixture { drain_units: 1.0, supply_weight: 1.0, hot_water: false });
+        def.connectors.push(crate::component::ComponentConnector {
+            name: "C".into(),
+            system: crate::SystemKind::Sanitary,
+            x: "0".into(),
+            y: "0".into(),
+            z: "0".into(),
+            direction: Default::default(),
+            diameter: String::new(),
+        });
+        def.params.push(ComponentParam::number(SHEET_WIDTH, 1.0, ParamKind::Number));
+        def.params.push(ComponentParam::number("Margin", 15.0, ParamKind::Number));
+        assert_eq!(repair_def(&mut def), 5);
+        assert!(def.ifc.is_none() && def.mep.is_none() && def.connectors.is_empty());
+        assert_eq!(def.params.len(), 1);
+        assert_eq!(def.sheet.len(), 1, "the piece with a too long expression is dropped");
+        // The paper's size is read again.
+        let r = def.resolve_sheet(DVec2::new(420.0, 297.0));
+        assert!(r.errors.is_empty());
+    }
+
+    #[test]
+    fn huge_texts_are_capped() {
+        let def = block(vec![SheetItem {
+            name: "T".into(),
+            shape: SheetShape::Text {
+                x: "0".into(),
+                y: "0".into(),
+                text: "A".into(),
+                size: "1e5".into(),
+                anchor: TextAnchor::Left,
+                rotation: String::new(),
+            },
+        }]);
+        let r = def.resolve_sheet(DVec2::new(420.0, 297.0));
+        assert_eq!(r.texts[0].size, MAX_TEXT_SIZE);
     }
 }

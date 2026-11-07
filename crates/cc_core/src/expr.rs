@@ -5,7 +5,8 @@
 //! nesting depth and input length are bounded.
 
 const MAX_DEPTH: usize = 64;
-const MAX_LEN: usize = 1000;
+/// Longest expression text accepted, in bytes.
+pub const MAX_LEN: usize = 1000;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprError {

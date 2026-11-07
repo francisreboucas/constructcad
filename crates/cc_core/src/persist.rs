@@ -156,6 +156,31 @@ mod tests {
     }
 
     #[test]
+    fn a_wrong_id_counter_never_reuses_an_id() {
+        // A format-20 file whose counter points at a wall type in use: the
+        // standard title block it gets must not replace that type.
+        let mut p = Project::from_template();
+        p.types.retain(|_, t| t.category() != crate::Category::TitleBlock);
+        for v in p.views.values_mut() {
+            if let crate::ViewKind::Sheet { title_block, .. } = &mut v.kind {
+                *title_block = None;
+            }
+        }
+        let wall = p.types.values().find(|t| t.category() == crate::Category::Wall).map(|t| t.id).unwrap();
+        let counter = format!("next_id: {}", p.next_id());
+        for (n, id) in [(1, wall.0), (2, u64::MAX)] {
+            let text = to_ron(&p)
+                .unwrap()
+                .replace(&format!("format_version: {FORMAT_VERSION}"), "format_version: 20")
+                .replace(&counter, &format!("next_id: {id}"));
+            let (q, _) = from_ron_with_repairs(&text).unwrap();
+            assert_eq!(q.element_type(wall).map(|t| t.category()), Some(crate::Category::Wall), "case {n}");
+            assert_eq!(q.title_blocks().len(), 1, "case {n}");
+            assert!(q.next_id() > q.max_id(), "case {n}");
+        }
+    }
+
+    #[test]
     fn rejects_future_version() {
         let text = to_ron(&Project::empty()).unwrap().replacen(
             &format!("format_version: {FORMAT_VERSION}"),

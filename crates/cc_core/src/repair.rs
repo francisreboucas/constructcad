@@ -118,7 +118,8 @@ fn fix_positive(value: &mut f64, fallback: f64) -> bool {
 impl Project {
     /// Remove or reset invalid data; returns the number of repairs made.
     pub fn repair(&mut self) -> usize {
-        let mut repairs = usize::from(self.units.repair());
+        let mut repairs = usize::from(self.ensure_next_id());
+        repairs += usize::from(self.units.repair());
         repairs += self.materials.iter_mut().map(|m| m.repair()).sum::<usize>();
         for level in &mut self.levels {
             if !level.elevation.is_finite() {

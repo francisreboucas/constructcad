@@ -840,8 +840,48 @@ impl Project {
 
     pub fn alloc_id(&mut self) -> u64 {
         let id = self.next_id;
-        self.next_id += 1;
+        self.next_id = self.next_id.saturating_add(1);
         id
+    }
+
+    /// The largest id any object of the project uses (0 if none).
+    pub fn max_id(&self) -> u64 {
+        let levels = self.levels.iter().map(|l| l.id.0);
+        let phases = self.phases.iter().map(|p| p.id.0);
+        let types = self.types.keys().map(|k| k.0);
+        let elements = self.elements.keys().map(|k| k.0);
+        let views = self.views.keys().map(|k| k.0);
+        let groups = self.groups.keys().map(|k| k.0);
+        let systems = self.systems.keys().map(|k| k.0);
+        let filters = self.filters.keys().map(|k| k.0);
+        let templates = self.templates.keys().map(|k| k.0);
+        let phase_filters = self.phase_filters.keys().map(|k| k.0);
+        levels
+            .chain(phases)
+            .chain(types)
+            .chain(elements)
+            .chain(views)
+            .chain(groups)
+            .chain(systems)
+            .chain(filters)
+            .chain(templates)
+            .chain(phase_filters)
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// Move the id counter past every id in use, so new objects never take
+    /// the id of an existing one (a file may carry a wrong counter), and back
+    /// from the end of the range, where it could not move on. Returns
+    /// whether it moved.
+    pub fn ensure_next_id(&mut self) -> bool {
+        let next = self.max_id().saturating_add(1);
+        if self.next_id < next || (self.next_id == u64::MAX && next < u64::MAX) {
+            self.next_id = next;
+            true
+        } else {
+            false
+        }
     }
 
     pub fn level(&self, id: LevelId) -> Option<&Level> {
