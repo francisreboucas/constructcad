@@ -56,6 +56,8 @@ pub enum EnvTool {
     Equal { picked: Vec<String>, view: Option<ComponentViewKind> },
     /// A click in the plan, front or side view places a connector.
     Connector,
+    /// A click on a title block's Sheet view places a text.
+    SheetText,
 }
 
 /// Pan and zoom of one view.
@@ -353,6 +355,7 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
         EnvTool::Dimension { first: Some(_) } => t!("comp-env-hint-dimension-second"),
         EnvTool::Equal { picked, .. } => t!("comp-env-hint-equal", "count" => picked.len() + 1),
         EnvTool::Connector => t!("comp-env-hint-connector"),
+        EnvTool::SheetText => t!("tb-hint-text"),
     };
     ui.label(theme::muted(hint));
 }
@@ -567,6 +570,8 @@ fn canvas(ui: &mut Ui, state: &mut AppState, kind: ComponentViewKind) {
                 env.pick = out["index"].as_u64().map(|i| Pick::Connector(i as usize));
             }
         }
+        // Only the title block editor's Sheet view places texts.
+        EnvTool::SheetText => {}
         EnvTool::RefPlane { first } => {
             let Some(p) = hover else { return };
             match first {

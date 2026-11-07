@@ -431,6 +431,16 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
                 }
             }
         }
+        // A click places a text, snapped to the edges, the planes and the millimeter.
+        crate::component_env::EnvTool::SheetText => {
+            if let Some(r) = raw {
+                let (at, _) = crate::component_sketch::snap(&plane_view(&planes, 1.0 / MM), r, tol);
+                painter.circle_stroke(xf.to_screen(at), 4.0, Stroke::new(1.5, PALETTE.accent));
+                if clicked {
+                    place_text(state, &planes, at * MM);
+                }
+            }
+        }
         _ => {}
     }
 }
@@ -589,7 +599,7 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
             edit_stroke(state, index);
             return;
         }
-        stroke_weight(ui, state, index, weight);
+        number_field(ui, state, index, weight, &NumberField::WEIGHT);
         // Black is the default (no color stored).
         let mut rgb = color.unwrap_or([0, 0, 0]);
         let r = crate::table::row(ui, &t!("vg-color"), |ui| ui.color_edit_button_srgb(&mut rgb));
@@ -612,6 +622,195 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
             }
         }
     }
+    if let SheetShape::Text { x, y, text, size, anchor, rotation } = &item.shape {
+        text_props(ui, state, def, index, [x, y, size, rotation], text, *anchor);
+    }
+}
+
+/// A text's words (committed on Enter or when the field is left; Shift+Enter
+/// starts a new line), *Insert field*, position, height, rotation and alignment.
+fn text_props(
+    ui: &mut Ui,
+    state: &mut AppState,
+    def: &ComponentDef,
+    index: usize,
+    [x, y, size, rotation]: [&String; 4],
+    text: &str,
+    anchor: TextAnchor,
+) {
+    crate::table::readonly_row(ui, &t!("tb-tool-text"), String::new());
+    let text_id = egui::Id::new(("tb-text", index));
+    let mut words = None;
+    crate::table::row(ui, &t!("prop-text"), |ui| words = commit_words(ui, text_id, text));
+    if let Some(words) = words {
+        patch(state, index, None, serde_json::json!({ "Text": { "text": words } }));
+    }
+    // Insert field: at the text's cursor, or at its end.
+    let mut chosen = None;
+    let menu = field_menu(state.project(), def);
+    ui.menu_button(t!("tb-insert-field"), |ui| {
+        for (group, items) in &menu {
+            ui.menu_button(group.as_str(), |ui| {
+                for (label, k) in items {
+                    if ui.button(label.as_str()).clicked() {
+                        chosen = Some(k.clone());
+                        ui.close();
+                    }
+                }
+            });
+        }
+    });
+    if let Some(k) = chosen {
+        let cursor = egui::text_edit::TextEditState::load(ui.ctx(), text_id)
+            .and_then(|s| s.cursor.char_range())
+            .map(|r| r.primary.index.0);
+        insert_into(state, index, &k, cursor);
+    }
+    for (field, label, current) in [("x", t!("comp-field-x"), x), ("y", t!("comp-field-y"), y)] {
+        let mut new = None;
+        crate::table::row(ui, &label, |ui| {
+            new = crate::component_env::draft_field(ui, state, &format!("tb-{field}:{index}"), current, 120.0)
+        });
+        if let Some(v) = new {
+            patch(state, index, None, serde_json::json!({ "Text": { field: v } }));
+        }
+    }
+    number_field(ui, state, index, size, &NumberField::TEXT_SIZE);
+    number_field(ui, state, index, rotation, &NumberField::ROTATION);
+    let mut a = anchor;
+    let name = |a: TextAnchor| match a {
+        TextAnchor::Left => t!("tb-anchor-left"),
+        TextAnchor::Center => t!("tb-anchor-center"),
+        TextAnchor::Right => t!("tb-anchor-right"),
+        TextAnchor::Middle => t!("tb-anchor-middle"),
+    };
+    crate::table::row(ui, &t!("tb-anchor"), |ui| {
+        egui::ComboBox::from_id_salt(("tb-anchor", index)).selected_text(name(a)).show_ui(ui, |ui| {
+            for option in [TextAnchor::Left, TextAnchor::Center, TextAnchor::Right, TextAnchor::Middle] {
+                ui.selectable_value(&mut a, option, name(option));
+            }
+        });
+    });
+    if a != anchor {
+        patch(state, index, None, serde_json::json!({ "Text": { "anchor": a } }));
+    }
+}
+
+/// A text's multiline field: what is typed stays a draft while it has the
+/// focus, and is handed back (when it changed) on Enter, which also leaves
+/// the field, or when the field loses the focus. Shift+Enter breaks the line.
+fn commit_words(ui: &mut Ui, id: egui::Id, current: &str) -> Option<String> {
+    let draft = id.with("draft");
+    let mut text = ui.data(|d| d.get_temp::<String>(draft)).unwrap_or_else(|| current.to_string());
+    let edit = egui::TextEdit::multiline(&mut text)
+        .id(id)
+        .desired_rows(2)
+        .desired_width(170.0)
+        .char_limit(cc_core::title_block::MAX_SHEET_TEXT)
+        .return_key(egui::KeyboardShortcut::new(egui::Modifiers::SHIFT, egui::Key::Enter));
+    let r = ui.add(edit);
+    let enter = r.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter) && i.modifiers.is_none());
+    if enter {
+        ui.memory_mut(|m| m.surrender_focus(id));
+    } else if r.has_focus() {
+        ui.data_mut(|d| d.insert_temp(draft, text));
+        return None;
+    }
+    ui.data_mut(|d| d.remove::<String>(draft));
+    ((enter || r.lost_focus()) && text != current).then_some(text)
+}
+
+/// Insert field `key` into text `index` at character `at` (its end when
+/// `None`): one undo step.
+fn insert_into(state: &mut AppState, index: usize, key: &str, at: Option<usize>) -> bool {
+    let Some((_, def)) = crate::component_env::component(state) else { return false };
+    let Some(SheetShape::Text { text, .. }) = def.sheet.get(index).map(|s| &s.shape) else { return false };
+    let (new, _) = insert_field(text, key, at);
+    patch(state, index, None, serde_json::json!({ "Text": { "text": new } }))
+}
+
+/// The expression of a coordinate `value` (millimeters): the name of an
+/// edge or plane standing there, else the number to a hundredth.
+pub fn coordinate(planes: &[SheetPlane], value: f64, vertical: bool) -> String {
+    if let Some(p) = planes.iter().find(|p| p.vertical == vertical && (p.at - value).abs() < 1e-6) {
+        return p.name.clone();
+    }
+    let r = (value * 100.0).round() / 100.0;
+    format!("{}", if r == 0.0 { 0.0 } else { r })
+}
+
+/// Place a text at `at` (millimeters) and pick it.
+pub fn place_text(state: &mut AppState, planes: &[SheetPlane], at: DVec2) {
+    let piece = SheetPieceArg::Text {
+        x: ExprArg::Text(coordinate(planes, at.x, true)),
+        y: ExprArg::Text(coordinate(planes, at.y, false)),
+        text: t!("tb-tool-text"),
+        size: None,
+        anchor: None,
+        rotation: None,
+    };
+    let command = ComponentSheetPieceAdd { type_ref: crate::component_env::type_ref(state), piece, name: None };
+    if let Some(i) = crate::actions::run_command(state, command)
+        .and_then(|o| o["index"].as_u64())
+        .and_then(|i| usize::try_from(i).ok())
+    {
+        set_pick(state, vec![i]);
+    }
+}
+
+/// A fixed field's name in the menu.
+fn field_label(key: &str) -> String {
+    match key {
+        "sheet_number" => t!("tb-field-sheet-number"),
+        "sheet_name" => t!("tb-field-sheet-name"),
+        "sheet_count" => t!("tb-field-sheet-count"),
+        "sheet_index" => t!("tb-field-sheet-index"),
+        "sheet_scale" => t!("tb-field-sheet-scale"),
+        "paper" => t!("tb-field-paper"),
+        "project_name" => t!("tb-field-project-name"),
+        "project_number" => t!("tb-field-project-number"),
+        "client" => t!("tb-field-client"),
+        "address" => t!("tb-field-address"),
+        "author" => t!("tb-field-author"),
+        "date" => t!("tb-field-date"),
+        "issue_date" => t!("tb-field-issue-date"),
+        other => other.to_string(),
+    }
+}
+
+/// The *Insert field* menu: groups of (name shown, key). The fixed fields,
+/// with `issue_date` right after `date`, then a `project:` key per project
+/// field and a `param:` key per text parameter of the title block.
+pub fn field_menu(p: &cc_core::Project, def: &ComponentDef) -> Vec<(String, Vec<(String, String)>)> {
+    let fixed = |keys: &[&str]| keys.iter().map(|k| (field_label(k), (*k).to_string())).collect::<Vec<_>>();
+    let mut project = fixed(&["project_name", "project_number", "client", "address", "author"]);
+    project.extend(p.info.fields.iter().map(|f| (f.name.clone(), format!("project:{}", f.name))));
+    let params = def
+        .params
+        .iter()
+        .filter(|q| q.kind.is_text())
+        .map(|q| (q.display().to_string(), format!("param:{}", q.name)))
+        .collect();
+    vec![
+        (
+            t!("tb-group-sheet"),
+            fixed(&["sheet_number", "sheet_name", "sheet_count", "sheet_index", "sheet_scale", "paper"]),
+        ),
+        (t!("tb-group-project"), project),
+        (t!("tb-group-dates"), fixed(&["date", "issue_date"])),
+        (t!("tb-group-per-sheet"), params),
+    ]
+}
+
+/// `text` with `{key}` inserted at character `at` (the end when `None` or
+/// past it), and the character the cursor goes to after it.
+pub fn insert_field(text: &str, key: &str, at: Option<usize>) -> (String, usize) {
+    let n = text.chars().count();
+    let at = at.unwrap_or(n).min(n);
+    let field = format!("{{{key}}}");
+    let byte = text.char_indices().nth(at).map_or(text.len(), |(b, _)| b);
+    let (head, tail) = text.split_at_checked(byte).unwrap_or((text, ""));
+    (format!("{head}{field}{tail}"), at + field.chars().count())
 }
 
 /// Whether an interaction with a color button ends this frame: the pointer
@@ -635,32 +834,82 @@ fn color_edit(state: &mut AppState, index: usize, field: &str, value: Option<ser
     }
 }
 
-/// A stroke's pen width (millimeters): a number is dragged, one undo step
-/// per drag; an expression is typed.
-fn stroke_weight(ui: &mut Ui, state: &mut AppState, index: usize, weight: &str) {
-    let number = if weight.trim().is_empty() {
-        Some(cc_core::title_block::DEFAULT_WEIGHT)
-    } else {
-        weight.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+/// A numeric value of a piece shown by [`number_field`].
+struct NumberField {
+    /// The shape's serde name (`Stroke`, `Text`) and the field.
+    shape: &'static str,
+    field: &'static str,
+    /// What an empty expression reads as.
+    default: f64,
+    min: f64,
+    max: f64,
+    speed: f64,
+    suffix: &'static str,
+}
+
+impl NumberField {
+    /// A stroke's pen width, millimeters.
+    const WEIGHT: NumberField = NumberField {
+        shape: "Stroke",
+        field: "weight",
+        default: cc_core::title_block::DEFAULT_WEIGHT,
+        min: 0.01,
+        max: 10.0,
+        speed: 0.01,
+        suffix: " mm",
     };
-    let Some(mut w) = number else {
+    /// A text's height, millimeters.
+    const TEXT_SIZE: NumberField =
+        NumberField { shape: "Text", field: "size", default: 2.5, min: 0.1, max: 100.0, speed: 0.05, suffix: " mm" };
+    /// A text's rotation, degrees counter-clockwise.
+    const ROTATION: NumberField = NumberField {
+        shape: "Text",
+        field: "rotation",
+        default: 0.0,
+        min: -360.0,
+        max: 360.0,
+        speed: 1.0,
+        suffix: "°",
+    };
+
+    fn label(&self) -> String {
+        match self.field {
+            "weight" => t!("vg-weight"),
+            "size" => t!("tb-text-size"),
+            _ => t!("prop-rotation"),
+        }
+    }
+}
+
+/// A piece's number (a pen width, a text's height or rotation): a number
+/// is dragged, one undo step per drag; an expression is typed.
+fn number_field(ui: &mut Ui, state: &mut AppState, index: usize, current: &str, spec: &NumberField) {
+    let number = if current.trim().is_empty() {
+        Some(spec.default)
+    } else {
+        current.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+    };
+    let label = spec.label();
+    let Some(mut v) = number else {
         let mut typed = None;
-        crate::table::row(ui, &t!("vg-weight"), |ui| {
-            typed = crate::component_env::draft_field(ui, state, &format!("tb-weight:{index}"), weight, 120.0)
+        crate::table::row(ui, &label, |ui| {
+            let salt = format!("tb-{}:{index}", spec.field);
+            typed = crate::component_env::draft_field(ui, state, &salt, current, 120.0)
         });
-        if let Some(w) = typed {
-            patch(state, index, None, serde_json::json!({ "Stroke": { "weight": w } }));
+        if let Some(v) = typed {
+            patch(state, index, None, serde_json::json!({ spec.shape: { spec.field: v } }));
         }
         return;
     };
-    let r = crate::table::row(ui, &t!("vg-weight"), |ui| {
-        // Only what the user enters is clamped: showing a weight never rewrites it.
-        let drag = egui::DragValue::new(&mut w).speed(0.01).range(0.01..=10.0).clamp_existing_to_range(false);
-        ui.add(drag.max_decimals(3).suffix(" mm"))
+    let r = crate::table::row(ui, &label, |ui| {
+        // Only what the user enters is clamped: showing a value never rewrites it.
+        let drag =
+            egui::DragValue::new(&mut v).speed(spec.speed).range(spec.min..=spec.max).clamp_existing_to_range(false);
+        ui.add(drag.max_decimals(3).suffix(spec.suffix))
     });
     if r.changed() {
-        let value = serde_json::json!({ "Stroke": { "weight": format!("{w}") } });
-        patch(state, index, Some(key(("tb-weight", index))), value);
+        let value = serde_json::json!({ spec.shape: { spec.field: format!("{v}") } });
+        patch(state, index, Some(key(("tb-number", spec.shape, spec.field, index))), value);
     }
     if r.drag_stopped() || r.lost_focus() {
         state.session.doc.break_merge();
@@ -955,7 +1204,7 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
     ui.horizontal(|ui| {
         ui.spacing_mut().item_spacing.x = 0.0;
         crate::ribbon::env_group(ui, state, t!("group-selection"), &[Select]);
-        crate::ribbon::env_group(ui, state, t!("group-draw"), &[TbLines]);
+        crate::ribbon::env_group(ui, state, t!("group-draw"), &[TbLines, TbText]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-datum"), &[CompRefPlane]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-component"), &[CompSaveFile]);
         crate::ribbon::env_group(ui, state, t!("comp-env-group-editor"), &[CompFinish, CompCancel]);
@@ -1005,6 +1254,7 @@ fn hint(state: &AppState) -> String {
     match state.component_env.as_ref().map(|e| &e.tool) {
         Some(crate::component_env::EnvTool::RefPlane { .. }) => t!("tb-hint-plane"),
         Some(crate::component_env::EnvTool::Select) => t!("tb-hint-select"),
+        Some(crate::component_env::EnvTool::SheetText) => t!("tb-hint-text"),
         _ => t!("tb-hint-view"),
     }
 }
@@ -1523,5 +1773,128 @@ mod tests {
         new_title_block(&mut state);
         let (name, _) = crate::component_env::component(&state).expect("a new title block opens");
         assert_eq!(name, format!("{base} 2"));
+    }
+
+    #[test]
+    fn fields_are_inserted_where_the_cursor_is() {
+        assert_eq!(insert_field("Sheet  of", "sheet_index", Some(6)), ("Sheet {sheet_index} of".to_string(), 19));
+        assert_eq!(insert_field("Nº ", "sheet_number", None).0, "Nº {sheet_number}");
+        assert_eq!(insert_field("ab", "date", Some(99)).0, "ab{date}");
+    }
+
+    #[test]
+    fn texts_are_placed_on_planes_and_offer_every_field() {
+        let (mut state, _, tb) = editor_state();
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        assert_eq!(coordinate(&ps, 420.0, true), "SheetWidth");
+        assert_eq!(coordinate(&ps, 12.3456, true), "12.35");
+        let before = def.sheet.len();
+        place_text(&mut state, &ps, DVec2::new(420.0, 12.0));
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let Some(SheetShape::Text { x, y, .. }) = def.sheet.get(before).map(|s| &s.shape) else { panic!() };
+        assert_eq!((x.as_str(), y.as_str()), ("SheetWidth", "12"));
+        // The menu: sheet, project (with project fields), dates, per-sheet fields.
+        let command = cc_engine::commands::component::ComponentParamAdd {
+            type_ref: cc_engine::Ref::Id(tb.0),
+            name: "Drawn".into(),
+            value: None,
+            kind: Some("text".into()),
+            instance: Some(true),
+            text: Some(String::new()),
+        };
+        crate::actions::run_command(&mut state, command).unwrap();
+        crate::engine_edit::info(&mut state, None, |i| {
+            i.fields.push(cc_core::ProjectField { name: "Engineer".into(), value: "Rui".into() })
+        });
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let menu = field_menu(state.project(), &def);
+        let keys: Vec<&str> = menu.iter().flat_map(|(_, items)| items.iter().map(|(_, k)| k.as_str())).collect();
+        for k in cc_views::sheet_fields::KEYS.iter().chain(["issue_date", "project:Engineer", "param:Drawn"].iter()) {
+            assert!(keys.contains(k), "{k} missing from {keys:?}");
+        }
+        let dates = &menu.iter().find(|(g, _)| *g == t!("tb-group-dates")).unwrap().1;
+        assert_eq!(dates.iter().map(|(_, k)| k.as_str()).collect::<Vec<_>>(), ["date", "issue_date"]);
+        assert!(dates.iter().all(|(label, k)| label != k), "labels are translated");
+    }
+
+    /// The index and shape of the last piece of the open title block.
+    fn last_piece(state: &AppState) -> (usize, SheetShape) {
+        let (_, def) = crate::component_env::component(state).unwrap();
+        (def.sheet.len() - 1, def.sheet.last().unwrap().shape.clone())
+    }
+
+    #[test]
+    fn the_text_tool_places_a_text_and_picks_it() {
+        let (mut state, _, _) = editor_state();
+        crate::commands::run(&mut state, &egui::Context::default(), crate::commands::UiCommand::TbText);
+        assert!(crate::commands::UiCommand::TbText.selected(&state));
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        let depth = state.session.doc.undo_depth();
+        place_text(&mut state, &ps, DVec2::new(30.0, 40.5));
+        assert_eq!(state.session.doc.undo_depth(), depth + 1);
+        let (index, shape) = last_piece(&state);
+        let SheetShape::Text { x, y, text, .. } = shape else { panic!() };
+        assert_eq!((x.as_str(), y.as_str(), text.as_str()), ("30", "40.5", t!("tb-tool-text").as_str()));
+        assert_eq!(picked(&state), vec![index]);
+    }
+
+    #[test]
+    fn a_text_is_committed_on_enter_and_its_size_drags_in_one_step() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::Queryable;
+        let (mut state, _, _) = editor_state();
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        place_text(&mut state, &ps, DVec2::new(30.0, 40.0));
+        let (index, _) = last_piece(&state);
+        let mut harness = props_harness(state, index);
+        harness.run();
+        let depth = harness.state().session.doc.undo_depth();
+        let words = |h: &egui_kittest::Harness<'static, AppState>| match last_piece(h.state()).1 {
+            SheetShape::Text { text, .. } => text,
+            _ => panic!(),
+        };
+        harness.get_by_role(Role::MultilineTextInput).click();
+        harness.run();
+        harness.key_press_modifiers(egui::Modifiers::COMMAND, egui::Key::A);
+        harness.run();
+        harness.get_by_role(Role::MultilineTextInput).type_text("Sheet");
+        harness.run();
+        assert_eq!(harness.state().session.doc.undo_depth(), depth, "typing changes nothing yet");
+        harness.key_press_modifiers(egui::Modifiers::SHIFT, egui::Key::Enter);
+        harness.run();
+        harness.get_by_role(Role::MultilineTextInput).type_text("A1");
+        harness.run();
+        harness.key_press(egui::Key::Enter);
+        harness.run();
+        assert_eq!(words(&harness), "Sheet\nA1");
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "one commit, one step");
+
+        // The size: a drag is one step.
+        let depth = harness.state().session.doc.undo_depth();
+        let spin = harness.query_all_by_role(Role::SpinButton).next().expect("the size").rect().center();
+        drag(&mut harness, spin, spin + egui::vec2(30.0, 0.0));
+        let size = match last_piece(harness.state()).1 {
+            SheetShape::Text { size, .. } => size,
+            _ => panic!(),
+        };
+        assert_ne!(size, "2.5", "the drag changed the size");
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "one drag, one step");
+    }
+
+    #[test]
+    fn insert_field_patches_the_text_in_one_step() {
+        let (mut state, _, _) = editor_state();
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, DVec2::new(420.0, 297.0));
+        place_text(&mut state, &ps, DVec2::new(30.0, 40.0));
+        let (index, _) = last_piece(&state);
+        let depth = state.session.doc.undo_depth();
+        assert!(insert_into(&mut state, index, "sheet_number", None));
+        let SheetShape::Text { text, .. } = last_piece(&state).1 else { panic!() };
+        assert_eq!(text, format!("{}{{sheet_number}}", t!("tb-tool-text")));
+        assert_eq!(state.session.doc.undo_depth(), depth + 1);
     }
 }
