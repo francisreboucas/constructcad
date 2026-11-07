@@ -205,6 +205,12 @@ fn category_items(ui: &mut Ui, state: &mut AppState, category: ViewCategory) {
                 actions::duplicate_view(state, id);
                 ui.close();
             }
+            if crate::title_block_env::sheet_title_block_of(state, id).is_some()
+                && ui.button(t!("action-edit-title-block")).clicked()
+            {
+                crate::title_block_env::edit_sheet(state, id);
+                ui.close();
+            }
             if let Some(sheet) = state.active_view.filter(|s| {
                 matches!(state.project().view(*s).map(|v| &v.kind), Some(ViewKind::Sheet { .. })) && *s != id
             }) {

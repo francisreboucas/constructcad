@@ -19,7 +19,7 @@ use crate::t;
 use crate::theme::{self, PALETTE};
 use cc_core::profile::ProfilePoint;
 use cc_core::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
-use cc_core::{ComponentDef, PlaneAxis, SheetSize, ViewId, ViewKind};
+use cc_core::{ComponentDef, ElementTypeId, PlaneAxis, SheetSize, TypeData, ViewId, ViewKind};
 use cc_views::ComponentView;
 use cc_views::component_view::ViewPlane;
 use egui::{Color32, Rect, Sense, Stroke, Ui, vec2};
@@ -65,6 +65,45 @@ impl SheetEditor {
 /// Whether the component environment shows a title block.
 pub fn is_open(state: &AppState) -> bool {
     state.component_env.as_ref().is_some_and(|e| e.sheet.is_some())
+}
+
+/// The title block type of sheet `id`.
+pub fn sheet_title_block_of(state: &AppState, id: ViewId) -> Option<ElementTypeId> {
+    match &state.project().view(id)?.kind {
+        ViewKind::Sheet { title_block, .. } => *title_block,
+        _ => None,
+    }
+}
+
+/// The active sheet's title block type.
+pub fn sheet_title_block(state: &AppState) -> Option<ElementTypeId> {
+    sheet_title_block_of(state, crate::actions::active_sheet(state)?)
+}
+
+/// *Edit Title Block* on sheet `id`: make it the active view, then open its
+/// title block on it. `open_view` only queues the tab, so the active view is
+/// set here for the editor to read the sheet.
+pub fn edit_sheet(state: &mut AppState, id: ViewId) {
+    let Some(tb) = sheet_title_block_of(state, id) else { return };
+    state.open_view(id);
+    state.active_view = Some(id);
+    crate::component_env::open(state, tb);
+}
+
+/// *New Title Block*: a copy of the standard layout under a name no type and
+/// no component uses (`title_block_create` refuses both), opened.
+pub fn new_title_block(state: &mut AppState) {
+    let base = t!("tb-default-name");
+    let p = state.project();
+    let taken = |n: &str| {
+        p.types.values().any(|t| {
+            t.name.trim() == n || matches!(&t.data, TypeData::Component { component, .. } if component.trim() == n)
+        })
+    };
+    let Some(name) = (1..=10_000).map(|i| format!("{base} {i}")).find(|n| !taken(n)) else { return };
+    let command = cc_engine::commands::sheets::TitleBlockCreate { name, empty: false };
+    let Some(id) = crate::actions::run_command(state, command).and_then(|o| o["id"].as_u64()) else { return };
+    crate::component_env::open(state, ElementTypeId(id));
 }
 
 fn editor(state: &AppState) -> Option<SheetEditor> {
@@ -416,7 +455,7 @@ fn params(ui: &mut Ui, state: &mut AppState, def: &ComponentDef) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cc_core::{Document, ElementTypeId, TypeData};
+    use cc_core::Document;
 
     /// The sample house with its first sheet active and its title block open.
     pub(crate) fn editor_state() -> (AppState, ViewId, ElementTypeId) {
@@ -500,5 +539,81 @@ mod tests {
         // Finish leaves the editor.
         crate::component_env::finish(&mut state);
         assert!(!is_open(&state));
+    }
+
+    #[test]
+    fn edit_and_new_title_block_open_the_editor() {
+        use crate::commands::UiCommand;
+        let mut state = AppState::new(Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        state.project_open = true;
+        state.show_home = false;
+        assert_eq!(UiCommand::EditTitleBlock.unavailable(&state), Some(t!("why-sheet-title-block")));
+        let sheet = state.project().sheets_in_order()[0];
+        state.active_view = Some(sheet);
+        assert_eq!(UiCommand::EditTitleBlock.unavailable(&state), None);
+        crate::commands::run(&mut state, &egui::Context::default(), UiCommand::EditTitleBlock);
+        assert!(is_open(&state));
+        crate::component_env::cancel(&mut state);
+
+        let before = state.project().title_blocks().len();
+        crate::commands::run(&mut state, &egui::Context::default(), UiCommand::NewTitleBlock);
+        assert_eq!(state.project().title_blocks().len(), before + 1);
+        assert!(is_open(&state));
+        let (name, def) = crate::component_env::component(&state).unwrap();
+        assert!(name.starts_with(&t!("tb-default-name")));
+        assert!(!def.sheet.is_empty(), "a copy of the standard layout");
+    }
+
+    #[test]
+    fn a_title_block_from_the_library_opens_in_the_editor() {
+        let mut state = AppState::new(Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        let command = cc_engine::commands::sheets::TitleBlockCreate { name: "Library TB".into(), empty: false };
+        crate::actions::run_command(&mut state, command).unwrap();
+        let path = std::env::temp_dir().join(format!("cc_tb_library_{}.ccomp", std::process::id()));
+        let save = cc_engine::commands::io::ComponentSave { component: "Library TB".into(), path: path.clone() };
+        state.session.run(save).unwrap();
+
+        let mut other = AppState::new(Document::new(crate::actions::new_project()));
+        crate::actions::load_component_path(&mut other, path.clone());
+        let _ = std::fs::remove_file(&path);
+        assert!(is_open(&other), "opened in the editor, not placed");
+        assert!(matches!(other.tool, crate::tools::Tool::Select));
+        assert_eq!(crate::component_env::component(&other).map(|(n, _)| n).as_deref(), Some("Library TB"));
+    }
+
+    #[test]
+    fn quick_edit_does_not_offer_title_blocks() {
+        assert!(!crate::component_editor::kinds().contains(&cc_core::ComponentKind::TitleBlock));
+    }
+
+    #[test]
+    fn edit_title_block_from_the_browser_opens_on_that_sheet() {
+        // The browser's sheet menu runs `edit_sheet` on a sheet that is not the active view.
+        let mut state = AppState::new(Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        let sheet = state.project().sheets_in_order()[0];
+        let other = state.project().views.keys().copied().find(|&v| v != sheet).unwrap();
+        state.active_view = Some(other);
+        edit_sheet(&mut state, sheet);
+        let ed = state.component_env.as_ref().and_then(|e| e.sheet.clone()).expect("the Sheet view");
+        assert_eq!((ed.sheet, ed.preview), (Some(sheet), Preview::Sheet(sheet)));
+        assert_eq!(state.active_view, Some(sheet));
+        crate::component_env::cancel(&mut state);
+        // And with no active view.
+        state.active_view = None;
+        edit_sheet(&mut state, sheet);
+        assert_eq!(state.component_env.as_ref().and_then(|e| e.sheet.as_ref()).and_then(|e| e.sheet), Some(sheet));
+    }
+
+    #[test]
+    fn new_title_block_skips_names_taken_by_types_or_components() {
+        let mut state = AppState::new(Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        let base = t!("tb-default-name");
+        // A component named like the first candidate, under a type named otherwise.
+        let command = cc_engine::commands::sheets::TitleBlockCreate { name: format!("{base} 1"), empty: true };
+        let id = crate::actions::run_command(&mut state, command).and_then(|o| o["id"].as_u64()).unwrap();
+        assert!(crate::engine_edit::element_type(&mut state, ElementTypeId(id), None, |t| t.name = "Other".into()));
+        new_title_block(&mut state);
+        let (name, _) = crate::component_env::component(&state).expect("a new title block opens");
+        assert_eq!(name, format!("{base} 2"));
     }
 }

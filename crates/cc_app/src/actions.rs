@@ -343,6 +343,13 @@ pub fn load_component_path(state: &mut AppState, path: std::path::PathBuf) {
             if let Some(first) = out["types"].get(0).and_then(serde_json::Value::as_u64) {
                 // Doors and windows are placed in walls.
                 let type_id = cc_core::ElementTypeId(first);
+                // Title blocks are not placed: they open in the editor.
+                if state.project().element_type(type_id).map(|t| t.category()) == Some(cc_core::Category::TitleBlock) {
+                    crate::component_env::open(state, type_id);
+                    let name = out["component"].as_str().unwrap_or_default().to_string();
+                    state.message = t!("msg-component-loaded", "name" => name);
+                    return;
+                }
                 state.set_tool(match state.project().element_type(type_id).map(|t| t.category()) {
                     Some(category @ (cc_core::Category::Door | cc_core::Category::Window)) => {
                         crate::tools::Tool::Hosted { category, type_id }

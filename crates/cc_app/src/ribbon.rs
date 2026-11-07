@@ -737,6 +737,7 @@ fn modify_tab(ui: &mut Ui, state: &mut AppState) {
         command_buttons(ui, state, &[JoinGeometry, UnjoinGeometry, AttachTop, DetachTop])
     });
     group(ui, t!("group-sketch"), |ui| command_buttons(ui, state, &[EditBoundary, EditProfile]));
+    group(ui, t!("prop-title-block"), |ui| command_button(ui, state, EditTitleBlock));
     group(ui, t!("group-group"), |ui| command_buttons(ui, state, &[Group, Ungroup]));
     group(ui, t!("group-phasing"), |ui| command_button(ui, state, Demolish));
 }
@@ -795,6 +796,7 @@ fn view_tab(ui: &mut Ui, state: &mut AppState) {
             }
         });
         command_button(ui, state, UiCommand::Sheet);
+        command_button(ui, state, UiCommand::NewTitleBlock);
     });
     group(ui, t!("group-graphics"), |ui| {
         command_buttons(ui, state, &[UiCommand::VisibilityGraphics, UiCommand::ViewFilters, UiCommand::ViewTemplates]);

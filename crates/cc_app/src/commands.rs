@@ -95,6 +95,10 @@ pub enum UiCommand {
     EditBoundary,
     /// Open the profile of the selected sweep's type in a sketch.
     EditProfile,
+    /// Open the active sheet's title block in the editor.
+    EditTitleBlock,
+    /// Create a title block from the standard layout and open it.
+    NewTitleBlock,
     Select,
     SelectInstances,
     ColumnsAtGrids,
@@ -282,6 +286,8 @@ impl UiCommand {
             SketchCancel,
             EditBoundary,
             EditProfile,
+            EditTitleBlock,
+            NewTitleBlock,
         ]);
         all.extend([AlignGridEnds, ColumnsAtGrids, BeamsOnGrids, BeamsBetweenColumns, StructuralSchedules]);
         all.extend([FootingsUnderColumns, StripFootingsUnderWalls, FoundationSlab, SlabJoinSupports]);
@@ -421,6 +427,7 @@ impl UiCommand {
             SketchCancel => Icon::Close,
             EditBoundary => Icon::EditBoundary,
             EditProfile => Icon::EditProfile,
+            EditTitleBlock | NewTitleBlock => Icon::TitleBlock,
             ComponentLibrary => Icon::Library,
             Select => Icon::Select,
             SelectInstances => Icon::SelectInstances,
@@ -518,9 +525,8 @@ impl UiCommand {
         use UiCommand::*;
         match self {
             NewComponent | FloorPlan | CeilingPlan | New3D | Legend | Schedule | StructuralSchedules | Sheet
-            | SteelSchedule | StructuralPlan | PlumbingPlan | ElectricalPlan | MepSchedules | PanelDiagram => {
-                Some(Badge::New)
-            }
+            | SteelSchedule | StructuralPlan | PlumbingPlan | ElectricalPlan | MepSchedules | PanelDiagram
+            | NewTitleBlock => Some(Badge::New),
             ImportIfc | ImportCad | ImportImage | ImportSkp | LoadComponent => Some(Badge::Import),
             ExportPdf | ExportSvg | ExportImage | ExportDxf | AnalyticalExport => Some(Badge::Export),
             Delete | DetachTop => Some(Badge::Remove),
@@ -582,6 +588,8 @@ impl UiCommand {
             SketchCancel => t!("sketch-cancel-mode"),
             EditBoundary => t!("edit-boundary"),
             EditProfile => t!("edit-profile"),
+            EditTitleBlock => t!("action-edit-title-block"),
+            NewTitleBlock => t!("action-new-title-block"),
             LoadComponent => t!("action-load-component"),
             ComponentLibrary => t!("action-component-library"),
             Select => t!("tool-select"),
@@ -755,6 +763,8 @@ impl UiCommand {
             SketchCancel => t!("cmd-desc-sketch-cancel-mode"),
             EditBoundary => t!("cmd-desc-edit-boundary"),
             EditProfile => t!("cmd-desc-edit-profile"),
+            EditTitleBlock => t!("cmd-desc-edit-title-block"),
+            NewTitleBlock => t!("cmd-desc-new-title-block"),
             LoadComponent => t!("cmd-desc-load-component"),
             ComponentLibrary => t!("cmd-desc-component-library"),
             Select => t!("cmd-desc-select"),
@@ -1037,6 +1047,8 @@ impl UiCommand {
             CompConnector => "component_connector_add",
             SketchFinish | EditBoundary => "sketch_set",
             EditProfile => "sweep_profile_set",
+            EditTitleBlock => "component_sheet_piece_set",
+            NewTitleBlock => "title_block_create",
             CompSaveFile => "component_save",
             LoadComponent => "component_load",
             ComponentLibrary => "component_library_list",
@@ -1140,6 +1152,9 @@ impl UiCommand {
             }
             EditBoundary if crate::sketch_mode::boundary_target(state).is_none() => Some(t!("why-select-outline")),
             EditProfile if crate::profile_sketch::target(state).is_none() => Some(t!("why-select-sweep")),
+            EditTitleBlock if crate::title_block_env::sheet_title_block(state).is_none() => {
+                Some(t!("why-sheet-title-block"))
+            }
             ExportPdf | ExportSvg if actions::active_sheet(state).is_none() => Some(t!("hint-export-sheet")),
             ExportImage if actions::image_view(state).is_none() => Some(t!("hint-export-image")),
             ExportDxf if actions::image_view(state).is_none() => Some(t!("hint-export-dxf")),
@@ -1558,6 +1573,12 @@ pub fn run(state: &mut AppState, ctx: &egui::Context, command: UiCommand) {
         SketchCancel => crate::sketch_mode::cancel(state),
         EditBoundary => crate::sketch_mode::edit_boundary(state),
         EditProfile => crate::profile_sketch::edit_selected(state),
+        EditTitleBlock => {
+            if let Some(id) = actions::active_sheet(state) {
+                crate::title_block_env::edit_sheet(state, id);
+            }
+        }
+        NewTitleBlock => crate::title_block_env::new_title_block(state),
         SelectInstances => crate::actions::select_instances(state),
         Group => crate::actions::group_selection(state),
         ColumnsAtGrids => crate::actions::columns_at_grids(state),

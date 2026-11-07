@@ -2278,3 +2278,28 @@ fn sheet_properties_snapshot() {
     harness.run();
     harness.snapshot("sheet_properties");
 }
+
+/// *Edit Title Block* in a sheet's browser menu opens its title block on that
+/// sheet, though another view is active.
+#[test]
+fn browser_menu_edits_a_sheets_title_block() {
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    let other = state.project().views.keys().copied().find(|&v| v != sheet).unwrap();
+    state.active_view = Some(other);
+    let label = match state.project().view(sheet).map(|v| (&v.kind, &v.name)) {
+        Some((cc_core::ViewKind::Sheet { number, .. }, name)) => format!("{number} - {name}"),
+        _ => panic!("a sheet"),
+    };
+    let mut harness = themed_harness(state, egui::vec2(320.0, 900.0), egui::Theme::Light, |ui, state| {
+        crate::browser::show(ui, state)
+    });
+    harness.get_by_label(&label).click_secondary();
+    harness.run();
+    harness.get_by_label(&t!("action-edit-title-block")).click();
+    harness.run();
+    let state = harness.state();
+    let ed = state.component_env.as_ref().and_then(|e| e.sheet.as_ref()).expect("the title block editor");
+    assert_eq!(ed.sheet, Some(sheet));
+    assert_eq!(state.active_view, Some(sheet));
+}
