@@ -48,6 +48,7 @@ mod table;
 mod text_tool;
 mod theme;
 mod thumbnails;
+mod title_block_env;
 mod tools;
 mod type_dialog;
 #[cfg(test)]

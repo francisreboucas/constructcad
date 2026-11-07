@@ -75,6 +75,8 @@ pub struct Env {
     cameras: BTreeMap<u8, Camera>,
     /// Text being typed in the panel's fields, until committed.
     drafts: BTreeMap<String, String>,
+    /// A title block shows on one Sheet view instead ([`crate::title_block_env`]).
+    pub sheet: Option<crate::title_block_env::SheetEditor>,
 }
 
 impl Env {
@@ -92,6 +94,7 @@ impl Env {
             start_depth,
             cameras: BTreeMap::new(),
             drafts: BTreeMap::new(),
+            sheet: None,
         }
     }
 }
@@ -103,7 +106,15 @@ pub fn open(state: &mut AppState, type_id: ElementTypeId) {
     }
     state.set_tool(crate::tools::Tool::Select);
     state.selection.clear();
-    state.component_env = Some(Env::new(type_id, state.session.doc.undo_depth()));
+    let mut env = Env::new(type_id, state.session.doc.undo_depth());
+    let title_block = matches!(
+        state.project().element_type(type_id).map(|t| &t.data),
+        Some(TypeData::Component { def, .. }) if def.kind == cc_core::ComponentKind::TitleBlock
+    );
+    if title_block {
+        env.sheet = Some(crate::title_block_env::SheetEditor::new(crate::actions::active_sheet(state)));
+    }
+    state.component_env = Some(env);
 }
 
 /// The type of the selected component element, or the one the component tool places.
@@ -149,7 +160,7 @@ pub(crate) fn component(state: &AppState) -> Option<(String, cc_core::ComponentD
     }
 }
 
-fn type_ref(state: &AppState) -> Ref {
+pub(crate) fn type_ref(state: &AppState) -> Ref {
     Ref::Id(state.component_env.as_ref().map_or(0, |e| e.type_id.0))
 }
 
@@ -299,6 +310,10 @@ fn view_name(kind: ComponentViewKind) -> &'static str {
 
 /// The *Create* tab of the ribbon.
 pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::ribbon(ui, state);
+        return;
+    }
     use crate::commands::UiCommand::*;
     let title = component(state).map(|(name, _)| name).unwrap_or_default();
     ui.horizontal(|ui| {
@@ -323,6 +338,10 @@ pub fn ribbon(ui: &mut Ui, state: &mut AppState) {
 
 /// The hint of the active tool, for the options bar.
 pub fn options(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::options(ui, state);
+        return;
+    }
     let Some(env) = &state.component_env else { return };
     let hint = match &env.tool {
         EnvTool::Select => t!("comp-env-hint-select"),
@@ -338,6 +357,10 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
 
 /// The central area: the component's views in tabs.
 pub fn central(ui: &mut Ui, state: &mut AppState) {
+    if crate::title_block_env::is_open(state) {
+        crate::title_block_env::central(ui, state);
+        return;
+    }
     let Some(mut dock) = state.component_env.as_mut().map(|e| std::mem::replace(&mut e.dock, DockState::new(vec![])))
     else {
         return;
@@ -672,7 +695,7 @@ pub fn delete_pick(state: &mut AppState) {
 // --- Left panel ---
 
 /// Text field that commits on Enter or when it loses focus; `None` until then.
-fn draft_field(ui: &mut Ui, state: &mut AppState, key: &str, current: &str, width: f32) -> Option<String> {
+pub(crate) fn draft_field(ui: &mut Ui, state: &mut AppState, key: &str, current: &str, width: f32) -> Option<String> {
     let env = state.component_env.as_mut()?;
     let text = env.drafts.entry(key.to_string()).or_insert_with(|| current.to_string());
     let r = ui.add(egui::TextEdit::singleline(text).desired_width(width));
@@ -701,6 +724,8 @@ pub fn panel(ui: &mut Ui, state: &mut AppState) {
             // A piece being sketched shows its picked curve.
             if state.sketch.is_some() {
                 crate::sketch_mode::properties(ui, state);
+            } else if crate::title_block_env::is_open(state) {
+                crate::title_block_env::panel_content(ui, state, &name, &def);
             } else {
                 panel_content(ui, state, &name, &def);
             }
@@ -762,7 +787,7 @@ fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &cc_core::C
 }
 
 /// The type whose values the views show.
-fn types_row(ui: &mut Ui, state: &mut AppState) {
+pub(crate) fn types_row(ui: &mut Ui, state: &mut AppState) {
     let Some(env) = state.component_env.as_ref() else { return };
     let current = env.type_id;
     let p = state.project();
