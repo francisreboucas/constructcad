@@ -219,6 +219,23 @@ Curtain walls are walls of a curtain type (a project without one gets one from t
 - The view's properties (plans, elevations, sections, 3D views, schedules) have a *Phasing* section with its *Phase* and *Phase Filter*; the filter is read-only when the view's template controls it. Elements show *Phase Created* and *Phase Demolished*. New elements are built in the active view's phase.
 - **Modify → Demolish** (DE) demolishes the clicked elements in the active plan's, elevation's or section's phase; their doors and windows go with them.
 
+## Sheets and title blocks
+
+A sheet's properties set its **number**, its **title block** (a title block type of the project, or *None* for blank paper), its **paper size** (A0 to A4, or *Custom* with a width × height in millimeters between 50 and 5000) with *Portrait* to put the long side up, and its **issue date** (typed as `YYYY-MM-DD`; *Today* fills it in). *Sheet Fields* lists the title block's per-sheet fields: type a value for this sheet, or leave the row empty to use the title block's own text, shown greyed. When a piece of the active sheet's title block cannot be drawn (an expression that does not resolve), the status bar names it.
+
+**Manage → Project → Project Information** has a *Project fields* table: your own values, such as the engineer or the permit number, each with a name and a value. *+ Add field* adds one, a name is changed by typing over it (Enter), × removes it. Title blocks show them as `{project:Name}`.
+
+A title block draws the whole sheet: border, margins, the block itself, logos. It is a component (category *Title Blocks*), so it is saved to and loaded from `.ccomp` files and the component library. **Modify → Title Block → Edit Title Block** (or *Edit Title Block* in a sheet's right-click menu, in the view or the project browser) opens the active sheet's title block in the editor; **View → Documentation → New Title Block** makes one from the standard layout and opens it; loading a title block from the library opens it too.
+
+- **The Sheet view:** the editor shows the paper at a preview size: the sheet it opened from, or A0 to A4 in portrait or landscape (*Preview on*, in the options bar). Its four edges are locked reference planes. The wheel zooms, a middle or right drag pans, a middle double-click fits the sheet.
+- **Lines:** opens a sketch with the drawing and modify tools of [Sketching outlines](#sketching-outlines). *Finish* makes a stroke of each chain of curves, closed when its ends meet. A point on an edge is written `SheetWidth`, `SheetHeight` or `0`, and a point on a reference plane as the plane's name, so the stroke follows the paper: a line drawn on the right edge of an A3 stays on the right edge of an A1. Other points are kept to the hundredth of a millimeter. Lengths typed while drawing are lengths on the printed paper. A stroke's properties set its weight (millimeters), color and, when closed, its fill; *Edit Sketch* (or a double click) opens it again.
+- **Text:** a click places a text. Its properties set the words, the height, the alignment (left, center or right on the baseline, or the middle of the block), the rotation and the position. *Insert field* adds a field at the cursor: sheet number, name, count and position, scale and paper; project name, number, client, address, author and project fields; today's date and the issue date; and the per-sheet fields. Fields show filled in from the sheet the editor opened from (or sample values); *Show field keys* shows them as typed, such as `{sheet_number}`. `{{` writes a brace.
+- **Image:** pick a PNG, JPG or SVG file, then drag its rectangle; the picture keeps its proportions unless Shift is held. Its corner grips move and size it. The picture is kept in the title block (and in its `.ccomp` file).
+- **Reference Plane:** two clicks along a line make a plane square to the paper. Its position is an expression in millimeters that may read the paper (`SheetWidth - 10`).
+- **Parameters:** numbers (in millimeters) and texts. *New per-sheet field* adds a text that each sheet may set in its *Sheet Fields*; the parameter's text is the default. *Sheet width* and *Sheet height* show the preview's paper.
+- **Selecting:** click a piece, or drag a window around several; Delete removes them. A picked text or picture shows grips.
+- *Finish* keeps the changes and *Cancel Editing* undoes everything done in the editor. Every sheet that uses the title block follows.
+
 ## Component modeling environment
 
 *Edit Component* (*Architecture → Model*, or *Edit Component…* in a component type's properties) opens a workspace of its own for the selected component, or the one the *Component* tool places. *Quick Edit…* keeps the older one-window editor.
