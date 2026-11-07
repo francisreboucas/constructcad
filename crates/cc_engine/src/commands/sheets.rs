@@ -503,7 +503,30 @@ fn title_block_def(def: &ComponentDef) -> Result<()> {
     }
 }
 
-/// Add a 2D piece to a title block component (every type of it).
+/// Push `shapes` onto a title block's pieces, the first named `name` (the
+/// others `Piece1`, `Piece2`…), and return their indices; refused whole
+/// when they would pass the most pieces it holds.
+fn push_pieces(def: &mut ComponentDef, shapes: Vec<SheetShape>, name: Option<&str>) -> Result<Vec<usize>> {
+    title_block_def(def)?;
+    if def.sheet.len().saturating_add(shapes.len()) > title_block::MAX_SHEET_PIECES {
+        return Err(EngineError::invalid("the title block has the most pieces it can hold"));
+    }
+    let mut indices = Vec::with_capacity(shapes.len());
+    for (n, shape) in shapes.into_iter().enumerate() {
+        let name = match name.map(str::trim) {
+            Some(given) if n == 0 && !given.is_empty() => given.to_string(),
+            _ => (1..=def.sheet.len() + 1)
+                .map(|i| format!("Piece{i}"))
+                .find(|candidate| !def.sheet.iter().any(|it| it.name == *candidate))
+                .unwrap_or_default(),
+        };
+        def.sheet.push(SheetItem { name, shape });
+        indices.push(def.sheet.len() - 1);
+    }
+    Ok(indices)
+}
+
+/// Add 2D pieces to a title block component (every type of it), in one step.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentSheetPieceAdd {
@@ -516,8 +539,13 @@ pub struct ComponentSheetPieceAdd {
     /// `image` (`x`, `y`, `width`, `height`, and `image_path` or base64
     /// `image`). Millimeters from the paper's bottom-left corner, as
     /// numbers or expressions over the parameters, `SheetWidth` and `SheetHeight`.
-    pub piece: SheetPieceArg,
-    /// Name (default `Piece1`, `Piece2`…).
+    #[serde(default)]
+    pub piece: Option<SheetPieceArg>,
+    /// More pieces (each as `piece`), added after it in the same step: all
+    /// of them or, when one is refused, none.
+    #[serde(default)]
+    pub pieces: Vec<SheetPieceArg>,
+    /// Name of the first piece added (default `Piece1`, `Piece2`…).
     #[serde(default)]
     pub name: Option<String>,
 }
@@ -526,23 +554,12 @@ impl Command for ComponentSheetPieceAdd {
     const NAME: &'static str = "component_sheet_piece_add";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
-        let shape = self.piece.shape()?;
-        let index = edit_def(s, &self.type_ref, &[], |def| {
-            title_block_def(def)?;
-            if def.sheet.len() >= title_block::MAX_SHEET_PIECES {
-                return Err(EngineError::invalid("the title block has the most pieces it can hold"));
-            }
-            let name = match self.name.as_deref().map(str::trim) {
-                Some(n) if !n.is_empty() => n.to_string(),
-                _ => (1..=def.sheet.len() + 1)
-                    .map(|i| format!("Piece{i}"))
-                    .find(|n| !def.sheet.iter().any(|it| it.name == *n))
-                    .unwrap_or_default(),
-            };
-            def.sheet.push(SheetItem { name, shape });
-            Ok(def.sheet.len() - 1)
-        })?;
-        Ok(json!({ "index": index }))
+        let shapes = self.piece.iter().chain(&self.pieces).map(SheetPieceArg::shape).collect::<Result<Vec<_>>>()?;
+        if shapes.is_empty() {
+            return Err(EngineError::invalid("give a `piece` or `pieces` to add"));
+        }
+        let indices = edit_def(s, &self.type_ref, &[], |def| push_pieces(def, shapes, self.name.as_deref()))?;
+        Ok(json!({ "index": indices.first(), "indices": indices }))
     }
 }
 
@@ -570,6 +587,11 @@ pub struct ComponentSheetPieceSet {
     /// A new picture for an image piece: its bytes, base64.
     #[serde(default)]
     pub image: Option<String>,
+    /// Pieces added in the same step (each as `component_sheet_piece_add`
+    /// `piece`; e.g. the other chains of a redrawn sketch); the result lists
+    /// their indices in `added`.
+    #[serde(default)]
+    pub add: Vec<SheetPieceArg>,
 }
 
 impl Command for ComponentSheetPieceSet {
@@ -583,7 +605,8 @@ impl Command for ComponentSheetPieceSet {
             (None, None) => None,
             (path, text) => Some(read_picture(path.as_deref(), text.as_deref())?),
         };
-        edit_def(s, &self.type_ref, &[], |def| {
+        let added = self.add.iter().map(SheetPieceArg::shape).collect::<Result<Vec<_>>>()?;
+        let added = edit_def(s, &self.type_ref, &[], |def| {
             title_block_def(def)?;
             let item = def.sheet.get_mut(self.index).ok_or_else(|| EngineError::invalid("no such piece"))?;
             if let Some(patch) = &self.piece {
@@ -616,13 +639,13 @@ impl Command for ComponentSheetPieceSet {
             if let Some(n) = self.name.as_deref().map(str::trim).filter(|n| !n.is_empty()) {
                 item.name = n.to_string();
             }
-            Ok(())
+            if added.is_empty() { Ok(Vec::new()) } else { push_pieces(def, added, None) }
         })?;
-        Ok(json!({ "index": self.index }))
+        Ok(json!({ "index": self.index, "added": added }))
     }
 }
 
-/// Delete a 2D piece of a title block.
+/// Delete 2D pieces of a title block, in one step.
 #[derive(Debug, Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ComponentSheetPieceDelete {
@@ -630,21 +653,35 @@ pub struct ComponentSheetPieceDelete {
     #[serde(rename = "type")]
     pub type_ref: Ref,
     /// The piece's index (in `component_get` `def.sheet`).
-    pub index: usize,
+    #[serde(default)]
+    pub index: Option<usize>,
+    /// More pieces' indices, deleted with `index` in the same step: all of
+    /// them or, when one does not exist, none.
+    #[serde(default)]
+    pub indices: Vec<usize>,
 }
 
 impl Command for ComponentSheetPieceDelete {
     const NAME: &'static str = "component_sheet_piece_delete";
     const KIND: CommandKind = CommandKind::Edit;
     fn run(self, s: &mut Session) -> Result<Value> {
+        let mut list: Vec<usize> = self.index.into_iter().chain(self.indices).collect();
+        if list.is_empty() {
+            return Err(EngineError::invalid("give an `index` or `indices` to delete"));
+        }
+        list.sort_unstable();
+        list.dedup();
         edit_def(s, &self.type_ref, &[], |def| {
             title_block_def(def)?;
-            if self.index >= def.sheet.len() {
+            if list.last().is_some_and(|&last| last >= def.sheet.len()) {
                 return Err(EngineError::invalid("no such piece"));
             }
-            def.sheet.remove(self.index);
+            // Highest first, so the others keep their indices.
+            for &index in list.iter().rev() {
+                def.sheet.remove(index);
+            }
             Ok(())
         })?;
-        Ok(json!({}))
+        Ok(json!({ "deleted": list.len() }))
     }
 }

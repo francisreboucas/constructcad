@@ -400,3 +400,87 @@ fn title_block_planes_follow_the_paper() {
         ErrorCode::InvalidArguments
     );
 }
+
+/// The sheet pieces of title block `tb`.
+fn pieces(s: &mut Session, tb: u64) -> Vec<Value> {
+    run(s, "component_get", json!({"type": tb}))["def"]["sheet"].as_array().unwrap().clone()
+}
+
+fn text_piece(x: u32) -> Value {
+    json!({"kind": "text", "x": x, "y": 10, "text": format!("T{x}")})
+}
+
+#[test]
+fn many_pieces_are_added_and_deleted_in_one_step() {
+    let mut s = Session::default();
+    let tb = run(&mut s, "title_block_create", json!({"name": "Lote", "empty": true}))["id"].as_u64().unwrap();
+    let depth = s.doc.undo_depth();
+    let out = run(
+        &mut s,
+        "component_sheet_piece_add",
+        json!({"type": tb, "piece": text_piece(1), "pieces": [text_piece(2), text_piece(3), text_piece(4)], "name": "First"}),
+    );
+    assert_eq!(out["indices"], json!([0, 1, 2, 3]));
+    assert_eq!(out["index"], 0);
+    assert_eq!(s.doc.undo_depth(), depth + 1, "adding four pieces is one step");
+    let got = pieces(&mut s, tb);
+    assert_eq!(got[0]["name"], "First");
+    assert_eq!(got[3]["shape"]["Text"]["text"], "T4");
+    // A batch with one bad piece adds none.
+    let bad = json!({"kind": "text", "x": 0, "y": 0, "text": "x", "anchor": "top"});
+    assert_eq!(
+        fails(&mut s, "component_sheet_piece_add", json!({"type": tb, "pieces": [text_piece(5), bad]})),
+        ErrorCode::InvalidArguments
+    );
+    assert_eq!(fails(&mut s, "component_sheet_piece_add", json!({"type": tb})), ErrorCode::InvalidArguments);
+    assert_eq!(pieces(&mut s, tb).len(), 4);
+    assert_eq!(s.doc.undo_depth(), depth + 1);
+
+    // Deleting a window of pieces: one step, the rest keep their order.
+    let depth = s.doc.undo_depth();
+    run(&mut s, "component_sheet_piece_delete", json!({"type": tb, "index": 0, "indices": [2, 0]}));
+    assert_eq!(s.doc.undo_depth(), depth + 1, "deleting two pieces is one step");
+    let left: Vec<Value> = pieces(&mut s, tb).iter().map(|p| p["shape"]["Text"]["text"].clone()).collect();
+    assert_eq!(left, vec![json!("T2"), json!("T4")]);
+    // One missing index deletes none.
+    assert_eq!(
+        fails(&mut s, "component_sheet_piece_delete", json!({"type": tb, "indices": [0, 7]})),
+        ErrorCode::InvalidArguments
+    );
+    assert_eq!(fails(&mut s, "component_sheet_piece_delete", json!({"type": tb})), ErrorCode::InvalidArguments);
+    assert_eq!(pieces(&mut s, tb).len(), 2);
+    assert_eq!(s.doc.undo_depth(), depth + 1);
+    s.doc.undo();
+    assert_eq!(pieces(&mut s, tb).len(), 4);
+}
+
+#[test]
+fn a_piece_is_patched_and_others_added_in_one_step() {
+    let mut s = Session::default();
+    let tb = run(&mut s, "title_block_create", json!({"name": "Lote", "empty": true}))["id"].as_u64().unwrap();
+    run(&mut s, "component_sheet_piece_add", json!({"type": tb, "piece": text_piece(1)}));
+    let depth = s.doc.undo_depth();
+    let out = run(
+        &mut s,
+        "component_sheet_piece_set",
+        json!({"type": tb, "index": 0, "piece": {"Text": {"text": "edited"}}, "add": [text_piece(2), text_piece(3)]}),
+    );
+    assert_eq!(out["added"], json!([1, 2]));
+    assert_eq!(s.doc.undo_depth(), depth + 1, "the patch and the new pieces are one step");
+    let got = pieces(&mut s, tb);
+    assert_eq!((got.len(), got[0]["shape"]["Text"]["text"].clone()), (3, json!("edited")));
+    // A bad added piece refuses the patch too.
+    let bad = json!({"kind": "text", "x": 0, "y": 0, "text": "x", "anchor": "top"});
+    assert_eq!(
+        fails(
+            &mut s,
+            "component_sheet_piece_set",
+            json!({"type": tb, "index": 0, "piece": {"Text": {"text": "again"}}, "add": [bad]})
+        ),
+        ErrorCode::InvalidArguments
+    );
+    assert_eq!(pieces(&mut s, tb)[0]["shape"]["Text"]["text"], "edited");
+    s.doc.undo();
+    let got = pieces(&mut s, tb);
+    assert_eq!((got.len(), got[0]["shape"]["Text"]["text"].clone()), (1, json!("T1")));
+}

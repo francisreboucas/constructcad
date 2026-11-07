@@ -612,6 +612,7 @@ fn patch(state: &mut AppState, index: usize, key: Option<u64>, value: serde_json
         name: None,
         image_path: None,
         image: None,
+        add: Vec::new(),
     };
     let result = match key {
         Some(k) => state.session.run_merged(k, command),
@@ -660,7 +661,15 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
     });
     if let Some(name) = rename {
         let command =
-            ComponentSheetPieceSet { type_ref: t, index, piece: None, name: Some(name), image_path: None, image: None };
+            ComponentSheetPieceSet {
+                type_ref: t,
+                index,
+                piece: None,
+                name: Some(name),
+                image_path: None,
+                image: None,
+                add: Vec::new(),
+            };
         crate::actions::run_command(state, command);
     }
     if let SheetShape::Stroke { weight, color, fill, closed, .. } = &item.shape {
@@ -839,7 +848,12 @@ fn add_image(state: &mut AppState, planes: &[SheetPlane], corner: DVec2, size: D
         image_path: None,
         image: Some(cc_core::raster::base64_encode(&p.bytes)),
     };
-    let command = ComponentSheetPieceAdd { type_ref: crate::component_env::type_ref(state), piece, name: None };
+    let command = ComponentSheetPieceAdd {
+        type_ref: crate::component_env::type_ref(state),
+        piece: Some(piece),
+        pieces: Vec::new(),
+        name: None,
+    };
     let Some(out) = crate::actions::run_command(state, command) else { return false };
     if let Some(i) = out["index"].as_u64().and_then(|i| usize::try_from(i).ok()) {
         set_pick(state, vec![i]);
@@ -1012,7 +1026,12 @@ pub fn place_text(state: &mut AppState, planes: &[SheetPlane], at: DVec2) {
         anchor: None,
         rotation: None,
     };
-    let command = ComponentSheetPieceAdd { type_ref: crate::component_env::type_ref(state), piece, name: None };
+    let command = ComponentSheetPieceAdd {
+        type_ref: crate::component_env::type_ref(state),
+        piece: Some(piece),
+        pieces: Vec::new(),
+        name: None,
+    };
     if let Some(i) = crate::actions::run_command(state, command)
         .and_then(|o| o["index"].as_u64())
         .and_then(|i| usize::try_from(i).ok())
@@ -1368,11 +1387,13 @@ pub fn finish_stroke(state: &mut AppState) {
     let view = plane_view(&planes(&def, paper), 1.0);
     let extra = scope_extra(paper);
     let (edit, old) = ed.editing.clone().unzip();
+    // Chains are found on the curves in millimeters, the scale the strokes
+    // are written and checked at, so a join `chains` accepts also holds there.
+    let mm: Vec<SketchCurve> = session.curves.iter().map(|c| scaled(c, MM)).collect();
     let mut strokes = Vec::new();
-    for (n, (chain, closed)) in chains(&session.curves).into_iter().enumerate() {
-        let mm: Vec<SketchCurve> = chain.iter().map(|c| scaled(c, MM)).collect();
+    for (n, (chain, closed)) in chains(&mm).into_iter().enumerate() {
         let old: &[ProfilePoint] = if n == 0 { old.as_deref().unwrap_or(&[]) } else { &[] };
-        match crate::component_sketch::written(&def, &view, &mm, closed, old, &extra) {
+        match crate::component_sketch::written(&def, &view, &chain, closed, old, &extra) {
             Ok(points) => strokes.push((points, closed)),
             Err(e) => {
                 state.message = e;
@@ -1381,32 +1402,45 @@ pub fn finish_stroke(state: &mut AppState) {
         }
     }
     let t = crate::component_env::type_ref(state);
-    let mut picked = Vec::new();
-    for (n, (points, closed)) in strokes.into_iter().enumerate() {
-        let done = match edit.filter(|_| n == 0) {
-            Some(index) => {
-                let points: Vec<ProfilePoint> = points.iter().map(point_of).collect();
-                let patch = serde_json::json!({ "Stroke": { "points": points, "closed": closed } });
-                let command = ComponentSheetPieceSet {
-                    type_ref: t.clone(),
-                    index,
-                    piece: Some(patch),
-                    name: None,
-                    image_path: None,
-                    image: None,
-                };
-                crate::actions::run_command(state, command).map(|_| index)
-            }
-            None => {
-                let piece = SheetPieceArg::Stroke { points, closed, weight: None, color: None, fill: None };
-                crate::actions::run_command(state, ComponentSheetPieceAdd { type_ref: t.clone(), piece, name: None })
-                    .and_then(|o| o["index"].as_u64())
-                    .and_then(|i| usize::try_from(i).ok())
-            }
-        };
-        let Some(index) = done else { return };
-        picked.push(index);
-    }
+    let new = |(points, closed): (Vec<SketchPointArg>, bool)| SheetPieceArg::Stroke {
+        points,
+        closed,
+        weight: None,
+        color: None,
+        fill: None,
+    };
+    let indices = |out: &serde_json::Value, key: &str| -> Vec<usize> {
+        out[key].as_array().into_iter().flatten().filter_map(|i| i.as_u64()?.try_into().ok()).collect()
+    };
+    // One command, so finishing the sketch is one undo step.
+    let picked = match edit {
+        Some(index) => {
+            let mut strokes = strokes.into_iter();
+            let Some((points, closed)) = strokes.next() else { return };
+            let points: Vec<ProfilePoint> = points.iter().map(point_of).collect();
+            let command = ComponentSheetPieceSet {
+                type_ref: t,
+                index,
+                piece: Some(serde_json::json!({ "Stroke": { "points": points, "closed": closed } })),
+                name: None,
+                image_path: None,
+                image: None,
+                add: strokes.map(new).collect(),
+            };
+            let Some(out) = crate::actions::run_command(state, command) else { return };
+            std::iter::once(index).chain(indices(&out, "added")).collect()
+        }
+        None => {
+            let command = ComponentSheetPieceAdd {
+                type_ref: t,
+                piece: None,
+                pieces: strokes.into_iter().map(new).collect(),
+                name: None,
+            };
+            let Some(out) = crate::actions::run_command(state, command) else { return };
+            indices(&out, "indices")
+        }
+    };
     state.sketch = None;
     if let Some(env) = state.component_env.as_mut() {
         env.pick = Some(crate::component_env::Pick::Sheet(picked));
@@ -1439,17 +1473,11 @@ pub fn edit_stroke(state: &mut AppState, index: usize) {
     }
 }
 
-/// Delete pieces `list` (highest index first, so the others keep theirs).
+/// Delete pieces `list`, in one step.
 pub fn delete_pieces(state: &mut AppState, list: &[usize]) {
-    let t = crate::component_env::type_ref(state);
-    let mut list = list.to_vec();
-    list.sort_unstable();
-    list.dedup();
-    for index in list.into_iter().rev() {
-        let command = ComponentSheetPieceDelete { type_ref: t.clone(), index };
-        if crate::actions::run_command(state, command).is_none() {
-            break;
-        }
+    if !list.is_empty() {
+        let t = crate::component_env::type_ref(state);
+        crate::actions::run_command(state, ComponentSheetPieceDelete { type_ref: t, index: None, indices: list.to_vec() });
     }
     if let Some(env) = state.component_env.as_mut() {
         env.pick = None;
@@ -1829,6 +1857,61 @@ mod tests {
         // Delete removes the picked strokes.
         crate::component_env::delete_pick(&mut state);
         assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
+    }
+
+    #[test]
+    fn finishing_or_deleting_many_strokes_is_one_undo_step() {
+        use cc_core::sketch::SketchCurve;
+        let (mut state, _, _) = editor_state();
+        let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+        let depth = state.session.doc.undo_depth();
+        // Two chains: a frame and a separate line.
+        start_lines(&mut state);
+        let mut curves = rect((0.01, 0.01), (0.05, 0.03));
+        curves.push(SketchCurve::Line { a: DVec2::new(0.06, 0.01), b: DVec2::new(0.09, 0.01) });
+        state.sketch.as_mut().unwrap().curves = curves.clone();
+        crate::sketch_mode::finish(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before + 2);
+        assert_eq!(state.session.doc.undo_depth(), depth + 1, "two strokes, one step");
+        let picked = vec![before, before + 1];
+        assert_eq!(state.component_env.as_ref().unwrap().pick, Some(crate::component_env::Pick::Sheet(picked)));
+
+        // Edit Sketch of the first, then a third chain: the patch and the new stroke are one step.
+        edit_stroke(&mut state, before);
+        state.sketch.as_mut().unwrap().curves.push(SketchCurve::Line {
+            a: DVec2::new(0.06, 0.05),
+            b: DVec2::new(0.09, 0.05),
+        });
+        crate::sketch_mode::finish(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before + 3);
+        assert_eq!(state.session.doc.undo_depth(), depth + 2, "edited and added, one step");
+
+        // A window of three pieces is deleted in one step.
+        delete_pieces(&mut state, &[before, before + 2, before + 1]);
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
+        assert_eq!(state.session.doc.undo_depth(), depth + 3, "three deleted, one step");
+        state.session.doc.undo();
+        assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before + 3);
+    }
+
+    #[test]
+    fn a_join_the_sketch_accepts_holds_in_millimeters() {
+        use cc_core::sketch::SketchCurve;
+        let (mut state, _, _) = editor_state();
+        let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+        start_lines(&mut state);
+        // Two lines whose ends are 0.05 mm apart: within the sketch's join
+        // tolerance in paper meters, beyond it in millimeters.
+        let gap = cc_core::sketch::JOIN_TOL / 2.0;
+        state.sketch.as_mut().unwrap().curves = vec![
+            SketchCurve::Line { a: DVec2::new(0.01, 0.01), b: DVec2::new(0.05, 0.01) },
+            SketchCurve::Line { a: DVec2::new(0.05 + gap, 0.01), b: DVec2::new(0.05, 0.04) },
+        ];
+        crate::sketch_mode::finish(&mut state);
+        assert!(state.sketch.is_none(), "finished: {}", state.message);
+        assert!(crate::component_env::component(&state).unwrap().1.sheet.len() > before);
     }
 
     #[test]

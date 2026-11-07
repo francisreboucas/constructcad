@@ -2067,13 +2067,14 @@ No parameters.
 
 ### `component_sheet_piece_add`
 
-*edit* — Add a 2D piece to a title block component (every type of it).
+*edit* — Add 2D pieces to a title block component (every type of it), in one step.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `piece` | JSON | required | The piece, by `kind`: `stroke` (`points` as [{u, v, radius}], `closed`, `weight`, `color`, `fill`), `text` (`x`, `y`, `text` with `{fields}`, `size`, `anchor`: left, center, right or middle, `rotation`) or `image` (`x`, `y`, `width`, `height`, and `image_path` or base64 `image`). Millimeters from the paper's bottom-left corner, as numbers or expressions over the parameters, `SheetWidth` and `SheetHeight`. |
 | `type` | id or name | required | A type of the title block: id or name. |
-| `name` | string | optional | Name (default `Piece1`, `Piece2`…). |
+| `name` | string | optional | Name of the first piece added (default `Piece1`, `Piece2`…). |
+| `piece` | JSON | optional | The piece, by `kind`: `stroke` (`points` as [{u, v, radius}], `closed`, `weight`, `color`, `fill`), `text` (`x`, `y`, `text` with `{fields}`, `size`, `anchor`: left, center, right or middle, `rotation`) or `image` (`x`, `y`, `width`, `height`, and `image_path` or base64 `image`). Millimeters from the paper's bottom-left corner, as numbers or expressions over the parameters, `SheetWidth` and `SheetHeight`. |
+| `pieces` | [JSON, …] | optional | More pieces (each as `piece`), added after it in the same step: all of them or, when one is refused, none. |
 
 ### `component_sheet_piece_set`
 
@@ -2083,6 +2084,7 @@ No parameters.
 |---|---|---|---|
 | `index` | integer | required | The piece's index (in `component_get` `def.sheet`). |
 | `type` | id or name | required | A type of the title block: id or name. |
+| `add` | [JSON, …] | optional | Pieces added in the same step (each as `component_sheet_piece_add` `piece`; e.g. the other chains of a redrawn sketch); the result lists their indices in `added`. |
 | `image` | string | optional | A new picture for an image piece: its bytes, base64. |
 | `image_path` | string | optional | A new picture for an image piece: its file (PNG, JPEG, GIF, BMP or WebP). |
 | `name` | string | optional | New name. |
@@ -2090,12 +2092,13 @@ No parameters.
 
 ### `component_sheet_piece_delete`
 
-*edit* — Delete a 2D piece of a title block.
+*edit* — Delete 2D pieces of a title block, in one step.
 
 | Parameter | Type | | Description |
 |---|---|---|---|
-| `index` | integer | required | The piece's index (in `component_get` `def.sheet`). |
 | `type` | id or name | required | A type of the title block: id or name. |
+| `index` | integer | optional | The piece's index (in `component_get` `def.sheet`). |
+| `indices` | [id, …] | optional | More pieces' indices, deleted with `index` in the same step: all of them or, when one does not exist, none. |
 
 ## View graphics
 

@@ -279,7 +279,12 @@ mod tests {
         };
         state
             .session
-            .run(ComponentSheetPieceAdd { type_ref: Ref::Id(tb.0), piece, name: Some("Lost".into()) })
+            .run(ComponentSheetPieceAdd {
+                type_ref: Ref::Id(tb.0),
+                piece: Some(piece),
+                pieces: Vec::new(),
+                name: Some("Lost".into()),
+            })
             .unwrap();
         let message = title_block_error(&state).expect("an error");
         assert!(message.contains("Lost"), "{message}");
