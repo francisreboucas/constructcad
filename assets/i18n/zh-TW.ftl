@@ -2473,3 +2473,7 @@ tb-tool-lines = 線條
 cmd-desc-tb-lines = 繪製直線與圓弧作為圖框標題欄的線條；位於邊緣與參考平面上的點會跟著移動。
 why-title-block-editor = 請開啟圖框標題欄編輯器
 sketch-title-sheet = 草圖：圖框標題欄線條
+tb-hint-select = 按一下元素選取，拖曳視窗選取多個 · Delete 刪除 · 按兩下線條編輯其草圖
+tb-piece-stroke = 線條
+tb-fill = 填滿
+tb-closed = 封閉

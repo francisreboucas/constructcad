@@ -2473,3 +2473,7 @@ tb-tool-lines = Lignes
 cmd-desc-tb-lines = Esquisse des lignes et des arcs qui deviennent des traits du cartouche ; les points sur les bords et les plans de référence les suivent.
 why-title-block-editor = Ouvrez l'éditeur de cartouches
 sketch-title-sheet = Esquisse : lignes du cartouche
+tb-hint-select = Cliquez sur un élément pour le sélectionner, tracez une fenêtre pour plusieurs · Suppr supprime · double-clic sur un trait pour modifier son esquisse
+tb-piece-stroke = Trait
+tb-fill = Remplissage
+tb-closed = Fermé

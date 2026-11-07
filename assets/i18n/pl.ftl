@@ -2473,3 +2473,7 @@ tb-tool-lines = Linie
 cmd-desc-tb-lines = Szkicuje linie i łuki, które stają się kreskami tabliczki; punkty na krawędziach i płaszczyznach odniesienia podążają za nimi.
 why-title-block-editor = Otwórz edytor tabliczek
 sketch-title-sheet = Szkic: linie tabliczki
+tb-hint-select = Kliknij element, aby go zaznaczyć; przeciągnij okno, aby zaznaczyć kilka · Delete usuwa · dwuklik na kresce edytuje jej szkic
+tb-piece-stroke = Kreska
+tb-fill = Wypełnienie
+tb-closed = Zamknięty

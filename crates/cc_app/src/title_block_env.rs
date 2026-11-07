@@ -20,7 +20,7 @@ use crate::t;
 use crate::theme::{self, PALETTE};
 use cc_core::profile::ProfilePoint;
 use cc_core::sketch::SketchCurve;
-use cc_core::title_block::{SHEET_HEIGHT, SHEET_WIDTH};
+use cc_core::title_block::{SHEET_HEIGHT, SHEET_WIDTH, SheetPieces, SheetShape, SheetText, TextAnchor};
 use cc_core::{ComponentDef, ElementTypeId, PlaneAxis, SheetSize, TypeData, ViewId, ViewKind};
 use cc_engine::commands::component_piece::{ExprArg, SketchPointArg};
 use cc_engine::commands::sheets::{
@@ -350,6 +350,7 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
     for p in planes.iter().filter(|p| !p.edge && Some(&p.name) == picked_plane.as_ref()) {
         paint_plane(&painter, &mm, rect, p, true);
     }
+    paint_picked(&painter, &mm, &pieces, &picked(state));
     // An open sketch takes the clicks: its own points first, then the edges
     // and planes, then the millimeter.
     if let Some(mut s) = state.sketch.take() {
@@ -393,15 +394,260 @@ pub fn central(ui: &mut Ui, state: &mut AppState) {
             _ => {}
         },
         crate::component_env::EnvTool::Select => {
-            if clicked && let Some(p) = raw {
-                let hit =
-                    plane_at(&planes, p * MM, tol * MM).map(|q| crate::component_env::Pick::Plane(q.name.clone()));
+            let hover = raw.map(|p| p * MM);
+            let reach = tol * MM;
+            // A window from where the drag started.
+            if resp.drag_started_by(egui::PointerButton::Primary)
+                && let Some(origin) = ui.input(|i| i.pointer.press_origin())
+                && let Some(e) = editor_mut(state)
+            {
+                e.drag_from = Some(mm.to_world(origin));
+            }
+            if let (Some(a), Some(b)) = (editor(state).and_then(|e| e.drag_from), hover)
+                && resp.dragged_by(egui::PointerButton::Primary)
+            {
+                let r = Rect::from_two_pos(mm.to_screen(a), mm.to_screen(b));
+                painter.rect_stroke(r, 0.0, Stroke::new(1.0, PALETTE.accent), egui::StrokeKind::Middle);
+            }
+            if resp.drag_stopped_by(egui::PointerButton::Primary) {
+                let from = editor_mut(state).and_then(|e| e.drag_from.take());
+                if let (Some(a), Some(b)) = (from, hover) {
+                    set_pick(state, pieces_in(&pieces, a, b));
+                }
+            }
+            if resp.double_clicked_by(egui::PointerButton::Primary)
+                && let Some(i) = hover.and_then(|p| piece_at(&pieces, p, reach))
+                && matches!(def.sheet.get(i).map(|s| &s.shape), Some(SheetShape::Stroke { .. }))
+            {
+                edit_stroke(state, i);
+                return;
+            }
+            if clicked && let Some(p) = hover {
+                let hit = piece_at(&pieces, p, reach)
+                    .map(|i| crate::component_env::Pick::Sheet(vec![i]))
+                    .or_else(|| plane_at(&planes, p, reach).map(|q| crate::component_env::Pick::Plane(q.name.clone())));
                 if let Some(env) = state.component_env.as_mut() {
                     env.pick = hit;
                 }
             }
         }
         _ => {}
+    }
+}
+
+/// A text's extents (millimeters), estimated: 0.6 × its height per
+/// character and 1.5 × its height per line, from its anchor, turned.
+pub fn text_box(t: &SheetText) -> (DVec2, DVec2) {
+    let lines: Vec<&str> = t.text.lines().collect();
+    let n = lines.len().max(1) as f64;
+    let chars = lines.iter().map(|l| l.chars().count()).max().unwrap_or(0).max(1) as f64;
+    let (w, h) = (chars * 0.6 * t.size, t.size * (1.0 + 1.5 * (n - 1.0)));
+    let below = h - t.size;
+    let (x0, y0) = match t.anchor {
+        TextAnchor::Left => (0.0, -below),
+        TextAnchor::Center => (-w / 2.0, -below),
+        TextAnchor::Right => (-w, -below),
+        TextAnchor::Middle => (-w / 2.0, -h / 2.0),
+    };
+    let turn = DVec2::from_angle(t.rotation_deg.to_radians());
+    [DVec2::new(x0, y0), DVec2::new(x0 + w, y0), DVec2::new(x0, y0 + h), DVec2::new(x0 + w, y0 + h)]
+        .iter()
+        .map(|c| t.position + turn.rotate(*c))
+        .fold((DVec2::INFINITY, DVec2::NEG_INFINITY), |(lo, hi), c| (lo.min(c), hi.max(c)))
+}
+
+/// The segments of a resolved stroke.
+fn segments(points: &[DVec2], closed: bool) -> impl Iterator<Item = (DVec2, DVec2)> + '_ {
+    let n = points.len();
+    let count = if closed && n > 2 { n } else { n.saturating_sub(1) };
+    (0..count).filter_map(move |k| Some((*points.get(k)?, *points.get((k + 1) % n)?)))
+}
+
+/// The piece at `p` (millimeters): a text whose box holds it, else the
+/// nearest stroke within `tol`, else a picture under it.
+pub fn piece_at(pieces: &SheetPieces, p: DVec2, tol: f64) -> Option<usize> {
+    let inside =
+        |(lo, hi): (DVec2, DVec2)| p.cmpge(lo - DVec2::splat(tol)).all() && p.cmple(hi + DVec2::splat(tol)).all();
+    if let Some(t) = pieces.texts.iter().rev().find(|t| inside(text_box(t))) {
+        return Some(t.item);
+    }
+    let stroke = pieces
+        .strokes
+        .iter()
+        .flat_map(|s| segments(&s.points, s.closed).map(move |(a, b)| (s.item, a, b)))
+        .map(|(i, a, b)| (cc_geom::polygon::closest_on_segment(a, b, p).0.distance(p), i))
+        .filter(|(d, _)| *d <= tol)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, i)| i);
+    stroke.or_else(|| pieces.images.iter().rev().find(|im| inside((im.corner, im.corner + im.size))).map(|im| im.item))
+}
+
+/// The pieces wholly inside the window from `a` to `b` (millimeters), in order.
+pub fn pieces_in(pieces: &SheetPieces, a: DVec2, b: DVec2) -> Vec<usize> {
+    let (lo, hi) = (a.min(b), a.max(b));
+    let inside = |p: DVec2| p.cmpge(lo).all() && p.cmple(hi).all();
+    let texts = pieces.texts.iter().filter(|t| {
+        let (l, h) = text_box(t);
+        inside(l) && inside(h)
+    });
+    let mut out: Vec<usize> = pieces
+        .strokes
+        .iter()
+        .filter(|s| s.points.iter().all(|p| inside(*p)))
+        .map(|s| s.item)
+        .chain(texts.map(|t| t.item))
+        .chain(pieces.images.iter().filter(|i| inside(i.corner) && inside(i.corner + i.size)).map(|i| i.item))
+        .collect();
+    out.sort_unstable();
+    out.dedup();
+    out
+}
+
+/// Outline the picked pieces in the accent color: strokes along their
+/// segments, texts and pictures by their boxes.
+fn paint_picked(painter: &egui::Painter, mm: &Xf, pieces: &SheetPieces, picked: &[usize]) {
+    if picked.is_empty() {
+        return;
+    }
+    let line = Stroke::new(2.0, PALETTE.accent);
+    for s in pieces.strokes.iter().filter(|s| picked.contains(&s.item)) {
+        for (a, b) in segments(&s.points, s.closed) {
+            painter.line_segment([mm.to_screen(a), mm.to_screen(b)], line);
+        }
+    }
+    let texts = pieces.texts.iter().filter(|t| picked.contains(&t.item)).map(text_box);
+    let images = pieces.images.iter().filter(|i| picked.contains(&i.item)).map(|i| (i.corner, i.corner + i.size));
+    for (lo, hi) in texts.chain(images) {
+        let r = Rect::from_two_pos(mm.to_screen(lo), mm.to_screen(hi));
+        painter.rect_stroke(r, 0.0, Stroke::new(1.0, PALETTE.accent), egui::StrokeKind::Middle);
+    }
+}
+
+/// Change piece `index` with a merge patch over its shape (one undo step per `key`).
+fn patch(state: &mut AppState, index: usize, key: Option<u64>, value: serde_json::Value) -> bool {
+    let command = ComponentSheetPieceSet {
+        type_ref: crate::component_env::type_ref(state),
+        index,
+        piece: Some(value),
+        name: None,
+        image_path: None,
+        image: None,
+    };
+    let result = match key {
+        Some(k) => state.session.run_merged(k, command),
+        None => state.session.run(command),
+    };
+    match result {
+        Ok(_) => true,
+        Err(e) => {
+            state.message = e.message;
+            false
+        }
+    }
+}
+
+/// The picked pieces (none when a plane or nothing is picked).
+fn picked(state: &AppState) -> Vec<usize> {
+    match state.component_env.as_ref().and_then(|e| e.pick.clone()) {
+        Some(crate::component_env::Pick::Sheet(list)) => list,
+        _ => Vec::new(),
+    }
+}
+
+/// Pick pieces `list` (an empty list picks nothing).
+fn set_pick(state: &mut AppState, list: Vec<usize>) {
+    if let Some(env) = state.component_env.as_mut() {
+        env.pick = (!list.is_empty()).then_some(crate::component_env::Pick::Sheet(list));
+    }
+}
+
+/// A merge key for edits of one value.
+fn key(parts: impl std::hash::Hash) -> u64 {
+    use std::hash::Hasher;
+    let mut h = std::collections::hash_map::DefaultHasher::new();
+    parts.hash(&mut h);
+    h.finish()
+}
+
+/// The picked piece's values: name; a stroke's weight, color, fill and
+/// *Edit Sketch*.
+fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usize) {
+    let Some(item) = def.sheet.get(index).cloned() else { return };
+    let t = crate::component_env::type_ref(state);
+    let mut rename = None;
+    crate::table::row(ui, &t!("prop-name"), |ui| {
+        rename = crate::component_env::draft_field(ui, state, &format!("tb-piece-name:{index}"), &item.name, 150.0)
+    });
+    if let Some(name) = rename {
+        let command =
+            ComponentSheetPieceSet { type_ref: t, index, piece: None, name: Some(name), image_path: None, image: None };
+        crate::actions::run_command(state, command);
+    }
+    if let SheetShape::Stroke { weight, color, fill, closed, .. } = &item.shape {
+        crate::table::readonly_row(ui, &t!("tb-piece-stroke"), String::new());
+        if ui.button(t!("comp-edit-sketch")).clicked() {
+            edit_stroke(state, index);
+            return;
+        }
+        stroke_weight(ui, state, index, weight);
+        // Black is the default (no color stored).
+        let mut rgb = color.unwrap_or([0, 0, 0]);
+        let r = crate::table::row(ui, &t!("vg-color"), |ui| ui.color_edit_button_srgb(&mut rgb));
+        if r.changed() {
+            let value = if rgb == [0, 0, 0] { serde_json::Value::Null } else { serde_json::json!(rgb) };
+            patch(state, index, Some(key(("tb-color", index))), serde_json::json!({ "Stroke": { "color": value } }));
+        }
+        if r.drag_stopped() || r.lost_focus() || r.clicked_elsewhere() {
+            state.session.doc.break_merge();
+        }
+        crate::table::readonly_row(ui, &t!("tb-closed"), if *closed { "✓".into() } else { "—".into() });
+        if *closed {
+            let mut on = fill.is_some();
+            let mut rgb = fill.unwrap_or([220, 220, 220]);
+            let (toggled, r) = crate::table::row(ui, &t!("tb-fill"), |ui| {
+                ui.horizontal(|ui| (ui.checkbox(&mut on, "").changed(), ui.color_edit_button_srgb(&mut rgb))).inner
+            });
+            if toggled {
+                let value = if on { serde_json::json!(rgb) } else { serde_json::Value::Null };
+                patch(state, index, None, serde_json::json!({ "Stroke": { "fill": value } }));
+            } else if r.changed() {
+                // Dragging in the color picker is one undo step (and turns the fill on).
+                patch(state, index, Some(key(("tb-fill", index))), serde_json::json!({ "Stroke": { "fill": rgb } }));
+            }
+            if r.drag_stopped() || r.lost_focus() || r.clicked_elsewhere() {
+                state.session.doc.break_merge();
+            }
+        }
+    }
+}
+
+/// A stroke's pen width (millimeters): a number is dragged, one undo step
+/// per drag; an expression is typed.
+fn stroke_weight(ui: &mut Ui, state: &mut AppState, index: usize, weight: &str) {
+    let number = if weight.trim().is_empty() {
+        Some(cc_core::title_block::DEFAULT_WEIGHT)
+    } else {
+        weight.trim().parse::<f64>().ok().filter(|v| v.is_finite())
+    };
+    let Some(mut w) = number else {
+        let mut typed = None;
+        crate::table::row(ui, &t!("vg-weight"), |ui| {
+            typed = crate::component_env::draft_field(ui, state, &format!("tb-weight:{index}"), weight, 120.0)
+        });
+        if let Some(w) = typed {
+            patch(state, index, None, serde_json::json!({ "Stroke": { "weight": w } }));
+        }
+        return;
+    };
+    let r = crate::table::row(ui, &t!("vg-weight"), |ui| {
+        ui.add(egui::DragValue::new(&mut w).speed(0.01).range(0.01..=10.0).max_decimals(3).suffix(" mm"))
+    });
+    if r.changed() {
+        let value = serde_json::json!({ "Stroke": { "weight": format!("{w}") } });
+        patch(state, index, Some(key(("tb-weight", index))), value);
+    }
+    if r.drag_stopped() || r.lost_focus() {
+        state.session.doc.break_merge();
     }
 }
 
@@ -643,8 +889,6 @@ pub fn finish_stroke(state: &mut AppState) {
 }
 
 /// *Edit Sketch* of stroke `index`: its lines and arcs on the Sheet view.
-// Picking a stroke (the next task) opens it; until then only tests do.
-#[cfg_attr(not(test), allow(dead_code))]
 pub fn edit_stroke(state: &mut AppState, index: usize) {
     let Some((_, def)) = crate::component_env::component(state) else { return };
     let Some(ed) = editor(state) else { return };
@@ -744,6 +988,7 @@ pub fn options(ui: &mut Ui, state: &mut AppState) {
 fn hint(state: &AppState) -> String {
     match state.component_env.as_ref().map(|e| &e.tool) {
         Some(crate::component_env::EnvTool::RefPlane { .. }) => t!("tb-hint-plane"),
+        Some(crate::component_env::EnvTool::Select) => t!("tb-hint-select"),
         _ => t!("tb-hint-view"),
     }
 }
@@ -758,6 +1003,9 @@ pub fn panel_content(ui: &mut Ui, state: &mut AppState, name: &str, def: &Compon
     crate::table::section(ui, "tb-params", t!("comp-params"), |ui| params(ui, state, def));
     if let Some(crate::component_env::Pick::Plane(plane)) = state.component_env.as_ref().and_then(|e| e.pick.clone()) {
         crate::table::section(ui, "tb-plane", t!("comp-env-plane"), |ui| plane_props(ui, state, def, &plane));
+    }
+    if let [index] = picked(state)[..] {
+        crate::table::section(ui, "tb-piece", t!("comp-env-piece"), |ui| piece_props(ui, state, def, index));
     }
     crate::component_env::ref_problems(ui, def);
 }
@@ -1051,6 +1299,98 @@ mod tests {
         // Delete removes the picked strokes.
         crate::component_env::delete_pick(&mut state);
         assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
+    }
+
+    #[test]
+    fn pieces_are_picked_by_their_lines_boxes_and_windows() {
+        use cc_core::title_block::{SheetPieces, SheetStroke, SheetText, TextAnchor};
+        let pieces = SheetPieces {
+            strokes: vec![SheetStroke {
+                item: 0,
+                points: vec![DVec2::new(10.0, 10.0), DVec2::new(100.0, 10.0)],
+                closed: false,
+                weight: 0.25,
+                color: [0, 0, 0],
+                fill: None,
+            }],
+            texts: vec![SheetText {
+                item: 1,
+                position: DVec2::new(50.0, 50.0),
+                text: "ABCD".into(),
+                size: 5.0,
+                anchor: TextAnchor::Right,
+                rotation_deg: 0.0,
+            }],
+            ..Default::default()
+        };
+        assert_eq!(piece_at(&pieces, DVec2::new(40.0, 10.4), 1.0), Some(0));
+        // A right-aligned text runs left of its point: 4 × 0.6 × 5 = 12 mm.
+        assert_eq!(piece_at(&pieces, DVec2::new(42.0, 52.0), 0.5), Some(1));
+        assert_eq!(piece_at(&pieces, DVec2::new(58.0, 52.0), 0.5), None);
+        let (lo, hi) = text_box(&pieces.texts[0]);
+        assert!((lo.x - 38.0).abs() < 1e-9 && (hi.x - 50.0).abs() < 1e-9 && (hi.y - 55.0).abs() < 1e-9);
+        assert_eq!(pieces_in(&pieces, DVec2::new(0.0, 0.0), DVec2::new(120.0, 20.0)), vec![0]);
+        assert_eq!(pieces_in(&pieces, DVec2::new(120.0, 60.0), DVec2::new(0.0, 0.0)), vec![0, 1]);
+    }
+
+    /// The index of the first stroke of the open title block, and its weight as written.
+    fn first_stroke(state: &AppState) -> (usize, String) {
+        let (_, def) = crate::component_env::component(state).unwrap();
+        def.sheet
+            .iter()
+            .enumerate()
+            .find_map(|(i, s)| match &s.shape {
+                cc_core::title_block::SheetShape::Stroke { weight, .. } => Some((i, weight.clone())),
+                _ => None,
+            })
+            .unwrap()
+    }
+
+    #[test]
+    fn dragging_a_stroke_weight_is_one_undo_step() {
+        let (mut state, _, _) = editor_state();
+        let (index, before) = first_stroke(&state);
+        let depth = state.session.doc.undo_depth();
+        let k = key(("tb-weight", index));
+        for w in [0.3, 0.4, 0.5] {
+            assert!(patch(&mut state, index, Some(k), serde_json::json!({ "Stroke": { "weight": format!("{w}") } })));
+        }
+        state.session.doc.break_merge();
+        assert_eq!(first_stroke(&state).1, "0.5");
+        assert_eq!(state.session.doc.undo_depth(), depth + 1, "one undo step");
+        state.session.doc.undo();
+        assert_eq!(first_stroke(&state).1, before);
+        // Without a key each edit is its own step.
+        patch(&mut state, index, None, serde_json::json!({ "Stroke": { "weight": "0.3" } }));
+        patch(&mut state, index, None, serde_json::json!({ "Stroke": { "weight": "0.4" } }));
+        assert_eq!(state.session.doc.undo_depth(), depth + 2);
+    }
+
+    #[test]
+    fn a_null_color_patch_restores_black() {
+        let (mut state, _, _) = editor_state();
+        let (index, _) = first_stroke(&state);
+        assert!(patch(&mut state, index, None, serde_json::json!({ "Stroke": { "color": [255, 0, 0] } })));
+        let color = |state: &AppState| match &crate::component_env::component(state).unwrap().1.sheet[index].shape {
+            cc_core::title_block::SheetShape::Stroke { color, .. } => *color,
+            _ => panic!(),
+        };
+        assert_eq!(color(&state), Some([255, 0, 0]));
+        assert!(patch(&mut state, index, None, serde_json::json!({ "Stroke": { "color": null } })));
+        assert_eq!(color(&state), None);
+    }
+
+    #[test]
+    fn picking_selects_and_double_click_target_opens_the_sketch() {
+        let (mut state, _, _) = editor_state();
+        let (index, _) = first_stroke(&state);
+        set_pick(&mut state, vec![index]);
+        assert_eq!(picked(&state), vec![index]);
+        edit_stroke(&mut state, index);
+        assert!(is_sheet_sketch(&state));
+        set_pick(&mut state, Vec::new());
+        assert!(picked(&state).is_empty());
+        assert!(state.component_env.as_ref().unwrap().pick.is_none());
     }
 
     #[test]

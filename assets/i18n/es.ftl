@@ -2473,3 +2473,7 @@ tb-tool-lines = Líneas
 cmd-desc-tb-lines = Dibuja líneas y arcos que se convierten en trazos del rótulo; los puntos sobre los bordes y planos de referencia los siguen.
 why-title-block-editor = Abra el editor de rótulos
 sketch-title-sheet = Boceto: líneas del rótulo
+tb-hint-select = Haga clic en una pieza para seleccionarla; arrastre una ventana para varias · Supr elimina · doble clic en un trazo edita su boceto
+tb-piece-stroke = Trazo
+tb-fill = Relleno
+tb-closed = Cerrado

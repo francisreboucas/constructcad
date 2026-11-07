@@ -2473,3 +2473,7 @@ tb-tool-lines = 线条
 cmd-desc-tb-lines = 绘制直线和圆弧作为图签的线条；位于边缘和参照平面上的点随之移动。
 why-title-block-editor = 请打开图签编辑器
 sketch-title-sheet = 草图：图签线条
+tb-hint-select = 单击元素选择，拖出窗口选择多个 · Delete 删除 · 双击线条编辑其草图
+tb-piece-stroke = 线条
+tb-fill = 填充
+tb-closed = 闭合

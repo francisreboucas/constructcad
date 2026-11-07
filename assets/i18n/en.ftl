@@ -2473,3 +2473,7 @@ tb-tool-lines = Lines
 cmd-desc-tb-lines = Sketches lines and arcs that become strokes of the title block; points on the edges and reference planes follow them.
 why-title-block-editor = Open the title block editor
 sketch-title-sheet = Sketch: Title Block Lines
+tb-hint-select = Click a piece to select it, drag a window for several · Delete removes · double-click a stroke to edit its sketch
+tb-piece-stroke = Stroke
+tb-fill = Fill
+tb-closed = Closed

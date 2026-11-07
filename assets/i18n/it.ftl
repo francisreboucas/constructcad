@@ -2473,3 +2473,7 @@ tb-tool-lines = Linee
 cmd-desc-tb-lines = Disegna linee e archi che diventano tratti del cartiglio; i punti sui bordi e sui piani di riferimento li seguono.
 why-title-block-editor = Apri l'editor dei cartigli
 sketch-title-sheet = Schizzo: linee del cartiglio
+tb-hint-select = Fai clic su un pezzo per selezionarlo, trascina una finestra per più pezzi · Canc elimina · doppio clic su un tratto per modificarne lo schizzo
+tb-piece-stroke = Tratto
+tb-fill = Riempimento
+tb-closed = Chiuso

@@ -2473,3 +2473,7 @@ tb-tool-lines = Linien
 cmd-desc-tb-lines = Skizziert Linien und Bögen, die zu Strichen des Schriftfelds werden; Punkte auf Rändern und Referenzebenen folgen ihnen.
 why-title-block-editor = Öffnen Sie den Schriftfeld-Editor
 sketch-title-sheet = Skizze: Schriftfeldlinien
+tb-hint-select = Klicken Sie ein Teil an, um es zu wählen; ziehen Sie ein Fenster für mehrere · Entf löscht · Doppelklick auf einen Strich bearbeitet seine Skizze
+tb-piece-stroke = Strich
+tb-fill = Füllung
+tb-closed = Geschlossen

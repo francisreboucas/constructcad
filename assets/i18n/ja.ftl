@@ -2473,3 +2473,7 @@ tb-tool-lines = 線
 cmd-desc-tb-lines = 線と円弧をスケッチして表題欄の線にします。縁や参照面上の点はそれに追従します。
 why-title-block-editor = 表題欄エディターを開いてください
 sketch-title-sheet = スケッチ: 表題欄の線
+tb-hint-select = 要素をクリックで選択、窓をドラッグで複数選択 · Delete で削除 · 線をダブルクリックでスケッチを編集
+tb-piece-stroke = 線
+tb-fill = 塗りつぶし
+tb-closed = 閉じた
