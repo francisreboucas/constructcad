@@ -2280,4 +2280,41 @@ mod tests {
         assert_eq!(state.message, t!("tb-image-too-small"));
         assert_eq!(crate::component_env::component(&state).unwrap().1.sheet.len(), before);
     }
+
+    /// Edit Title Block, draw a rectangle, place a `{sheet_number}` text,
+    /// Finish: the sheet shows its number in the new text.
+    #[test]
+    fn a_title_block_drawn_in_the_editor_shows_on_its_sheet() {
+        let mut state = AppState::new(Document::new(crate::home::sample_project("casa_simples").unwrap()));
+        state.project_open = true;
+        state.show_home = false;
+        let sheet = state.project().sheets_in_order()[0];
+        state.active_view = Some(sheet);
+        let ctx = egui::Context::default();
+        crate::commands::run(&mut state, &ctx, crate::commands::UiCommand::EditTitleBlock);
+        assert!(is_open(&state));
+        crate::commands::run(&mut state, &ctx, crate::commands::UiCommand::TbLines);
+        state.sketch.as_mut().unwrap().curves = rect((0.02, 0.02), (0.1, 0.05));
+        crate::sketch_mode::finish(&mut state);
+        assert!(state.sketch.is_none(), "{}", state.message);
+        let (_, def) = crate::component_env::component(&state).unwrap();
+        let ps = planes(&def, paper(&state, Preview::Sheet(sheet)));
+        place_text(&mut state, &ps, DVec2::new(30.0, 30.0));
+        let Some(crate::component_env::Pick::Sheet(list)) = state.component_env.as_ref().unwrap().pick.clone() else {
+            panic!()
+        };
+        assert!(patch(&mut state, list[0], None, serde_json::json!({ "Text": { "text": "Nº {sheet_number}" } })));
+        crate::commands::run(&mut state, &ctx, crate::commands::UiCommand::CompFinish);
+        assert!(!is_open(&state));
+        let number = match &state.project().view(sheet).unwrap().kind {
+            ViewKind::Sheet { number, .. } => number.clone(),
+            _ => panic!("a sheet"),
+        };
+        let composed = state.sheet(sheet).unwrap();
+        let want = format!("Nº {number}");
+        assert!(
+            composed.drawing.prims.iter().any(|p| matches!(p, cc_views::Prim::Text { text, .. } if *text == want)),
+            "{want} not on the sheet"
+        );
+    }
 }

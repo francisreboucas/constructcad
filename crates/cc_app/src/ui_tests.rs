@@ -2314,3 +2314,53 @@ fn browser_menu_edits_a_sheets_title_block() {
     assert_eq!(ed.sheet, Some(sheet));
     assert_eq!(state.active_view, Some(sheet));
 }
+
+/// In the title block editor the ribbon's Text tool and a click on the
+/// paper add a text piece and pick it.
+#[test]
+fn the_text_tool_places_a_text_on_the_sheet() {
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let before = crate::component_env::component(&state).unwrap().1.sheet.len();
+    let mut harness = themed_harness(state, egui::vec2(1100.0, 800.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state);
+        crate::component_env::central(ui, state);
+    });
+    harness.run();
+    harness.get_by_label(&t!("tb-tool-text")).click();
+    harness.run();
+    let at = egui::pos2(550.0, 500.0);
+    harness.input_mut().events.push(egui::Event::PointerMoved(at));
+    for pressed in [true, false] {
+        harness.input_mut().events.push(egui::Event::PointerButton {
+            pos: at,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: egui::Modifiers::NONE,
+        });
+        harness.run();
+    }
+    let state = harness.state();
+    assert_eq!(crate::component_env::component(state).unwrap().1.sheet.len(), before + 1);
+    assert_eq!(state.component_env.as_ref().unwrap().pick, Some(crate::component_env::Pick::Sheet(vec![before])));
+}
+
+#[test]
+fn title_block_editor_snapshot() {
+    if !snapshots_requested() {
+        return;
+    }
+    let mut state = sample_state();
+    let sheet = state.project().sheets_in_order()[0];
+    state.active_view = Some(sheet);
+    crate::title_block_env::edit_sheet(&mut state, sheet);
+    let mut harness = themed_harness(state, egui::vec2(1100.0, 700.0), egui::Theme::Light, |ui, state| {
+        crate::component_env::ribbon(ui, state);
+        crate::component_env::options(ui, state);
+        crate::component_env::central(ui, state);
+    });
+    harness.run();
+    harness.snapshot("title_block_editor");
+}
