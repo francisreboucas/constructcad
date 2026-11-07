@@ -593,13 +593,9 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
         // Black is the default (no color stored).
         let mut rgb = color.unwrap_or([0, 0, 0]);
         let r = crate::table::row(ui, &t!("vg-color"), |ui| ui.color_edit_button_srgb(&mut rgb));
-        if r.changed() {
-            let value = if rgb == [0, 0, 0] { serde_json::Value::Null } else { serde_json::json!(rgb) };
-            patch(state, index, Some(key(("tb-color", index))), serde_json::json!({ "Stroke": { "color": value } }));
-        }
-        if r.drag_stopped() || r.lost_focus() || r.clicked_elsewhere() {
-            state.session.doc.break_merge();
-        }
+        let value =
+            r.changed().then(|| if rgb == [0, 0, 0] { serde_json::Value::Null } else { serde_json::json!(rgb) });
+        color_edit(state, index, "color", value, released(ui, &r));
         crate::table::readonly_row(ui, &t!("tb-closed"), if *closed { "✓".into() } else { "—".into() });
         if *closed {
             let mut on = fill.is_some();
@@ -610,14 +606,32 @@ fn piece_props(ui: &mut Ui, state: &mut AppState, def: &ComponentDef, index: usi
             if toggled {
                 let value = if on { serde_json::json!(rgb) } else { serde_json::Value::Null };
                 patch(state, index, None, serde_json::json!({ "Stroke": { "fill": value } }));
-            } else if r.changed() {
-                // Dragging in the color picker is one undo step (and turns the fill on).
-                patch(state, index, Some(key(("tb-fill", index))), serde_json::json!({ "Stroke": { "fill": rgb } }));
-            }
-            if r.drag_stopped() || r.lost_focus() || r.clicked_elsewhere() {
-                state.session.doc.break_merge();
+            } else {
+                // A color picked turns the fill on.
+                color_edit(state, index, "fill", r.changed().then(|| serde_json::json!(rgb)), released(ui, &r));
             }
         }
+    }
+}
+
+/// Whether an interaction with a color button ends this frame: the pointer
+/// let go (in its popup or anywhere) or the button lost the focus.
+fn released(ui: &Ui, r: &egui::Response) -> bool {
+    r.lost_focus() || ui.input(|i| i.pointer.any_released())
+}
+
+/// One frame of a stroke's color picker: `value` (when it changed) is
+/// patched into `field` under the field's merge key, and the merge ends
+/// only once the pointer is let go, after the patch, so a press and drag in
+/// the popup is one undo step and the next interaction starts another.
+fn color_edit(state: &mut AppState, index: usize, field: &str, value: Option<serde_json::Value>, released: bool) {
+    if let Some(value) = value {
+        let mut shape = serde_json::Map::new();
+        shape.insert(field.to_string(), value);
+        patch(state, index, Some(key(("tb-stroke", field, index))), serde_json::json!({ "Stroke": shape }));
+    }
+    if released {
+        state.session.doc.break_merge();
     }
 }
 
@@ -640,7 +654,9 @@ fn stroke_weight(ui: &mut Ui, state: &mut AppState, index: usize, weight: &str) 
         return;
     };
     let r = crate::table::row(ui, &t!("vg-weight"), |ui| {
-        ui.add(egui::DragValue::new(&mut w).speed(0.01).range(0.01..=10.0).max_decimals(3).suffix(" mm"))
+        // Only what the user enters is clamped: showing a weight never rewrites it.
+        let drag = egui::DragValue::new(&mut w).speed(0.01).range(0.01..=10.0).clamp_existing_to_range(false);
+        ui.add(drag.max_decimals(3).suffix(" mm"))
     });
     if r.changed() {
         let value = serde_json::json!({ "Stroke": { "weight": format!("{w}") } });
@@ -1363,6 +1379,109 @@ mod tests {
         // Without a key each edit is its own step.
         patch(&mut state, index, None, serde_json::json!({ "Stroke": { "weight": "0.3" } }));
         patch(&mut state, index, None, serde_json::json!({ "Stroke": { "weight": "0.4" } }));
+        assert_eq!(state.session.doc.undo_depth(), depth + 2);
+    }
+
+    /// A harness showing the properties of stroke `index` of the open title block.
+    fn props_harness(state: AppState, index: usize) -> egui_kittest::Harness<'static, AppState> {
+        egui_kittest::Harness::builder().with_size(egui::vec2(400.0, 600.0)).build_ui_state(
+            move |ui, state: &mut AppState| {
+                let Some((_, def)) = crate::component_env::component(state) else { return };
+                piece_props(ui, state, &def, index);
+            },
+            state,
+        )
+    }
+
+    /// Press at `from`, drag through `to` in a few frames, and let go there.
+    fn drag(harness: &mut egui_kittest::Harness<'static, AppState>, from: egui::Pos2, to: egui::Pos2) {
+        harness.drag_at(from);
+        harness.step();
+        for k in 1..=4 {
+            harness.hover_at(from + (to - from) * (k as f32 / 4.0));
+            harness.step();
+        }
+        harness.drop_at(to);
+        harness.run();
+    }
+
+    #[test]
+    fn each_drag_in_the_palette_is_one_undo_step() {
+        use egui::accesskit::Role;
+        use egui_kittest::kittest::Queryable;
+        let (state, _, _) = editor_state();
+        let (index, before) = first_stroke(&state);
+        let mut harness = props_harness(state, index);
+        harness.run();
+        let depth = harness.state().session.doc.undo_depth();
+
+        // The weight: two drags, two steps.
+        let spin = harness.get_by_role(Role::SpinButton).rect().center();
+        drag(&mut harness, spin, spin + egui::vec2(30.0, 0.0));
+        let after_one = first_stroke(harness.state()).1;
+        assert_ne!(after_one, before, "the drag changed the weight");
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "one drag, one step");
+        drag(&mut harness, spin, spin + egui::vec2(20.0, 0.0));
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 2, "the next drag is its own step");
+        harness.state_mut().session.doc.undo();
+        assert_eq!(first_stroke(harness.state()).1, after_one);
+
+        // The color: open the picker, then press and drag inside it: one step.
+        let depth = harness.state().session.doc.undo_depth();
+        let button = harness.query_all_by_role(Role::ColorWell).next().expect("the color button").rect();
+        harness.query_all_by_role(Role::ColorWell).next().expect("the color button").click();
+        harness.run();
+        assert_eq!(harness.state().session.doc.undo_depth(), depth, "opening the picker changes nothing");
+        // The popup's red value (the leftmost number below the button).
+        let red = harness
+            .query_all_by_role(Role::SpinButton)
+            .map(|n| n.rect())
+            .filter(|r| r.top() >= button.bottom())
+            .min_by(|a, b| a.left().total_cmp(&b.left()))
+            .expect("the picker's red value");
+        drag(&mut harness, red.center(), red.center() + egui::vec2(60.0, 0.0));
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 1, "press and drag in the picker, one step");
+        let color = match &crate::component_env::component(harness.state()).unwrap().1.sheet[index].shape {
+            cc_core::title_block::SheetShape::Stroke { color, .. } => *color,
+            _ => panic!(),
+        };
+        assert!(color.is_some(), "the drag picked a color");
+        // The picker's color plane (below the values and the current color)
+        // changes on the press: press and drag there is the next step, one only.
+        let plane = red.left_bottom() + egui::vec2(120.0, 140.0);
+        drag(&mut harness, plane, plane + egui::vec2(40.0, -40.0));
+        assert_eq!(harness.state().session.doc.undo_depth(), depth + 2, "the next press and drag, one more step");
+        let after = match &crate::component_env::component(harness.state()).unwrap().1.sheet[index].shape {
+            cc_core::title_block::SheetShape::Stroke { color, .. } => *color,
+            _ => panic!(),
+        };
+        assert_ne!(after, color, "the plane changed the color");
+    }
+
+    #[test]
+    fn showing_an_out_of_range_weight_keeps_it() {
+        let (mut state, _, _) = editor_state();
+        let (index, _) = first_stroke(&state);
+        assert!(patch(&mut state, index, None, serde_json::json!({ "Stroke": { "weight": "20" } })));
+        let depth = state.session.doc.undo_depth();
+        let mut harness = props_harness(state, index);
+        harness.run();
+        assert_eq!(first_stroke(harness.state()).1, "20");
+        assert_eq!(harness.state().session.doc.undo_depth(), depth);
+    }
+
+    #[test]
+    fn a_color_interaction_is_one_undo_step() {
+        // The frames of one press, drag and release in the picker, then a second one.
+        let (mut state, _, _) = editor_state();
+        let (index, _) = first_stroke(&state);
+        let depth = state.session.doc.undo_depth();
+        let frames = [(Some([10, 0, 0]), false), (Some([20, 0, 0]), false), (Some([30, 0, 0]), true)];
+        for (rgb, released) in frames {
+            color_edit(&mut state, index, "color", rgb.map(|c| serde_json::json!(c)), released);
+        }
+        assert_eq!(state.session.doc.undo_depth(), depth + 1);
+        color_edit(&mut state, index, "color", Some(serde_json::json!([40, 0, 0])), true);
         assert_eq!(state.session.doc.undo_depth(), depth + 2);
     }
 
